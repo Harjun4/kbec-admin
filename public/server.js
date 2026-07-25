@@ -1338,13 +1338,17 @@ app.post(['/api/reminders', '/reminders'], async (req, res) => {
         return res.status(400).json({ success: false, message: 'Judul agenda dan tanggal wajib diisi.' });
     }
     try {
+        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM reminders');
+        const nextId = (maxId || 0) + 1;
+
         await db.query(
-            'INSERT INTO reminders (title, date, time, location) VALUES (?, ?, ?, ?)',
-            [title, date, time || '', location || '']
+            'INSERT INTO reminders (id, title, date, time, location) VALUES (?, ?, ?, ?, ?)',
+            [nextId, title, date, time || '', location || '']
         );
         await logActivity('Admin Utama', `Tambah Agenda (${title})`, '-', 'Berhasil', 'text-blue-600 bg-blue-50');
-        res.status(201).json({ success: true });
+        res.status(201).json({ success: true, id: nextId });
     } catch (err) {
+        console.error('Error adding reminder:', err);
         res.status(500).json({ error: err.message });
     }
 });
