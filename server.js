@@ -502,6 +502,25 @@ async function ensureDbInitialized(req, res, next) {
 
 app.use(ensureDbInitialized);
 
+// Endpoint diagnosa database TiDB untuk Vercel
+app.get('/api/test-db', async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT COUNT(*) AS total_users FROM users');
+        res.json({
+            status: 'success',
+            message: 'Terhubung ke TiDB Cloud!',
+            db_host: process.env.DB_HOST || 'localhost',
+            total_users: rows[0].total_users
+        });
+    } catch (err) {
+        res.status(500).json({
+            status: 'error',
+            message: err.message,
+            db_host: process.env.DB_HOST || 'localhost'
+        });
+    }
+});
+
 // ==========================================
 // 2. ENDPOINTS UTAMA (REST API)
 // ==========================================
