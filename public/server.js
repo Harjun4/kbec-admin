@@ -696,12 +696,28 @@ app.post('/api/students', async (req, res) => {
             if (pRows.length > 0) validProgram = pRows[0].nama;
         }
 
+        let finalNama = nama.trim();
+        const [dupRows] = await db.query('SELECT id FROM students WHERE nama = ?', [finalNama]);
+        if (dupRows.length > 0) {
+            let count = 2;
+            let candidate = `${finalNama} ${count}`;
+            while (true) {
+                const [cRows] = await db.query('SELECT id FROM students WHERE nama = ?', [candidate]);
+                if (cRows.length === 0) {
+                    finalNama = candidate;
+                    break;
+                }
+                count++;
+                candidate = `${finalNama} ${count}`;
+            }
+        }
+
         await db.query(
             'INSERT INTO students (id, nama, alamat, kontak, program, level, status, initial, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [finalId, nama.trim(), alamat || '', kontak || '', validProgram, level || null, status || 'Aktif', initial || 'S', finalColor]
+            [finalId, finalNama, alamat || '', kontak || '', validProgram, level || null, status || 'Aktif', initial || 'S', finalColor]
         );
-        await logActivity(nama, 'Pendaftaran Siswa Baru', program || '-', 'Terverifikasi', 'text-blue-600 bg-blue-50');
-        res.status(201).json({ id: finalId, nama, alamat, kontak, program: validProgram, level, status, initial, color: finalColor });
+        await logActivity(finalNama, 'Pendaftaran Siswa Baru', validProgram || '-', 'Terverifikasi', 'text-blue-600 bg-blue-50');
+        res.status(201).json({ id: finalId, nama: finalNama, alamat, kontak, program: validProgram, level, status, initial, color: finalColor });
     } catch (err) {
         console.error('Error adding student:', err);
         res.status(500).json({ error: err.message });
