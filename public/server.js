@@ -520,13 +520,13 @@ async function seedDatabase() {
 
 
 // Endpoint diagnosa database TiDB untuk Vercel
-app.get('/api/test-db', async (req, res) => {
+app.get(['/api/test-db', '/test-db'], async (req, res) => {
     try {
         const [rows] = await db.query('SELECT COUNT(*) AS total_users FROM users');
         res.json({
             status: 'success',
             message: 'Terhubung ke TiDB Cloud!',
-            db_host: process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com',
+            db_host: (process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com').replace(/[\s\t\r\n]+/g, '').trim(),
             total_users: rows[0].total_users
         });
     } catch (err) {
@@ -534,7 +534,7 @@ app.get('/api/test-db', async (req, res) => {
         res.json({
             status: 'error',
             message: err.message,
-            db_host: process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com'
+            db_host: (process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com').replace(/[\s\t\r\n]+/g, '').trim()
         });
     }
 });
