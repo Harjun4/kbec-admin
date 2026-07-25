@@ -65,6 +65,7 @@ function requireAuth(req, res, next) {
 }
 
 
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -74,7 +75,11 @@ app.use((req, res, next) => {
 });
 app.use(cors());
 app.use(express.json());
-app.use(express.static('.')); // Menyajikan file HTML statis dari direktori saat ini
+app.use(express.static(path.join(__dirname))); // Menyajikan file HTML statis dari direktori saat ini
+
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 // Helper untuk hash password menggunakan SHA-256 + Salt
 function hashPassword(password) {
