@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="KBEC Course Management Admin System">
+    <title>KBEC Admin - Manajemen Pembayaran</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="global-user.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #F8FAFC;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(1rem);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .animate-slide-in {
+            animation: slideIn 0.25s ease-out forwards;
+        }
+    </style>
+</head>
+
+<body class="text-slate-700 flex min-h-screen select-none">
+
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-3 pointer-events-none"></div>
+
+    <div id="payment-modal"
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+        <div
+            class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform scale-95 transition-transform duration-300 border border-slate-100">
+            <div
+                class="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-50 text-[#0A58CA] p-2 rounded-xl">
+                        <i data-lucide="credit-card" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 id="modal-title-text" class="text-base font-extrabold text-slate-900">Input Pembayaran Baru</h3>
+                        <p id="modal-subtitle-text" class="text-[11px] text-slate-400 font-medium">Catat transaksi pembayaran kursus siswa</p>
+                    </div>
+                </div>
+                <button onclick="closePaymentModal()"
+                    class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <form id="payment-form" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 bg-white">
+                <div class="space-y-1.5">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nama Siswa</label>
+                    <input type="text" id="form-nama" list="student-datalist" oninput="handleStudentSelect()" required placeholder="Ketik nama atau ID siswa untuk mencari..."
+                        class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
+                    <datalist id="student-datalist"></datalist>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Program
+                            Kursus</label>
+                        <select id="form-program" onchange="handleProgramSelect()" required
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer font-medium font-semibold text-slate-700">
+                            <option value="" disabled selected>Pilih Program</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Metode
+                            Pembayaran</label>
+                        <select id="form-metode"
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer font-medium font-semibold text-slate-700">
+                            <option value="Transfer Bank">Transfer Bank</option>
+                            <option value="E-Wallet">E-Wallet</option>
+                            <option value="Tunai">Tunai</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Jumlah Pembayaran
+                            (Rp)</label>
+                        <input type="number" id="form-jumlah" required placeholder="Contoh: 1200000"
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-medium font-semibold text-slate-700">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</label>
+                        <select id="form-status"
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer font-medium font-semibold text-slate-700">
+                            <option value="Lunas">Lunas</option>
+                            <option value="Pending">Pending</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tanggal Transaksi</label>
+                        <input type="date" id="form-tanggal" required
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
+                    </div>
+                    <div class="space-y-1.5"></div>
+                </div>
+
+                <div class="pt-5 mt-2 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <button type="button" onclick="closePaymentModal()"
+                        class="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">Batal</button>
+                    <button type="submit"
+                        class="px-6 py-2.5 text-sm font-bold text-white bg-[#0A58CA] hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-500/20 transition-all">Simpan
+                        Transaksi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <aside
+        class="w-64 bg-white border-r border-slate-100 flex flex-col justify-between fixed h-full z-30 shadow-[4px_0_24px_rgba(0,0,0,0.01)]">
+        <div>
+            <div class="p-5 flex items-center gap-3">
+                <div class="bg-[#0A58CA] text-white p-2 rounded-xl flex items-center justify-center">
+                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-slate-900 text-sm leading-tight">KBEC Admin</h1>
+                    <p class="text-[10px] text-slate-400 font-medium">Course Management</p>
+                </div>
+            </div>
+
+            <nav class="px-3 py-2 space-y-0.5">
+                <a href="dashboard.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> <span>Dashboard</span>
+                </a>
+                <a href="siswa.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="users" class="w-4 h-4"></i> <span>Data Siswa</span>
+                </a>
+                <a href="pengajar.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="user-check" class="w-4 h-4"></i> <span>Data Pengajar</span>
+                </a>
+                <a href="kelas.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="book-open" class="w-4 h-4"></i> <span>Data Kelas</span>
+                </a>
+                <a href="program.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="layers" class="w-4 h-4"></i> <span>Program Kursus</span>
+                </a>
+                <a href="jadwal.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="calendar" class="w-4 h-4"></i> <span>Jadwal</span>
+                </a>
+                <a href="absensi.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="check-square" class="w-4 h-4"></i> <span>Absensi</span>
+                </a>
+                <a href="pembayaran.html"
+                    class="relative w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold rounded-xl bg-[#0A58CA]/5 text-[#0A58CA]">
+                    <span class="absolute left-0 top-2 bottom-2 w-1 bg-[#0A58CA] rounded-r-md"></span>
+                    <i data-lucide="credit-card" class="w-4 h-4"></i> <span>Pembayaran</span>
+                </a>
+                <a href="laporan.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="file-text" class="w-4 h-4"></i> <span>Laporan</span>
+                </a>
+
+                <hr class="border-slate-100 my-2 mx-4">
+                <a href="profile.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="user-cog" class="w-4 h-4"></i> <span>Manajemen User</span>
+                </a>
+                <a href="profile.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="user" class="w-4 h-4"></i> <span>Profile</span>
+                </a>
+            </nav>
+        </div>
+
+        <div class="p-4">
+            <a href="#" onclick="window.handleLogout(); return false;"
+                class="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                <i data-lucide="log-out" class="w-4 h-4 text-rose-500"></i> <span>Logout</span>
+            </a>
+        </div>
+    </aside>
+
+    <div class="flex-1 pl-0 lg:pl-64 flex flex-col min-h-screen w-full min-w-0 transition-all duration-300">
+
+        <header class="h-20 bg-[#F8FAFC] flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 border-b border-slate-100">
+            <div class="relative w-full max-w-[200px] sm:max-w-xs lg:w-72">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                <input type="text" id="search-data" oninput="filterDataPembayaran()"
+                    placeholder="Cari siswa atau No. Invoice..."
+                    class="w-full pl-9 pr-4 py-2 text-xs bg-slate-100 border border-transparent rounded-xl focus:outline-none focus:bg-white focus:border-slate-200 font-medium">
+            </div>
+
+            <div class="flex items-center gap-2 sm:gap-4">
+                <button onclick="alert('Tidak ada notifikasi')"
+                    class="relative text-slate-500 p-2 hover:bg-slate-50 rounded-xl transition-colors">
+                    <i data-lucide="bell" class="w-4 h-4"></i>
+                    <span class="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+                </button>
+                <a href="profile.html" title="Pengaturan Profile"
+                    class="text-slate-500 p-2 hover:bg-slate-50 rounded-xl transition-colors flex items-center justify-center">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                </a>
+
+                <div class="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-slate-100">
+                    <div class="text-right hidden sm:block">
+                        <h4 class="text-xs font-bold text-slate-900 leading-tight">Admin KBEC</h4>
+                        <p class="text-[9px] text-slate-400 font-bold tracking-wider uppercase">Super Administrator</p>
+                    </div>
+                    <div
+                        class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 border border-blue-200/20 flex items-center justify-center font-bold text-xs text-white shadow-sm">
+                        AK
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="px-4 sm:px-6 lg:px-8 pb-8 flex-1 flex flex-col">
+
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mt-6 mb-6">
+                <div>
+                    <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Manajemen Pembayaran</h2>
+                    <div class="flex items-center gap-1.5 text-xs text-slate-400 font-medium mt-1">
+                        <i data-lucide="home" class="w-3.5 h-3.5"></i>
+                        <a href="dashboard.html" class="hover:text-[#0A58CA] transition-colors">
+                            Dashboard
+                        </a>
+                        <i data-lucide="chevron-right" class="w-3 h-3"></i>
+                        <span class="text-blue-600 font-semibold">Pembayaran</span>
+                    </div>
+                </div>
+
+                <div
+                    class="bg-white p-3 rounded-2xl border border-slate-200/60 shadow-xs flex flex-wrap items-center gap-3">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-slate-400 mb-1 pl-1">Program Kursus</span>
+                        <select id="filter-program" onchange="filterDataPembayaran()"
+                            class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[150px] focus:outline-none focus:border-blue-500 transition-all cursor-pointer font-semibold text-slate-700">
+                            <option value="Semua">Semua Program</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-slate-400 mb-1 pl-1">Bulan</span>
+                        <select id="filter-bulan" onchange="filterDataPembayaran()"
+                            class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[120px] focus:outline-none focus:border-blue-500 transition-all cursor-pointer font-semibold text-slate-700">
+                            <option value="Semua">Semua Bulan</option>
+                            <option value="01">Januari</option>
+                            <option value="02">Februari</option>
+                            <option value="03">Maret</option>
+                            <option value="04">April</option>
+                            <option value="05">Mei</option>
+                            <option value="06">Juni</option>
+                            <option value="07">Juli</option>
+                            <option value="08">Agustus</option>
+                            <option value="09">September</option>
+                            <option value="10">Oktober</option>
+                            <option value="11">November</option>
+                            <option value="12">Desember</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-slate-400 mb-1 pl-1">Minggu</span>
+                        <select id="filter-minggu" onchange="filterDataPembayaran()"
+                            class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[130px] focus:outline-none focus:border-blue-500 transition-all cursor-pointer font-semibold text-slate-700">
+                            <option value="Semua">Semua Minggu</option>
+                            <option value="1">Minggu 1 (Tgl 1-7)</option>
+                            <option value="2">Minggu 2 (Tgl 8-14)</option>
+                            <option value="3">Minggu 3 (Tgl 15-21)</option>
+                            <option value="4">Minggu 4 (Tgl 22-31)</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-slate-400 mb-1 pl-1">Status Keuangan</span>
+                        <select id="filter-status" onchange="filterDataPembayaran()"
+                            class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[140px] focus:outline-none focus:border-blue-500 transition-all cursor-pointer font-semibold text-slate-700">
+                            <option value="Semua">Semua Status</option>
+                            <option value="Lunas">Lunas</option>
+                            <option value="Pending">Pending</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-6">
+
+                <div
+                    class="xl:col-span-2 bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-sm font-bold text-slate-800">Tren Pendapatan Mingguan</h3>
+                            <p class="text-[11px] text-slate-400 font-medium">Akumulasi total grafik pendapatan berjalan
+                            </p>
+                        </div>
+                        <span
+                            class="px-2.5 py-1 bg-blue-50 text-[#0A58CA] text-[10px] font-bold rounded-lg tracking-wider uppercase">Bulan
+                            Ini</span>
+                    </div>
+                    <div class="relative w-full h-56">
+                        <canvas id="revenueWeeklyChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-4">
+                    <div
+                        class="bg-gradient-to-br from-[#0A58CA] to-blue-700 p-5 rounded-2xl text-white shadow-md shadow-blue-600/10 flex flex-col justify-between flex-1">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[10px] font-bold tracking-wider uppercase opacity-80">Total Pendapatan
+                                lunas</span>
+                            <div class="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center">
+                                <i data-lucide="trending-up" class="w-4 h-4 text-white"></i>
+                            </div>
+                        </div>
+                        <div class="my-3">
+                            <h3 id="stat-total-lunas" class="text-2xl font-extrabold tracking-tight">Rp 0</h3>
+                            <p class="text-[11px] opacity-70 font-medium mt-0.5">Berhasil diverifikasi kasir</p>
+                        </div>
+                    </div>
+
+                    <div
+                        class="bg-white border border-slate-200/60 p-5 rounded-2xl shadow-xs flex items-center justify-between flex-1">
+                        <div class="space-y-1">
+                            <h3 id="stat-count-lunas" class="text-2xl font-extrabold text-slate-900">0</h3>
+                            <p class="text-[11px] text-slate-400 font-medium">Transaksi Sukses</p>
+                        </div>
+                        <div class="text-right">
+                            <span
+                                class="text-[10px] font-extrabold text-emerald-600 tracking-wider block mb-2">LUNAS</span>
+                            <div
+                                class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center ml-auto">
+                                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="bg-white border border-slate-200/60 p-5 rounded-2xl shadow-xs flex items-center justify-between flex-1">
+                        <div class="space-y-1">
+                            <h3 id="stat-count-pending" class="text-2xl font-extrabold text-slate-900">0</h3>
+                            <p class="text-[11px] text-slate-400 font-medium">Menunggu Pembayaran</p>
+                        </div>
+                        <div class="text-right">
+                            <span
+                                class="text-[10px] font-extrabold text-amber-600 tracking-wider block mb-2">PENDING</span>
+                            <div
+                                class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center ml-auto">
+                                <i data-lucide="clock" class="w-4 h-4"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div
+                class="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex-1 mb-6 flex flex-col justify-between">
+                <div>
+                    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-slate-800">Riwayat Transaksi Tagihan</h3>
+                        <div class="flex items-center gap-2">
+                            <button onclick="exportPaymentsCSV()"
+                                class="flex items-center gap-1.5 text-xs font-semibold text-slate-650 bg-white border border-slate-200 px-3 py-2 rounded-xl hover:bg-slate-50 shadow-xs transition-colors">
+                                <i data-lucide="download" class="w-3.5 h-3.5 text-slate-500"></i> Export CSV
+                            </button>
+                            <button onclick="exportPaymentsPDF()"
+                                class="flex items-center gap-1.5 text-xs font-semibold text-slate-650 bg-white border border-slate-200 px-3 py-2 rounded-xl hover:bg-slate-50 shadow-xs transition-colors">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-550"></i> Export PDF
+                            </button>
+                            <button onclick="openPaymentModal()"
+                                class="flex items-center gap-1.5 text-xs font-bold text-white bg-[#0A58CA] hover:bg-blue-700 px-4 py-2 rounded-xl shadow-md shadow-blue-500/10 transition-all">
+                                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Pembayaran
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr
+                                    class="bg-slate-50/50 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                    <th class="py-3 px-6 w-16 text-center">No</th>
+                                    <th class="py-3 px-6">No. Invoice</th>
+                                    <th class="py-3 px-6">Tanggal</th>
+                                    <th class="py-3 px-6">Nama Siswa</th>
+                                    <th class="py-3 px-6">Program Kursus</th>
+                                    <th class="py-3 px-6 text-right">Jumlah (Rp)</th>
+                                    <th class="py-3 px-6">Metode</th>
+                                    <th class="py-3 px-6 text-center">Status</th>
+                                    <th class="py-3 px-6 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payment-table-body"
+                                class="text-xs text-slate-600 font-medium divide-y divide-slate-50">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div
+                    class="px-6 py-4 bg-slate-50/40 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-semibold">
+                    <span id="showing-text">Showing 0 of 0 Invoices</span>
+                    <div class="flex items-center gap-1">
+                        <button
+                            class="w-7 h-7 flex items-center justify-center border border-slate-200 bg-white rounded-lg text-slate-400"><i
+                                data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button>
+                        <button
+                            class="w-7 h-7 flex items-center justify-center bg-[#0A58CA] text-white rounded-lg font-bold">1</button>
+                        <button
+                            class="w-7 h-7 flex items-center justify-center border border-slate-200 bg-white rounded-lg text-slate-400"><i
+                                data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <footer
+                class="pt-4 border-t border-slate-100 flex justify-between items-center text-[11px] font-medium text-slate-400 bg-transparent">
+                <p>© 2026 Kampung Bahasa English Course (KBEC). Hak cipta dilindungi undang-undang.</p>
+                <div class="flex gap-4">
+                    <a href="#" class="hover:text-slate-600 transition-colors">Kebijakan Privasi</a>
+                    <a href="#" class="hover:text-slate-600 transition-colors">Syarat Ketentuan</a>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <script>
+        // Master Data Transaksi Awal
+        const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
+        let paymentList = [];
+        let filteredPaymentList = [];
+        let studentsList = [];
+        let programsList = [];
+
+        async function fetchPayments() {
+            try {
+                const response = await fetch(`${API_BASE}/api/payments`);
+                paymentList = await response.json();
+                filteredPaymentList = paymentList;
+                hitungStatistik();
+                renderTable(paymentList);
+                updateChart(paymentList);
+            } catch (err) {
+                console.error(err);
+                showToast('Gagal memuat data transaksi dari database.', 'error');
+            }
+        }
+
+        async function fetchStudentsAndPrograms() {
+            try {
+                // 1. Ambil data semua siswa
+                const resStudents = await fetch(`${API_BASE}/api/students`);
+                studentsList = await resStudents.json();
+                
+                const datalist = document.getElementById('student-datalist');
+                datalist.innerHTML = '';
+                studentsList.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = `${s.nama} (${s.id})`;
+                    datalist.appendChild(opt);
+                });
+
+                // 2. Ambil data semua program kursus
+                const resPrograms = await fetch(`${API_BASE}/api/programs`);
+                programsList = await resPrograms.json();
+                
+                const programSelect = document.getElementById('form-program');
+                programSelect.innerHTML = '<option value="" disabled selected>Pilih Program</option>';
+                programsList.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.nama;
+                    opt.innerText = p.nama;
+                    programSelect.appendChild(opt);
+                });
+
+                // Sinkronkan filter program di pencarian
+                const filterProgram = document.getElementById('filter-program');
+                filterProgram.innerHTML = '<option value="Semua">Semua Program</option>';
+                programsList.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.nama;
+                    opt.innerText = p.nama;
+                    filterProgram.appendChild(opt);
+                });
+            } catch (err) {
+                console.error(err);
+                showToast('Gagal menyinkronkan data siswa dan program.', 'error');
+            }
+        }
+
+        // Sinkronkan program kursus & biaya saat siswa dipilih
+        function handleStudentSelect() {
+            const studentInput = document.getElementById('form-nama');
+            const inputVal = studentInput.value.trim();
+            
+            const student = studentsList.find(s => {
+                const checkStr = `${s.nama} (${s.id})`;
+                return checkStr === inputVal || s.nama === inputVal;
+            });
+            
+            if (!student) return;
+
+            const programSelect = document.getElementById('form-program');
+            programSelect.value = student.program || '';
+
+            handleProgramSelect();
+        }
+
+        // Sinkronkan biaya otomatis ketika program dipilih
+        function handleProgramSelect() {
+            const programSelect = document.getElementById('form-program');
+            const programName = programSelect.value;
+            
+            const program = programsList.find(p => p.nama === programName);
+            if (!program) return;
+
+            const jumlahInput = document.getElementById('form-jumlah');
+            if (jumlahInput) {
+                jumlahInput.value = program.biaya;
+            }
+        }
+
+        let revenueChartInstance = null;
+
+        window.onload = function () {
+            initChart();
+            fetchPayments();
+            fetchStudentsAndPrograms();
+        };
+
+        // Inisialisasi Chart Diagram Batang Pendapatan Mingguan (Chart.js)
+        function initChart() {
+            const ctx = document.getElementById('revenueWeeklyChart').getContext('2d');
+            revenueChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Minggu 1 (Tgl 1-7)', 'Minggu 2 (Tgl 8-14)', 'Minggu 3 (Tgl 15-21)', 'Minggu 4 (Tgl 22-31)'],
+                    datasets: [{
+                        label: 'Pendapatan Lunas (Rp)',
+                        data: [0, 0, 0, 0],
+                        backgroundColor: '#0A58CA',
+                        borderRadius: 8,
+                        borderSkipped: false,
+                        barThickness: 32,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    let value = context.raw || 0;
+                                    return 'Pendapatan: Rp ' + value.toLocaleString('id-ID');
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { family: 'Plus Jakarta Sans', size: 10, weight: '600' }, color: '#94A3B8' } },
+                        y: { 
+                            grid: { color: '#F1F5F9' }, 
+                            beginAtZero: true,
+                            ticks: { 
+                                font: { family: 'Plus Jakarta Sans', size: 10 }, 
+                                color: '#94A3B8', 
+                                callback: function (value) { 
+                                    if (value >= 1000000) return 'Rp ' + (value / 1000000) + 'jt';
+                                    if (value >= 1000) return 'Rp ' + (value / 1000) + 'rb';
+                                    return 'Rp ' + value; 
+                                } 
+                            } 
+                        }
+                    }
+                }
+            });
+        }
+
+        // Memperbarui grafik secara akurat berdasarkan dataset pembayaran Lunas
+        function updateChart(dataList) {
+            if (!revenueChartInstance) return;
+            
+            const list = dataList || filteredPaymentList || paymentList || [];
+            let w1 = 0, w2 = 0, w3 = 0, w4 = 0;
+
+            list.forEach(p => {
+                if (p.status === "Lunas" && p.tanggal) {
+                    const parts = p.tanggal.split('-');
+                    if (parts.length >= 3) {
+                        const dayPart = parseInt(parts[2], 10);
+                        const val = Number(p.jumlah) || 0;
+                        if (dayPart >= 1 && dayPart <= 7) w1 += val;
+                        else if (dayPart >= 8 && dayPart <= 14) w2 += val;
+                        else if (dayPart >= 15 && dayPart <= 21) w3 += val;
+                        else if (dayPart >= 22 && dayPart <= 31) w4 += val;
+                    }
+                }
+            });
+
+            revenueChartInstance.data.datasets[0].data = [w1, w2, w3, w4];
+            revenueChartInstance.update();
+        }
+
+        function hitungStatistik() {
+            const totalLunas = paymentList.filter(p => p.status === "Lunas").reduce((acc, curr) => acc + curr.jumlah, 0);
+            const countLunas = paymentList.filter(p => p.status === "Lunas").length;
+            const countPending = paymentList.filter(p => p.status === "Pending").length;
+
+            document.getElementById('stat-total-lunas').innerText = "Rp " + totalLunas.toLocaleString('id-ID');
+            document.getElementById('stat-count-lunas').innerText = countLunas;
+            document.getElementById('stat-count-pending').innerText = countPending;
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('payment-table-body');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-400">Data transaksi tidak ditemukan</td></tr>`;
+                document.getElementById('showing-text').innerText = "Showing 0 of 0 Invoices";
+                return;
+            }
+
+            document.getElementById('showing-text').innerText = `Showing ${data.length} of ${paymentList.length} Invoices`;
+
+            data.forEach((p, index) => {
+                const isLunas = p.status === "Lunas";
+                const badgeClass = isLunas ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100';
+
+                // Format tanggal pembayaran untuk display
+                let tglDisplay = '-';
+                if (p.tanggal) {
+                    const dateObj = new Date(p.tanggal);
+                    tglDisplay = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+                }
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50/50 transition-colors">
+                        <td class="py-3.5 px-6 text-center font-bold text-slate-400">${index + 1}</td>
+                        <td class="py-3.5 px-6 font-mono text-blue-600 font-bold tracking-wide">${p.id}</td>
+                        <td class="py-3.5 px-6 text-slate-550 font-bold">${tglDisplay}</td>
+                        <td class="py-3.5 px-6 font-bold text-slate-900">${p.nama}</td>
+                        <td class="py-3.5 px-6 font-semibold text-slate-500">${p.program}</td>
+                        <td class="py-3.5 px-6 text-right font-bold text-slate-800">Rp ${p.jumlah.toLocaleString('id-ID')}</td>
+                        <td class="py-3.5 px-6 font-semibold text-slate-600">${p.metode}</td>
+                        <td class="py-3.5 px-6 text-center">
+                            <span class="px-2.5 py-0.5 text-[10px] font-bold rounded-md border ${badgeClass}">${p.status}</span>
+                        </td>
+                        <td class="py-3.5 px-6">
+                            <div class="flex items-center justify-center gap-1">
+                                <button onclick="editPayment('${p.id}')" class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Edit Transaksi">
+                                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="deletePayment('${p.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Hapus Transaksi">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        // Fungsi Filter Berfungsi Penuh (Pencarian Kata Kunci, Program, Bulan, Minggu, dan Status Keuangan)
+        function filterDataPembayaran() {
+            const search = document.getElementById('search-data').value.toLowerCase();
+            const prog = document.getElementById('filter-program').value;
+            const bulan = document.getElementById('filter-bulan').value;
+            const minggu = document.getElementById('filter-minggu').value;
+            const stat = document.getElementById('filter-status').value;
+
+            const filtered = paymentList.filter(p => {
+                const cocokSearch = p.nama.toLowerCase().includes(search) || p.id.toLowerCase().includes(search);
+                const cocokProg = prog === "Semua" || p.program === prog;
+                const cocokStat = stat === "Semua" || p.status === stat;
+
+                // Filter Bulan
+                const monthPart = p.tanggal ? p.tanggal.split('-')[1] : '';
+                const cocokBulan = bulan === "Semua" || monthPart === bulan;
+
+                // Filter Minggu
+                const dayPart = p.tanggal ? parseInt(p.tanggal.split('-')[2]) : 0;
+                let weekNum = 0;
+                if (dayPart >= 1 && dayPart <= 7) weekNum = 1;
+                else if (dayPart >= 8 && dayPart <= 14) weekNum = 2;
+                else if (dayPart >= 15 && dayPart <= 21) weekNum = 3;
+                else if (dayPart >= 22 && dayPart <= 31) weekNum = 4;
+
+                const cocokMinggu = minggu === "Semua" || String(weekNum) === minggu;
+
+                return cocokSearch && cocokProg && cocokBulan && cocokMinggu && cocokStat;
+            });
+
+            filteredPaymentList = filtered;
+            renderTable(filtered);
+            updateChart(filtered);
+        }
+
+        function exportPaymentsCSV() {
+            if (filteredPaymentList.length === 0) {
+                showToast('Tidak ada data transaksi untuk diekspor!', 'error');
+                return;
+            }
+
+            const searchVal = document.getElementById('search-data').value;
+            const progVal = document.getElementById('filter-program').value;
+            const bulanSelect = document.getElementById('filter-bulan');
+            const bulanVal = bulanSelect.options[bulanSelect.selectedIndex].text;
+            const mingguSelect = document.getElementById('filter-minggu');
+            const mingguVal = mingguSelect.options[mingguSelect.selectedIndex].text;
+            const statVal = document.getElementById('filter-status').value;
+
+            let csvContent = "\uFEFF"; // BOM UTF-8
+            
+            // Metadata header
+            csvContent += `"Laporan Transaksi Pembayaran KBEC"\n`;
+            csvContent += `"Filter Program:","${progVal}"\n`;
+            csvContent += `"Filter Bulan:","${bulanVal}"\n`;
+            csvContent += `"Filter Minggu:","${mingguVal}"\n`;
+            csvContent += `"Filter Status:","${statVal}"\n`;
+            csvContent += `\n`;
+            
+            // Table headers
+            csvContent += "No,No. Invoice,Tanggal Pembayaran,Nama Siswa,Program Kursus,Jumlah (Rp),Metode,Status\n";
+
+            filteredPaymentList.forEach((p, index) => {
+                let tglFormatted = '-';
+                if (p.tanggal) {
+                    const dateObj = new Date(p.tanggal);
+                    tglFormatted = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+                }
+                const row = [
+                    index + 1,
+                    p.id,
+                    tglFormatted,
+                    p.nama,
+                    p.program,
+                    p.jumlah,
+                    p.metode,
+                    p.status
+                ].map(val => `"${val.toString().replace(/"/g, '""')}"`).join(",");
+                csvContent += row + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", `laporan_pembayaran_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Laporan CSV pembayaran berhasil diunduh!');
+        }
+
+        function exportPaymentsPDF() {
+            if (filteredPaymentList.length === 0) {
+                showToast('Tidak ada data transaksi untuk dicetak!', 'error');
+                return;
+            }
+
+            const printWindow = window.open('', '_blank');
+            
+            const progVal = document.getElementById('filter-program').value;
+            const bulanVal = document.getElementById('filter-bulan').options[document.getElementById('filter-bulan').selectedIndex].text;
+            const mingguVal = document.getElementById('filter-minggu').options[document.getElementById('filter-minggu').selectedIndex].text;
+            const statVal = document.getElementById('filter-status').value;
+            
+            let tableRows = filteredPaymentList.map((p, index) => {
+                let tglFormatted = '-';
+                if (p.tanggal) {
+                    const dateObj = new Date(p.tanggal);
+                    tglFormatted = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+                }
+                const badgeClass = p.status === 'Lunas' ? 'badge-lunas' : 'badge-pending';
+                return `
+                    <tr>
+                        <td style="text-align: center; font-weight: 600; color: #94a3b8;">${index + 1}</td>
+                        <td style="font-family: monospace; font-weight: 700; color: #2563eb;">${p.id}</td>
+                        <td style="color: #475569;">${tglFormatted}</td>
+                        <td style="font-weight: 700; color: #0f172a;">${p.nama}</td>
+                        <td style="color: #475569;">${p.program}</td>
+                        <td style="text-align: right; font-weight: 700; color: #0f172a;">Rp ${p.jumlah.toLocaleString('id-ID')}</td>
+                        <td style="color: #475569;">${p.metode}</td>
+                        <td style="text-align: center;">
+                            <span class="badge ${badgeClass}">${p.status}</span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            const totalAmount = filteredPaymentList.filter(p => p.status === 'Lunas').reduce((sum, p) => sum + p.jumlah, 0);
+
+            const html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Laporan Transaksi Pembayaran - KBEC</title>
+                    <style>
+                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+                        body {
+                            font-family: 'Inter', sans-serif;
+                            color: #1e293b;
+                            margin: 0;
+                            padding: 20px;
+                            font-size: 11px;
+                            line-height: 1.5;
+                        }
+                        .header {
+                            border-bottom: 2px solid #e2e8f0;
+                            padding-bottom: 15px;
+                            margin-bottom: 20px;
+                        }
+                        .title {
+                            font-size: 18px;
+                            font-weight: 700;
+                            color: #0f172a;
+                            margin: 0;
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                        }
+                        .subtitle {
+                            font-size: 10px;
+                            color: #64748b;
+                            margin: 5px 0 0 0;
+                            font-weight: 500;
+                        }
+                        .meta-grid {
+                            display: grid;
+                            grid-template-columns: repeat(4, 1fr);
+                            gap: 15px;
+                            margin-bottom: 20px;
+                            background-color: #f8fafc;
+                            border: 1px solid #e2e8f0;
+                            padding: 12px;
+                            border-radius: 8px;
+                        }
+                        .meta-item {
+                            display: flex;
+                            flex-direction: column;
+                        }
+                        .meta-label {
+                            font-size: 9px;
+                            text-transform: uppercase;
+                            color: #64748b;
+                            font-weight: 700;
+                            margin-bottom: 3px;
+                            letter-spacing: 0.5px;
+                        }
+                        .meta-value {
+                            font-size: 11px;
+                            font-weight: 600;
+                            color: #0f172a;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-bottom: 20px;
+                        }
+                        th, td {
+                            padding: 8px 10px;
+                            border-bottom: 1px solid #e2e8f0;
+                            text-align: left;
+                        }
+                        th {
+                            background-color: #f8fafc;
+                            color: #475569;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            font-size: 9px;
+                            letter-spacing: 0.5px;
+                        }
+                        .badge {
+                            display: inline-block;
+                            padding: 2px 6px;
+                            font-size: 9px;
+                            font-weight: 700;
+                            border-radius: 4px;
+                            text-transform: uppercase;
+                        }
+                        .badge-lunas { background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+                        .badge-pending { background-color: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+                        .footer {
+                            margin-top: 30px;
+                            border-top: 1px solid #e2e8f0;
+                            padding-top: 15px;
+                            display: flex;
+                            justify-content: space-between;
+                            font-size: 9px;
+                            color: #94a3b8;
+                        }
+                        .total-section {
+                            text-align: right;
+                            font-size: 13px;
+                            font-weight: 700;
+                            color: #0f172a;
+                            margin-top: 10px;
+                            padding-right: 10px;
+                        }
+                        @media print {
+                            body { padding: 0; }
+                            @page { margin: 1.5cm; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1 class="title">Laporan Transaksi Pembayaran</h1>
+                        <p class="subtitle">Kampung Bahasa English Course (KBEC) Management System</p>
+                    </div>
+                    
+                    <div class="meta-grid">
+                        <div class="meta-item">
+                            <span class="meta-label">Program:</span>
+                            <span class="meta-value">${progVal}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Bulan:</span>
+                            <span class="meta-value">${bulanVal}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Minggu:</span>
+                            <span class="meta-value">${mingguVal}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Status Tagihan:</span>
+                            <span class="meta-value">${statVal}</span>
+                        </div>
+                    </div>
+                    
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 30px; text-align: center;">No</th>
+                                <th style="width: 80px;">No. Invoice</th>
+                                <th style="width: 80px;">Tanggal</th>
+                                <th>Nama Siswa</th>
+                                <th>Program Kursus</th>
+                                <th style="width: 100px; text-align: right;">Jumlah</th>
+                                <th style="width: 80px;">Metode</th>
+                                <th style="width: 70px; text-align: center;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                    </table>
+
+                    <div class="total-section">
+                        Total Pemasukan (Filtered): Rp ${totalAmount.toLocaleString('id-ID')}
+                    </div>
+                    
+                    <div class="footer">
+                        <span>Dicetak oleh: Super Administrator</span>
+                        <span>Tanggal cetak: ${new Date().toLocaleString('id-ID')}</span>
+                    </div>
+                    
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                            setTimeout(function() { window.close(); }, 500);
+                        };
+                    <\/script>
+                </body>
+                </html>
+            `;
+            
+            printWindow.document.write(html);
+            printWindow.document.close();
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `flex items-center gap-3 bg-white border border-slate-100 p-4 rounded-xl shadow-lg pointer-events-auto min-w-[300px] animate-slide-in`;
+            const icon = type === 'success' ? '<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500"></i>' : '<i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i>';
+
+            toast.innerHTML = `<div class="flex items-center justify-center">${icon}</div><div class="flex-1"><p class="text-xs font-bold text-slate-900">${message}</p></div>`;
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+        let editModeId = null;
+
+        function openPaymentModal() {
+            editModeId = null;
+            document.getElementById('payment-form').reset();
+            
+            // Set default date to today
+            const todayStr = new Date().toISOString().slice(0, 10);
+            document.getElementById('form-tanggal').value = todayStr;
+            
+            document.getElementById('modal-title-text').innerText = 'Input Pembayaran Baru';
+            document.getElementById('modal-subtitle-text').innerText = 'Catat transaksi pembayaran kursus siswa';
+
+            const modal = document.getElementById('payment-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('div').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function editPayment(id) {
+            const p = paymentList.find(x => x.id === id);
+            if (!p) return;
+
+            editModeId = id;
+            
+            // Pre-fill form fields
+            // Set name to "Nama (ID)" format if student is found to match datalist options
+            const student = studentsList.find(s => s.nama === p.nama);
+            document.getElementById('form-nama').value = student ? `${student.nama} (${student.id})` : p.nama;
+            document.getElementById('form-program').value = p.program;
+            document.getElementById('form-metode').value = p.metode;
+            document.getElementById('form-jumlah').value = p.jumlah;
+            document.getElementById('form-status').value = p.status;
+            document.getElementById('form-tanggal').value = p.tanggal || '';
+
+            // Change modal title to edit
+            document.getElementById('modal-title-text').innerText = `Edit Transaksi: ${id}`;
+            document.getElementById('modal-subtitle-text').innerText = 'Ubah status atau detail nominal transaksi pembayaran';
+
+            // Open modal
+            const modal = document.getElementById('payment-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('div').classList.remove('scale-95');
+            }, 10);
+        }
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === "Escape") closePaymentModal();
+        });
+
+        function closePaymentModal() {
+            const modal = document.getElementById('payment-modal');
+            modal.classList.add('opacity-0');
+            modal.querySelector('div').classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            let nama = document.getElementById('form-nama').value.trim();
+            // Ekstrak nama saja dari "Nama (ID)"
+            if (nama.includes(' (')) {
+                nama = nama.split(' (')[0].trim();
+            }
+            const program = document.getElementById('form-program').value;
+            const metode = document.getElementById('form-metode').value;
+            const jumlah = parseInt(document.getElementById('form-jumlah').value);
+            const status = document.getElementById('form-status').value;
+            const tanggal = document.getElementById('form-tanggal').value;
+            
+            const url = editModeId ? `${API_BASE}/api/payments/${editModeId}` : `${API_BASE}/api/payments`;
+            const method = editModeId ? 'PUT' : 'POST';
+            const invoiceID = editModeId || `INV-${Date.now().toString().slice(-6)}${Math.floor(10 + Math.random() * 90)}`;
+
+            const payload = { id: invoiceID, nama, program, jumlah, metode, status, tanggal };
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error();
+                showToast(editModeId ? `Transaksi "${editModeId}" berhasil diperbarui.` : `Transaksi "${invoiceID}" berhasil disimpan.`);
+                closePaymentModal();
+                await fetchPayments();
+            } catch (err) {
+                console.error(err);
+                showToast(editModeId ? 'Gagal memperbarui transaksi.' : 'Gagal menyimpan transaksi ke database.', 'error');
+            }
+        }
+
+        async function deletePayment(id) {
+            if (confirm(`Apakah Anda yakin ingin menghapus arsip transaksi ${id}?`)) {
+                try {
+                    const res = await fetch(`${API_BASE}/api/payments/${id}`, {
+                        method: 'DELETE'
+                    });
+                    if (!res.ok) throw new Error();
+                    showToast(`Data transaksi "${id}" telah dihapus.`, 'error');
+                    await fetchPayments();
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal menghapus transaksi dari database.', 'error');
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

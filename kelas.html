@@ -1,0 +1,875 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="KBEC Course Management Admin System">
+    <title>KBEC Admin - Manajemen Data Kelas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="global-user.js"></script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #F8FAFC;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(1rem);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .animate-slide-in {
+            animation: slideIn 0.25s ease-out forwards;
+        }
+    </style>
+</head>
+
+<body class="text-slate-700 flex min-h-screen select-none">
+
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-3 pointer-events-none"></div>
+
+    <div id="class-modal"
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+        <div
+            class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform scale-95 transition-transform duration-300 border border-slate-100">
+            <div
+                class="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-50 text-[#0A58CA] p-2 rounded-xl">
+                        <i data-lucide="book-open" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-extrabold text-slate-900">Tambah Kelas Baru</h3>
+                        <p class="text-[11px] text-slate-400 font-medium">Bentuk kelompok belajar, kapasitas, dan
+                            instruktur baru</p>
+                    </div>
+                </div>
+                <button onclick="closeClassModal()"
+                    class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <form id="class-form" onsubmit="handleFormSubmit(event)" class="p-6 space-y-4 bg-white">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nama Kelas</label>
+                        <input type="text" id="form-nama" required placeholder="Contoh: Class A - Morning"
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-medium">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Program
+                            Kursus</label>
+                        <select id="form-program" required
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer font-medium">
+                            <option value="" disabled selected>Pilih Program Kursus</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nama
+                            Pengajar</label>
+                        <select id="form-pengajar" required
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer font-medium">
+                            <option value="" disabled selected>Pilih Pengajar</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Kapasitas
+                            Maksimal</label>
+                        <input type="number" id="form-kapasitas" required placeholder="Contoh: 20"
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-medium">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Hari Belajar</label>
+                        <select id="form-hari" required
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer font-medium font-semibold text-slate-700">
+                            <option value="" disabled selected>Pilih Hari / Serial Belajar</option>
+                            <option value="Serial 1">Serial 1 (Senin, Rabu, Jumat)</option>
+                            <option value="Serial 2">Serial 2 (Selasa, Kamis, Sabtu)</option>
+                            <option value="Senin">Senin</option>
+                            <option value="Selasa">Selasa</option>
+                            <option value="Rabu">Rabu</option>
+                            <option value="Kamis">Kamis</option>
+                            <option value="Jumat">Jumat</option>
+                            <option value="Sabtu">Sabtu</option>
+                            <option value="Minggu">Minggu</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Jam Mulai</label>
+                        <input type="text" id="form-mulai" required placeholder="08:00"
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-medium text-center">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Jam Selesai</label>
+                        <input type="text" id="form-selesai" required placeholder="09:30"
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-medium text-center">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tipe Belajar</label>
+                        <select id="form-tipe" required
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer font-medium font-semibold text-slate-700">
+                            <option value="Tatap Muka" selected>Tatap Muka</option>
+                            <option value="Daring (Online)">Daring (Online)</option>
+                        </select>
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Ruang Kelas / Link</label>
+                        <input type="text" id="form-ruang" required placeholder="Contoh: Ruang Teori 1"
+                            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-medium">
+                    </div>
+                </div>
+
+                <div class="pt-5 mt-2 border-t border-slate-100 flex items-center justify-end gap-3">
+                    <button type="button" onclick="closeClassModal()"
+                        class="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">Batal</button>
+                    <button type="submit"
+                        class="px-6 py-2.5 text-sm font-bold text-white bg-[#0A58CA] hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-500/20 transition-all">Simpan
+                        Kelas</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Kelola Anggota Siswa Kelas -->
+    <div id="class-students-modal"
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+        <div
+            class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden transform scale-95 transition-transform duration-300 border border-slate-100 flex flex-col max-h-[90vh]">
+            <div
+                class="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-slate-50 to-white">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-50 text-[#0A58CA] p-2 rounded-xl">
+                        <i data-lucide="users" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-extrabold text-slate-900">Kelola Siswa Kelas</h3>
+                        <p id="class-students-title" class="text-[11px] text-slate-400 font-medium">Kelas: -</p>
+                    </div>
+                </div>
+                <button onclick="closeClassStudentsModal()"
+                    class="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 transition-colors">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+
+            <!-- Form Tambah Siswa ke Kelas -->
+            <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex gap-3 items-end">
+                <div class="flex-1 space-y-1.5">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tambah Siswa ke Kelas</label>
+                    <input type="text" id="class-add-student-input" list="student-datalist" placeholder="Ketik nama atau ID siswa untuk mencari..."
+                        class="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 transition-all font-semibold text-slate-700">
+                    <datalist id="student-datalist"></datalist>
+                </div>
+                <button onclick="addStudentToClass()"
+                    class="px-5 py-2.5 text-sm font-bold text-white bg-[#0A58CA] hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-500/10 transition-all flex items-center gap-1.5 h-[42px]">
+                    <i data-lucide="user-plus" class="w-4 h-4"></i> Tambah
+                </button>
+            </div>
+
+            <!-- Daftar Siswa Aktif di Kelas -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-3">
+                <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Siswa Terdaftar</h4>
+                <div class="border border-slate-100 rounded-xl overflow-hidden">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50/80 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                <th class="py-2.5 px-4 w-12 text-center">No</th>
+                                <th class="py-2.5 px-4">Nama Siswa</th>
+                                <th class="py-2.5 px-4">Program / Level</th>
+                                <th class="py-2.5 px-4 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="class-students-table-body" class="text-xs font-semibold text-slate-600 divide-y divide-slate-50">
+                            <!-- Diisi dinamis -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+                <button onclick="closeClassStudentsModal()"
+                    class="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">Selesai</button>
+            </div>
+        </div>
+    </div>
+
+    <aside
+        class="w-64 bg-white border-r border-slate-100 flex flex-col justify-between fixed h-full z-30 shadow-[4px_0_24px_rgba(0,0,0,0.01)]">
+        <div>
+            <div class="p-5 flex items-center gap-3">
+                <div class="bg-[#0A58CA] text-white p-2 rounded-xl flex items-center justify-center">
+                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-slate-900 text-sm leading-tight">KBEC Admin</h1>
+                    <p class="text-[10px] text-slate-400 font-medium">Course Management</p>
+                </div>
+            </div>
+
+            <nav class="px-3 py-2 space-y-0.5">
+                <a href="dashboard.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> <span>Dashboard</span>
+                </a>
+                <a href="siswa.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="users" class="w-4 h-4"></i> <span>Data Siswa</span>
+                </a>
+                <a href="pengajar.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="user-check" class="w-4 h-4"></i> <span>Data Pengajar</span>
+                </a>
+                <a href="kelas.html"
+                    class="relative w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold rounded-xl bg-[#0A58CA]/5 text-[#0A58CA]">
+                    <span class="absolute left-0 top-2 bottom-2 w-1 bg-[#0A58CA] rounded-r-md"></span>
+                    <i data-lucide="book-open" class="w-4 h-4"></i> <span>Data Kelas</span>
+                </a>
+                <a href="program.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="layers" class="w-4 h-4"></i> <span>Program Kursus</span>
+                </a>
+                <a href="jadwal.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="calendar" class="w-4 h-4"></i> <span>Jadwal</span>
+                </a>
+                <a href="absensi.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="check-square" class="w-4 h-4"></i> <span>Absensi</span>
+                </a>
+                <a href="pembayaran.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="credit-card" class="w-4 h-4"></i> <span>Pembayaran</span>
+                </a>
+                <a href="laporan.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="file-text" class="w-4 h-4"></i> <span>Laporan</span>
+                </a>
+
+                <hr class="border-slate-100 my-2 mx-4">
+                <a href="profile.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="user-cog" class="w-4 h-4"></i> <span>Manajemen User</span>
+                </a>
+                <a href="profile.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="user" class="w-4 h-4"></i> <span>Profile</span>
+                </a>
+            </nav>
+        </div>
+
+        <div class="p-4">
+            <a href="#" onclick="window.handleLogout(); return false;"
+                class="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                <i data-lucide="log-out" class="w-4 h-4 text-rose-500"></i> <span>Logout</span>
+            </a>
+        </div>
+    </aside>
+
+    <div class="flex-1 pl-0 lg:pl-64 flex flex-col min-h-screen w-full min-w-0 transition-all duration-300">
+
+        <header class="h-20 bg-[#F8FAFC] flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 border-b border-slate-100">
+            <div class="relative w-full max-w-[200px] sm:max-w-xs lg:w-72">
+                <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                <input type="text" id="search-data" oninput="filterDataKelas()"
+                    placeholder="Cari data kelas atau pengajar..."
+                    class="w-full pl-9 pr-4 py-2 text-xs bg-slate-100 border border-transparent rounded-xl focus:outline-none focus:bg-white focus:border-slate-200 font-medium">
+            </div>
+
+            <div class="flex items-center gap-2 sm:gap-4">
+                <button onclick="alert('Tidak ada notifikasi')"
+                    class="relative text-slate-500 p-2 hover:bg-slate-50 rounded-xl transition-colors">
+                    <i data-lucide="bell" class="w-4 h-4"></i>
+                    <span class="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-600 rounded-full"></span>
+                </button>
+                <a href="profile.html" title="Pengaturan Profile"
+                    class="text-slate-500 p-2 hover:bg-slate-50 rounded-xl transition-colors flex items-center justify-center">
+                    <i data-lucide="settings" class="w-4 h-4"></i>
+                </a>
+
+                <div class="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-slate-100">
+                    <div class="text-right hidden sm:block">
+                        <h4 class="text-xs font-bold text-slate-900 leading-tight">Admin KBEC</h4>
+                        <p class="text-[9px] text-slate-400 font-bold tracking-wider uppercase">Super Administrator</p>
+                    </div>
+                    <div
+                        class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 border border-blue-200/20 flex items-center justify-center font-bold text-xs text-white shadow-sm">
+                        AK
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="px-4 sm:px-6 lg:px-8 pb-8 flex-1 flex flex-col">
+
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mt-6 mb-6">
+                <div>
+                    <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Data Kelas</h2>
+                    <div class="flex items-center gap-1.5 text-xs text-slate-400 font-medium mt-1">
+                        <i data-lucide="home" class="w-3.5 h-3.5"></i>
+                        <a href="dashboard.html" class="hover:text-[#0A58CA] transition-colors">
+                            Dashboard
+                        </a>
+                        <i data-lucide="chevron-right" class="w-3 h-3"></i>
+                        <span class="text-blue-600 font-semibold">Data Kelas</span>
+                    </div>
+                </div>
+
+                <div
+                    class="bg-white p-3 rounded-2xl border border-slate-200/60 shadow-xs flex flex-wrap items-center gap-3">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-slate-400 mb-1 pl-1">Program Kursus</span>
+                        <select id="filter-program" onchange="filterDataKelas()"
+                            class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[150px] focus:outline-none focus:border-blue-500 transition-all cursor-pointer">
+                            <option value="Semua">Semua Program</option>
+                            <option value="General English">General English</option>
+                            <option value="Special Prep">Special Prep</option>
+                            <option value="Business English">Business English</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col">
+                        <span class="text-[10px] font-bold text-slate-400 mb-1 pl-1">Status Kapasitas</span>
+                        <select id="filter-status" onchange="filterDataKelas()"
+                            class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[140px] focus:outline-none focus:border-blue-500 transition-all cursor-pointer">
+                            <option value="Semua">Semua Status</option>
+                            <option value="Tersedia">Tersedia</option>
+                            <option value="Penuh">Penuh</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div
+                    class="bg-white border border-slate-100 p-5 rounded-2xl shadow-xs flex items-center justify-between">
+                    <div class="space-y-1">
+                        <h3 id="stat-total" class="text-2xl font-extrabold text-slate-900">0</h3>
+                        <p class="text-[11px] text-slate-400 font-medium">Total Rombel</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[10px] font-extrabold text-blue-600 tracking-wider block mb-2">KELAS</span>
+                        <div
+                            class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center ml-auto">
+                            <i data-lucide="book-open" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                </div>
+                <div
+                    class="bg-white border border-slate-100 p-5 rounded-2xl shadow-xs flex items-center justify-between">
+                    <div class="space-y-1">
+                        <h3 id="stat-aktif" class="text-2xl font-extrabold text-slate-900">0</h3>
+                        <p class="text-[11px] text-slate-400 font-medium">Kelas Tersedia</p>
+                    </div>
+                    <div class="text-right">
+                        <span
+                            class="text-[10px] font-extrabold text-emerald-600 tracking-wider block mb-2">TERSEDIA</span>
+                        <div
+                            class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center ml-auto">
+                            <i data-lucide="check" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                </div>
+                <div
+                    class="bg-white border border-slate-100 p-5 rounded-2xl shadow-xs flex items-center justify-between">
+                    <div class="space-y-1">
+                        <h3 id="stat-penuh" class="text-2xl font-extrabold text-slate-900">0</h3>
+                        <p class="text-[11px] text-slate-400 font-medium">Kelas Penuh</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[10px] font-extrabold text-rose-600 tracking-wider block mb-2">PENUH</span>
+                        <div
+                            class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center ml-auto">
+                            <i data-lucide="lock" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                </div>
+                <div
+                    class="bg-white border border-slate-100 p-5 rounded-2xl shadow-xs flex items-center justify-between">
+                    <div class="space-y-1">
+                        <h3 id="stat-siswa" class="text-2xl font-extrabold text-slate-900">54</h3>
+                        <p class="text-[11px] text-slate-400 font-medium">Siswa Aktif</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[10px] font-extrabold text-amber-600 tracking-wider block mb-2">TERISI</span>
+                        <div
+                            class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center ml-auto">
+                            <i data-lucide="users" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                class="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden flex-1 mb-6 flex flex-col justify-between">
+                <div>
+                    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-slate-800">Daftar Manajemen Ruang Kelas</h3>
+                        <button onclick="openClassModal()"
+                            class="flex items-center gap-1.5 text-xs font-bold text-white bg-[#0A58CA] hover:bg-blue-700 px-4 py-2 rounded-xl shadow-md shadow-blue-500/10 transition-all">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Kelas
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr
+                                    class="bg-slate-50/50 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                    <th class="py-3 px-6 w-16 text-center">No</th>
+                                    <th class="py-3 px-6">Nama Kelas</th>
+                                    <th class="py-3 px-6">Program Kursus</th>
+                                    <th class="py-3 px-6">Nama Pengajar</th>
+                                    <th class="py-3 px-6 text-center">Rasio Siswa</th>
+                                    <th class="py-3 px-6">Hari & Jam</th>
+                                    <th class="py-3 px-6 text-center">Status</th>
+                                    <th class="py-3 px-6 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kelas-table-body"
+                                class="text-xs text-slate-600 font-medium divide-y divide-slate-50">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div
+                    class="px-6 py-4 bg-slate-50/40 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 font-semibold">
+                    <span id="showing-text">Showing 0 of 0 Classes</span>
+                    <div class="flex items-center gap-1">
+                        <button
+                            class="w-7 h-7 flex items-center justify-center border border-slate-200 bg-white rounded-lg text-slate-400"><i
+                                data-lucide="chevron-left" class="w-3.5 h-3.5"></i></button>
+                        <button
+                            class="w-7 h-7 flex items-center justify-center bg-[#0A58CA] text-white rounded-lg font-bold">1</button>
+                        <button
+                            class="w-7 h-7 flex items-center justify-center border border-slate-200 bg-white rounded-lg text-slate-400"><i
+                                data-lucide="chevron-right" class="w-3.5 h-3.5"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <footer
+                class="pt-4 border-t border-slate-100 flex justify-between items-center text-[11px] font-medium text-slate-400 bg-transparent">
+                <p>© 2026 Kampung Bahasa English Course (KBEC). Hak cipta dilindungi undang-undang.</p>
+                <div class="flex gap-4">
+                    <a href="#" class="hover:text-slate-600 transition-colors">Kebijakan Privasi</a>
+                    <a href="#" class="hover:text-slate-600 transition-colors">Syarat Ketentuan</a>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
+        let kelasList = [];
+
+        async function fetchClasses() {
+            try {
+                const response = await fetch(`${API_BASE}/api/classes`);
+                kelasList = await response.json();
+                hitungStatistik();
+                renderTable(kelasList);
+            } catch (err) {
+                console.error(err);
+                showToast('Gagal memuat data kelas dari database.', 'error');
+            }
+        }
+
+        async function fetchTeachers() {
+            try {
+                const response = await fetch(`${API_BASE}/api/teachers`);
+                const teachers = await response.json();
+                const select = document.getElementById('form-pengajar');
+                select.innerHTML = '<option value="" disabled selected>Pilih Pengajar</option>';
+                teachers.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.nama;
+                    opt.innerText = t.nama;
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                console.error(err);
+                showToast('Gagal memuat data pengajar untuk dropdown.', 'error');
+            }
+        }
+
+        async function fetchPrograms() {
+            try {
+                const response = await fetch(`${API_BASE}/api/programs`);
+                const programs = await response.json();
+                const select = document.getElementById('form-program');
+                select.innerHTML = '<option value="" disabled selected>Pilih Program Kursus</option>';
+                
+                const filterSelect = document.getElementById('filter-program');
+                if (filterSelect) {
+                    filterSelect.innerHTML = '<option value="Semua">Semua Program</option>';
+                }
+
+                programs.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.nama;
+                    opt.innerText = p.nama;
+                    select.appendChild(opt);
+
+                    if (filterSelect) {
+                        const filterOpt = document.createElement('option');
+                        filterOpt.value = p.nama;
+                        filterOpt.innerText = p.nama;
+                        filterSelect.appendChild(filterOpt);
+                    }
+                });
+            } catch (err) {
+                console.error(err);
+                showToast('Gagal memuat data program untuk dropdown.', 'error');
+            }
+        }
+
+        window.onload = function () {
+            fetchClasses();
+            fetchTeachers();
+            fetchPrograms();
+        };
+
+        function hitungStatistik() {
+            const total = kelasList.length;
+            const penuh = kelasList.filter(k => k.terisi >= k.kapasitas).length;
+            const tersedia = total - penuh;
+            const totalSiswa = kelasList.reduce((acc, curr) => acc + curr.terisi, 0);
+
+            document.getElementById('stat-total').innerText = total;
+            document.getElementById('stat-aktif').innerText = tersedia;
+            document.getElementById('stat-penuh').innerText = penuh;
+            document.getElementById('stat-siswa').innerText = totalSiswa;
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('kelas-table-body');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400">Data kelas tidak ditemukan</td></tr>`;
+                document.getElementById('showing-text').innerText = "Showing 0 of 0 Classes";
+                return;
+            }
+
+            document.getElementById('showing-text').innerText = `Showing ${data.length} of ${kelasList.length} Classes`;
+
+            data.forEach((kelas, index) => {
+                const isPenuh = kelas.terisi >= kelas.kapasitas;
+                const badgeClass = isPenuh ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100';
+                const labelStatus = isPenuh ? 'Penuh' : 'Tersedia';
+                const progressWidth = Math.min((kelas.terisi / kelas.kapasitas) * 100, 100);
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50/50 transition-colors">
+                        <td class="py-3.5 px-6 text-center font-bold text-slate-400">${index + 1}</td>
+                        <td class="py-3.5 px-6 font-bold text-slate-900">${kelas.nama}</td>
+                        <td class="py-3.5 px-6 font-semibold text-slate-500">${kelas.program}</td>
+                        <td class="py-3.5 px-6 font-semibold text-slate-700">${kelas.pengajar}</td>
+                        <td class="py-3.5 px-6">
+                            <div class="flex flex-col gap-1 max-w-[100px] mx-auto">
+                                <div class="flex justify-between text-[10px] font-bold text-slate-500">
+                                    <span>${kelas.terisi} Siswa</span>
+                                    <span>/${kelas.kapasitas}</span>
+                                </div>
+                                <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                    <div class="bg-blue-600 h-full rounded-full" style="width: ${progressWidth}%"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="py-3.5 px-6">
+                            <span class="block font-bold text-slate-700">${kelas.hari}</span>
+                            <span class="text-[10px] text-slate-400 block font-mono font-medium">${kelas.mulai} - ${kelas.selesai}</span>
+                        </td>
+                        <td class="py-3.5 px-6 text-center">
+                            <span class="px-2.5 py-0.5 text-[10px] font-bold rounded-md border ${badgeClass}">${labelStatus}</span>
+                        </td>
+                        <td class="py-3.5 px-6">
+                            <div class="flex items-center justify-center gap-1">
+                                <button onclick="manageClassStudents(${kelas.id}, '${kelas.nama}')" class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Kelola Anggota Siswa">
+                                    <i data-lucide="users" class="w-4 h-4"></i>
+                                </button>
+                                <button onclick="deleteKelas(${kelas.id})" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Hapus Kelas">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            lucide.createIcons();
+        }
+
+        function filterDataKelas() {
+            const search = document.getElementById('search-data').value.toLowerCase();
+            const prog = document.getElementById('filter-program').value;
+            const stat = document.getElementById('filter-status').value;
+
+            const filtered = kelasList.filter(kelas => {
+                const cocokSearch = kelas.nama.toLowerCase().includes(search) || kelas.pengajar.toLowerCase().includes(search);
+                const cocokProg = prog === "Semua" || kelas.program === prog;
+
+                const isPenuh = kelas.terisi >= kelas.kapasitas;
+                const cocokStat = stat === "Semua" ||
+                    (stat === "Penuh" && isPenuh) ||
+                    (stat === "Tersedia" && !isPenuh);
+
+                return cocokSearch && cocokProg && cocokStat;
+            });
+
+            renderTable(filtered);
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `flex items-center gap-3 bg-white border border-slate-100 p-4 rounded-xl shadow-lg pointer-events-auto min-w-[300px] animate-slide-in`;
+            const icon = type === 'success' ? '<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500"></i>' : '<i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i>';
+
+            toast.innerHTML = `<div class="flex items-center justify-center">${icon}</div><div class="flex-1"><p class="text-xs font-bold text-slate-900">${message}</p></div>`;
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function openClassModal() {
+            document.getElementById('class-form').reset();
+            const modal = document.getElementById('class-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('div').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeClassModal() {
+            const modal = document.getElementById('class-modal');
+            modal.classList.add('opacity-0');
+            modal.querySelector('div').classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const nama = document.getElementById('form-nama').value;
+            const program = document.getElementById('form-program').value;
+            const pengajar = document.getElementById('form-pengajar').value;
+            const kapasitas = parseInt(document.getElementById('form-kapasitas').value);
+            const hari = document.getElementById('form-hari').value;
+            const mulai = document.getElementById('form-mulai').value;
+            const selesai = document.getElementById('form-selesai').value;
+            const tipe = document.getElementById('form-tipe').value;
+            const ruang = document.getElementById('form-ruang').value;
+
+            const payload = { nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang };
+
+            try {
+                const res = await fetch(`${API_BASE}/api/classes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error();
+                showToast(`Kelas "${nama}" sukses didaftarkan.`);
+                closeClassModal();
+                await fetchClasses();
+            } catch (err) {
+                console.error(err);
+                showToast('Gagal mendaftarkan kelas ke database.', 'error');
+            }
+        }
+
+        async function deleteKelas(id) {
+            const kelas = kelasList.find(k => k.id === id);
+            if (kelas && confirm(`Apakah Anda yakin ingin menghapus kelas ${kelas.nama}?`)) {
+                try {
+                    const res = await fetch(`${API_BASE}/api/classes/${id}`, {
+                        method: 'DELETE'
+                    });
+                    if (!res.ok) throw new Error();
+                    showToast(`Kelas "${kelas.nama}" berhasil dihapus.`, 'error');
+                    await fetchClasses();
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal menghapus kelas dari database.', 'error');
+                }
+            }
+        }
+
+        let currentClassId = null;
+
+        async function manageClassStudents(classId, className) {
+            currentClassId = classId;
+            document.getElementById('class-students-title').innerText = 'Kelas: ' + className;
+            
+            const modal = document.getElementById('class-students-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('div').classList.remove('scale-95');
+            }, 10);
+
+            await loadClassStudents();
+        }
+
+        function closeClassStudentsModal() {
+            const modal = document.getElementById('class-students-modal');
+            modal.classList.add('opacity-0');
+            modal.querySelector('div').classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        async function loadClassStudents() {
+            if (!currentClassId) return;
+            try {
+                // 1. Ambil siswa terdaftar di kelas
+                const resClassStudents = await fetch(`${API_BASE}/api/classes/${currentClassId}/students`);
+                const registeredStudents = await resClassStudents.json();
+                
+                const tbody = document.getElementById('class-students-table-body');
+                tbody.innerHTML = '';
+
+                if (registeredStudents.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-slate-400">Belum ada siswa di kelas ini</td></tr>`;
+                } else {
+                    registeredStudents.forEach((student, index) => {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="py-2 px-4 text-center font-bold text-slate-400">${index + 1}</td>
+                                <td class="py-2 px-4 font-bold text-slate-800">${student.nama}</td>
+                                <td class="py-2 px-4 text-slate-500">${student.program} (${student.level})</td>
+                                <td class="py-2 px-4 text-center">
+                                    <button onclick="removeStudentFromClass('${student.id}', '${student.nama}')" class="text-rose-600 hover:bg-rose-50 px-2 py-1 rounded-lg transition-all" title="Keluarkan dari kelas">Keluarkan</button>
+                                </td>
+                            </tr>
+                        `;
+                    });
+                }
+
+            // 2. Ambil semua siswa di db untuk dropdown datalist
+                const resAllStudents = await fetch(`${API_BASE}/api/students`);
+                const allStudents = await resAllStudents.json();
+
+                const datalist = document.getElementById('student-datalist');
+                datalist.innerHTML = '';
+                
+                // Kosongkan input pencarian
+                document.getElementById('class-add-student-input').value = '';
+
+                // Hanya tampilkan siswa yang belum masuk kelas ini
+                availableStudents = allStudents.filter(s => !registeredStudents.some(reg => reg.id === s.id));
+                availableStudents.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = `${s.nama} (${s.id}) - ${s.program || ''} [${s.level || ''}]`;
+                    datalist.appendChild(opt);
+                });
+
+                lucide.createIcons();
+            } catch (err) {
+                console.error(err);
+                showToast('Gagal memuat daftar siswa kelas.', 'error');
+            }
+        }
+
+        let availableStudents = [];
+
+        async function addStudentToClass() {
+            const inputVal = document.getElementById('class-add-student-input').value.trim();
+            if (!inputVal) {
+                alert('Pilih siswa terlebih dahulu!');
+                return;
+            }
+            
+            // Cari siswa berdasarkan kecocokan string datalist
+            const student = availableStudents.find(s => {
+                const optVal = `${s.nama} (${s.id}) - ${s.program || ''} [${s.level || ''}]`;
+                return optVal === inputVal;
+            });
+
+            if (!student) {
+                alert('Siswa tidak valid! Silakan pilih siswa dari opsi pencarian yang muncul.');
+                return;
+            }
+
+            try {
+                const res = await fetch(`${API_BASE}/api/classes/${currentClassId}/students`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ student_id: student.id })
+                });
+
+                if (!res.ok) {
+                    const data = await res.json();
+                    alert(data.message || 'Gagal menambahkan siswa ke kelas.');
+                    return;
+                }
+
+                showToast('Siswa berhasil ditambahkan ke kelas.');
+                document.getElementById('class-add-student-input').value = '';
+                await loadClassStudents();
+                await fetchClasses(); // Refresh data terisi di tabel utama
+            } catch (err) {
+                console.error(err);
+                showToast('Gagal menambahkan siswa.', 'error');
+            }
+        }
+
+        async function removeStudentFromClass(studentId, name) {
+            if (confirm(`Apakah Anda yakin ingin mengeluarkan siswa ${name} dari kelas ini?`)) {
+                try {
+                    const res = await fetch(`${API_BASE}/api/classes/${currentClassId}/students/${encodeURIComponent(studentId)}`, {
+                        method: 'DELETE'
+                    });
+                    if (!res.ok) throw new Error();
+
+                    showToast('Siswa berhasil dikeluarkan dari kelas.', 'error');
+                    await loadClassStudents();
+                    await fetchClasses(); // Refresh data terisi di tabel utama
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal mengeluarkan siswa.', 'error');
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>

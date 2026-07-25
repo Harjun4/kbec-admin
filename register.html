@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="KBEC Course Management Admin System">
+    <title>KBEC Admin - Daftar Akun Baru</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .bg-pattern {
+            background-color: #0A58CA;
+            background-image: radial-gradient(at 0% 0%, hsla(243,98%,73%,1) 0, transparent 50%), 
+                              radial-gradient(at 100% 100%, hsla(218,100%,57%,1) 0, transparent 50%);
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen flex items-center justify-center p-4 antialiased select-none">
+
+    <!-- Container Utama Split Screen / Card Modern -->
+    <div class="bg-white w-full max-w-4xl rounded-3xl shadow-[0_24px_70px_rgba(0,0,0,0.07)] overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[580px]">
+        
+        <!-- SISI KIRI: ILUSTRASI & BRANDING BRAND (PANEL BIRU PREMIUM) -->
+        <div class="md:col-span-5 bg-pattern p-8 flex flex-col justify-between text-white relative overflow-hidden hidden md:flex">
+            <!-- Variasi Dekorasi Bulat Transparan -->
+            <div class="absolute -top-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+            <div class="absolute -bottom-20 -right-10 w-60 h-60 bg-blue-400/20 rounded-full blur-3xl"></div>
+            
+            <!-- Logo Header -->
+            <div class="flex items-center gap-3 relative z-10">
+                <div class="bg-white/10 backdrop-blur-md p-2.5 rounded-2xl border border-white/20 flex items-center justify-center">
+                    <i data-lucide="graduation-cap" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h2 class="font-bold text-base leading-tight tracking-wide">KBEC Admin</h2>
+                    <p class="text-[10px] text-blue-100 font-medium tracking-wider uppercase">Sistem Manajemen Kursus</p>
+                </div>
+            </div>
+
+            <!-- Pesan Sambutan Tengah -->
+            <div class="my-auto space-y-3 relative z-10">
+                <span class="text-[10px] font-extrabold tracking-widest bg-white/20 px-2.5 py-1 rounded-full uppercase backdrop-blur-xs">Registrasi Admin Baru</span>
+                <h1 class="text-2xl font-extrabold leading-tight tracking-tight">Mulai Kelola Aktivitas Akademik Sekarang.</h1>
+                <p class="text-xs text-blue-100/80 leading-relaxed font-medium">Buat akun administrator baru untuk mengakses panel laporan keuangan, database siswa, absensi, dan pengaturan kelas.</p>
+            </div>
+
+            <!-- Footer Hak Cipta Sisi Kiri -->
+            <div class="text-[10px] text-blue-200/60 font-medium relative z-10">
+                &copy; 2026 KBEC System. All rights reserved.
+            </div>
+        </div>
+
+        <!-- SISI KANAN: FORMULIR INPUT REGISTER -->
+        <div class="md:col-span-7 p-8 lg:p-12 flex flex-col justify-center bg-white">
+            
+            <!-- Header Mobile Branding (Hanya muncul di layar hp kecil) -->
+            <div class="flex items-center gap-2.5 mb-6 md:hidden">
+                <div class="bg-[#0A58CA] text-white p-2 rounded-xl">
+                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h2 class="font-extrabold text-slate-900 text-sm leading-tight">KBEC Admin</h2>
+                </div>
+            </div>
+
+            <!-- Judul Form -->
+            <div class="mb-6">
+                <h3 class="text-xl font-extrabold text-slate-900 tracking-tight">Daftar Akun Baru</h3>
+                <p class="text-xs text-slate-400 font-medium mt-1.5">Lengkapi formulir di bawah ini untuk membuat akun administrator baru.</p>
+                <div class="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-center gap-2.5 text-[11px] font-semibold text-amber-700">
+                    <i data-lucide="shield-alert" class="w-4 h-4 text-amber-500 flex-shrink-0"></i>
+                    <span>Pendaftaran akun admin internal memerlukan approval dari Super Administrator.</span>
+                </div>
+            </div>
+
+            <!-- Formulir Interaktif -->
+            <form id="register-form" onsubmit="handleRegister(event)" class="space-y-4">
+                
+                <!-- Input Nama Lengkap -->
+                <div class="space-y-1.5">
+                    <label for="name" class="text-[11px] font-bold text-slate-400 uppercase tracking-wider pl-1">Nama Lengkap</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                            <i data-lucide="user" class="w-4 h-4"></i>
+                        </div>
+                        <input type="text" id="name" required placeholder="Contoh: Ahmad Syarif"
+                            class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0A58CA] focus:bg-white focus:ring-4 focus:ring-blue-500/5 transition-all">
+                    </div>
+                </div>
+
+                <!-- Input Email -->
+                <div class="space-y-1.5">
+                    <label for="email" class="text-[11px] font-bold text-slate-400 uppercase tracking-wider pl-1">Alamat Email</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                            <i data-lucide="mail" class="w-4 h-4"></i>
+                        </div>
+                        <input type="email" id="email" required placeholder="admin@kbec.com"
+                            class="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0A58CA] focus:bg-white focus:ring-4 focus:ring-blue-500/5 transition-all">
+                    </div>
+                </div>
+
+                <!-- Input Password -->
+                <div class="space-y-1.5">
+                    <label for="password" class="text-[11px] font-bold text-slate-400 uppercase tracking-wider pl-1">Kata Sandi</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                            <i data-lucide="lock" class="w-4 h-4"></i>
+                        </div>
+                        <input type="password" id="password" required placeholder="Min. 6 karakter"
+                            class="w-full pl-11 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0A58CA] focus:bg-white focus:ring-4 focus:ring-blue-500/5 transition-all">
+                        
+                        <!-- Tombol Show/Hide Password -->
+                        <button type="button" onclick="togglePasswordVisibility('password', 'eye-icon-1')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors">
+                            <i id="eye-icon-1" data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Input Confirm Password -->
+                <div class="space-y-1.5">
+                    <label for="confirm-password" class="text-[11px] font-bold text-slate-400 uppercase tracking-wider pl-1">Konfirmasi Kata Sandi</label>
+                    <div class="relative">
+                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                            <i data-lucide="lock" class="w-4 h-4"></i>
+                        </div>
+                        <input type="password" id="confirm-password" required placeholder="Ulangi kata sandi"
+                            class="w-full pl-11 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0A58CA] focus:bg-white focus:ring-4 focus:ring-blue-500/5 transition-all">
+                        
+                        <!-- Tombol Show/Hide Password -->
+                        <button type="button" onclick="togglePasswordVisibility('confirm-password', 'eye-icon-2')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors">
+                            <i id="eye-icon-2" data-lucide="eye" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tombol Submit Utama -->
+                <div class="pt-3">
+                    <button type="submit" id="btn-submit"
+                        class="w-full py-3 bg-[#0A58CA] hover:bg-blue-700 text-white font-bold text-xs rounded-2xl shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 transition-all flex items-center justify-center gap-2">
+                        <span>Daftar Akun</span>
+                        <i data-lucide="user-plus" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </form>
+
+            <!-- Link Kembali ke Login -->
+            <div class="mt-6 text-center">
+                <p class="text-xs text-slate-500 font-semibold">
+                    Sudah memiliki akun? 
+                    <a href="login.html" class="text-[#0A58CA] font-bold hover:underline">Masuk di sini</a>
+                </p>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- SISTEM LOGIC INTERAKSI REGISTER JS -->
+    <script>
+        lucide.createIcons();
+        const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
+
+        function togglePasswordVisibility(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                input.type = 'password';
+                icon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            const btnSubmit = document.getElementById('btn-submit');
+
+            if (password.length < 6) {
+                alert('Kata sandi harus minimal 6 karakter!');
+                return;
+            }
+
+            if (password !== confirmPassword) {
+                alert('Konfirmasi kata sandi tidak cocok!');
+                return;
+            }
+
+            // Ubah Status Button Menjadi Loading
+            btnSubmit.disabled = true;
+            btnSubmit.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Mendaftarkan Akun...</span>
+            `;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    alert('Registrasi akun admin berhasil! Silakan masuk.');
+                    window.location.href = 'login.html';
+                } else {
+                    alert(data.message || 'Registrasi gagal, silakan coba lagi.');
+                    // Kembalikan Button ke Awal
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = `
+                        <span>Daftar Akun</span>
+                        <i data-lucide="user-plus" class="w-4 h-4"></i>
+                    `;
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Terjadi kesalahan jaringan atau server tidak merespons.');
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = `
+                    <span>Daftar Akun</span>
+                    <i data-lucide="user-plus" class="w-4 h-4"></i>
+                `;
+            }
+        }
+    </script>
+</body>
+
+</html>
