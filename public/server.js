@@ -1010,6 +1010,7 @@ app.delete('/api/schedules/:id', async (req, res) => {
 app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], async (req, res) => {
     try {
         const [[{ count: totalStudents }]] = await db.query('SELECT COUNT(*) AS count FROM students');
+        const [[{ count: activeStudents }]] = await db.query('SELECT COUNT(*) AS count FROM students WHERE status = "Aktif"');
         const [[{ count: totalTeachers }]] = await db.query('SELECT COUNT(*) AS count FROM teachers');
         const [[{ count: totalClasses }]] = await db.query('SELECT COUNT(*) AS count FROM classes');
         const [[{ count: totalPrograms }]] = await db.query('SELECT COUNT(*) AS count FROM programs');
@@ -1127,6 +1128,7 @@ app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], as
 
         res.json({
             totalStudents,
+            activeStudents,
             totalTeachers,
             totalClasses,
             totalPrograms,

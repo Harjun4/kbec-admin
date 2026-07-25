@@ -176,8 +176,8 @@
                     </div>
                 </div>
 
-                <!-- Grid Kartu Statistik Premium (6 Kolom Lebih Terang & Terbaca) -->
-                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <!-- Grid Kartu Statistik Premium (7 Kolom) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3.5">
                     <!-- Total Siswa -->
                     <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] space-y-3 cursor-pointer hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-200"
                         onclick="window.location.href='siswa.html'">
@@ -190,6 +190,20 @@
                         <div>
                             <p class="text-[10px] text-slate-400 font-bold tracking-wide uppercase">Total Siswa</p>
                             <h3 id="dash-total-students" class="text-xl font-extrabold text-slate-900 mt-0.5">0</h3>
+                        </div>
+                    </div>
+                    <!-- Siswa Aktif -->
+                    <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] space-y-3 cursor-pointer hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-200"
+                        onclick="window.location.href='siswa.html'">
+                        <div class="flex items-center justify-between">
+                            <div class="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><i data-lucide="user-check"
+                                    class="w-4 h-4"></i></div>
+                            <span
+                                class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">Aktif</span>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 font-bold tracking-wide uppercase">Siswa Aktif</p>
+                            <h3 id="dash-active-students" class="text-xl font-extrabold text-slate-900 mt-0.5">0</h3>
                         </div>
                     </div>
                     <!-- Total Pengajar -->
@@ -573,10 +587,13 @@
         async function loadDashboardStats() {
             const stats = await getDashboardStats();
             if (stats) {
-                document.getElementById('dash-total-students').innerText = stats.totalStudents.toLocaleString();
-                document.getElementById('dash-total-teachers').innerText = stats.totalTeachers.toLocaleString();
-                document.getElementById('dash-total-classes').innerText = stats.totalClasses.toLocaleString();
-                document.getElementById('dash-total-programs').innerText = stats.totalPrograms.toLocaleString();
+                document.getElementById('dash-total-students').innerText = (stats.totalStudents || 0).toLocaleString();
+                if (document.getElementById('dash-active-students')) {
+                    document.getElementById('dash-active-students').innerText = (stats.activeStudents !== undefined ? stats.activeStudents : stats.totalStudents || 0).toLocaleString();
+                }
+                document.getElementById('dash-total-teachers').innerText = (stats.totalTeachers || 0).toLocaleString();
+                document.getElementById('dash-total-classes').innerText = (stats.totalClasses || 0).toLocaleString();
+                document.getElementById('dash-total-programs').innerText = (stats.totalPrograms || 0).toLocaleString();
 
                 const activeClassesBadge = document.getElementById('dash-active-classes-badge');
                 if (activeClassesBadge) {
