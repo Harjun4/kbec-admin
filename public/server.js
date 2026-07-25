@@ -614,9 +614,11 @@ app.put(['/api/auth/profile', '/auth/profile'], async (req, res) => {
             return res.status(400).json({ success: false, message: 'Email target tidak valid.' });
         }
 
-        // Cek jika email baru sudah digunakan oleh akun lain
-        if (email && email !== targetEmail) {
-            const [existing] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+        const newEmail = (email && email.trim()) ? email.trim() : targetEmail;
+
+        // Cek jika email baru berbeda dan sudah digunakan oleh akun lain
+        if (newEmail !== targetEmail) {
+            const [existing] = await db.query('SELECT * FROM users WHERE email = ?', [newEmail]);
             if (existing.length > 0) {
                 return res.status(400).json({ success: false, message: 'Email baru sudah digunakan oleh akun lain.' });
             }
@@ -624,18 +626,32 @@ app.put(['/api/auth/profile', '/auth/profile'], async (req, res) => {
 
         if (password) {
             const passwordHashed = hashPassword(password);
-            await db.query(
-                'UPDATE users SET name = ?, email = ?, password = ? WHERE email = ?',
-                [name || 'User KBEC', email || targetEmail, passwordHashed, targetEmail]
-            );
+            if (newEmail !== targetEmail) {
+                await db.query(
+                    'UPDATE users SET name = ?, email = ?, password = ? WHERE email = ?',
+                    [name || 'User KBEC', newEmail, passwordHashed, targetEmail]
+                );
+            } else {
+                await db.query(
+                    'UPDATE users SET name = ?, password = ? WHERE email = ?',
+                    [name || 'User KBEC', passwordHashed, targetEmail]
+                );
+            }
         } else {
-            await db.query(
-                'UPDATE users SET name = ?, email = ? WHERE email = ?',
-                [name || 'User KBEC', email || targetEmail, targetEmail]
-            );
+            if (newEmail !== targetEmail) {
+                await db.query(
+                    'UPDATE users SET name = ?, email = ? WHERE email = ?',
+                    [name || 'User KBEC', newEmail, targetEmail]
+                );
+            } else {
+                await db.query(
+                    'UPDATE users SET name = ? WHERE email = ?',
+                    [name || 'User KBEC', targetEmail]
+                );
+            }
         }
         await logActivity(name || 'User KBEC', 'Pembaruan Profil & Kata Sandi', '-', 'Berhasil', 'text-emerald-600 bg-emerald-50');
-        res.json({ success: true, user: { name: name || 'User KBEC', email: email || targetEmail } });
+        res.json({ success: true, user: { name: name || 'User KBEC', email: newEmail } });
     } catch (err) {
         console.error('Error updating profile:', err);
         res.status(500).json({ error: err.message });
