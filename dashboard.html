@@ -506,7 +506,7 @@
             if (!tbody) return;
 
             let logs = await getActivityLogs();
-            if (!logs || logs.length === 0) {
+            if (!logs || !Array.isArray(logs) || logs.length === 0) {
                 logs = [
                     { siswa: 'Ahmad Syarif', aktivitas: 'Pembayaran Tagihan (INV-26011)', program: 'TOEFL Prep', status: 'Berhasil', statusColor: 'text-emerald-600 bg-emerald-50' },
                     { siswa: 'Budi Mansur', aktivitas: 'Pembayaran Tagihan (INV-26012)', program: 'Beginner 1', status: 'Berhasil', statusColor: 'text-emerald-600 bg-emerald-50' },
@@ -517,7 +517,11 @@
             }
 
             const getInitials = (name) => {
-                return (name || 'S').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                if (!name || typeof name !== 'string') return 'S';
+                const parts = name.trim().split(/\s+/).filter(Boolean);
+                if (parts.length === 0) return 'S';
+                if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+                return (parts[0][0] + parts[1][0]).toUpperCase();
             };
 
             const colors = ['bg-blue-50 text-blue-600', 'bg-purple-50 text-purple-600', 'bg-amber-50 text-amber-600', 'bg-emerald-50 text-emerald-600', 'bg-cyan-50 text-cyan-600'];
@@ -528,12 +532,12 @@
                         <div class="w-8 h-8 rounded-full ${colors[idx % colors.length]} font-bold text-xs flex items-center justify-center shadow-xs">
                             ${getInitials(item.siswa)}
                         </div>
-                        <span class="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">${item.siswa}</span>
+                        <span class="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">${item.siswa || '-'}</span>
                     </td>
-                    <td class="py-3 text-slate-500">${item.aktivitas}</td>
-                    <td class="py-3 text-slate-600 font-semibold">${item.program}</td>
+                    <td class="py-3 text-slate-500">${item.aktivitas || '-'}</td>
+                    <td class="py-3 text-slate-600 font-semibold">${item.program || '-'}</td>
                     <td class="py-3 text-right">
-                        <span class="text-[10px] font-bold ${item.statusColor || 'text-blue-600 bg-blue-50'} px-2.5 py-1 rounded-full">${item.status}</span>
+                        <span class="text-[10px] font-bold ${item.statusColor || 'text-blue-600 bg-blue-50'} px-2.5 py-1 rounded-full">${item.status || 'Aktif'}</span>
                     </td>
                 </tr>
             `;
@@ -784,16 +788,22 @@
                 const res = await fetch(`${API_BASE}/api/reminders`);
                 const reminders = await res.json();
 
-                if (reminders.length === 0) {
+                if (!Array.isArray(reminders) || reminders.length === 0) {
                     container.innerHTML = `<p class="text-center text-slate-400 py-6 text-xs font-semibold">Tidak ada agenda atau reminder terdaftar.</p>`;
                     return;
                 }
 
                 const months = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGS", "SEP", "OKT", "NOV", "DES"];
                 container.innerHTML = reminders.map(r => {
-                    const dateObj = new Date(r.date);
-                    const day = dateObj.getDate();
-                    const month = months[dateObj.getMonth()];
+                    let day = '1';
+                    let month = 'JAN';
+                    if (r.date) {
+                        const dateObj = new Date(r.date);
+                        if (!isNaN(dateObj.getTime())) {
+                            day = dateObj.getDate();
+                            month = months[dateObj.getMonth()] || 'JAN';
+                        }
+                    }
                     return `
                         <div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl transition-colors group cursor-pointer">
                             <div class="flex items-center gap-4">
@@ -802,11 +812,11 @@
                                     <p class="text-sm font-extrabold text-slate-800 leading-none mt-0.5 group-hover:text-blue-600">${day}</p>
                                 </div>
                                 <div>
-                                    <h5 class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors">${r.title}</h5>
+                                    <h5 class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors">${r.title || 'Agenda'}</h5>
                                     <p class="text-[11px] text-slate-400 mt-0.5">${r.time || 'Sepanjang hari'} ${r.location ? '• ' + r.location : ''}</p>
                                 </div>
                             </div>
-                            <button onclick="deleteReminder(${r.id})" class="text-slate-300 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100">
+                            <button onclick="deleteReminder(${r.id})" class="text-slate-300 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100" title="Hapus Agenda">
                                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                             </button>
                         </div>
