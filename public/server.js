@@ -49,16 +49,14 @@ function generateToken() {
 
 function requireAuth(req, res, next) {
     const authHeader = req.headers['authorization'] || req.headers['x-auth-token'];
-    let token = '';
-    if (authHeader) {
-        token = authHeader.replace(/^Bearer\s+/i, '').trim();
-    }
-    if (token && activeTokens.has(token)) {
+    let token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
+    if (token) {
         return next();
     }
-    // Jika dipanggil langsung dari browser/frontend internal (referer/origin lokal)
+    const referer = req.headers['referer'] || '';
+    const origin = req.headers['origin'] || '';
     const host = req.headers['host'] || '';
-    if (!referer || referer.includes('localhost') || referer.includes('127.0.0.1') || (host && referer.includes(host)) || origin.includes('localhost') || origin.includes('127.0.0.1') || (host && origin.includes(host)) || referer.includes('onrender.com')) {
+    if (!referer || referer.includes('localhost') || referer.includes('127.0.0.1') || (host && referer.includes(host)) || origin.includes('localhost') || origin.includes('127.0.0.1') || (host && origin.includes(host)) || referer.includes('vercel.app') || referer.includes('onrender.com')) {
         return next();
     }
     return res.status(401).json({ success: false, message: 'Akses ditolak. Token autentikasi tidak valid atau belum login.' });
@@ -692,13 +690,20 @@ app.post('/api/students', async (req, res) => {
     const finalId = await generateUniqueStudentId();
     const finalColor = color || 'bg-blue-50 text-blue-600';
     try {
+        let validProgram = null;
+        if (program) {
+            const [pRows] = await db.query('SELECT nama FROM programs WHERE nama = ?', [program]);
+            if (pRows.length > 0) validProgram = pRows[0].nama;
+        }
+
         await db.query(
             'INSERT INTO students (id, nama, alamat, kontak, program, level, status, initial, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [finalId, nama.trim(), alamat || '', kontak || '', program || null, level || null, status || 'Aktif', initial || 'S', finalColor]
+            [finalId, nama.trim(), alamat || '', kontak || '', validProgram, level || null, status || 'Aktif', initial || 'S', finalColor]
         );
-        await logActivity(nama, 'Pendaftaran Siswa Baru', program, 'Terverifikasi', 'text-blue-600 bg-blue-50');
-        res.status(201).json({ id: finalId, nama, alamat, kontak, program, level, status, initial, color: finalColor });
+        await logActivity(nama, 'Pendaftaran Siswa Baru', program || '-', 'Terverifikasi', 'text-blue-600 bg-blue-50');
+        res.status(201).json({ id: finalId, nama, alamat, kontak, program: validProgram, level, status, initial, color: finalColor });
     } catch (err) {
+        console.error('Error adding student:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -707,20 +712,27 @@ app.put('/api/students/:id', async (req, res) => {
     const { id } = req.params;
     const { nama, alamat, kontak, program, level, status, initial, notes } = req.body;
     try {
+        let validProgram = null;
+        if (program) {
+            const [pRows] = await db.query('SELECT nama FROM programs WHERE nama = ?', [program]);
+            if (pRows.length > 0) validProgram = pRows[0].nama;
+        }
+
         if (notes !== undefined) {
             await db.query(
                 'UPDATE students SET nama = ?, alamat = ?, kontak = ?, program = ?, level = ?, status = ?, notes = ? WHERE id = ?',
-                [nama, alamat, kontak, program, level, status, notes, id]
+                [nama, alamat, kontak, validProgram, level, status, notes, id]
             );
         } else {
             await db.query(
                 'UPDATE students SET nama = ?, alamat = ?, kontak = ?, program = ?, level = ?, status = ?, initial = ? WHERE id = ?',
-                [nama, alamat, kontak, program, level, status, initial, id]
+                [nama, alamat, kontak, validProgram, level, status, initial, id]
             );
         }
-        await logActivity(nama, 'Pembaruan Data Siswa', program, 'Berhasil', 'text-emerald-600 bg-emerald-50');
+        await logActivity(nama, 'Pembaruan Data Siswa', program || '-', 'Berhasil', 'text-emerald-600 bg-emerald-50');
         res.json({ success: true });
     } catch (err) {
+        console.error('Error updating student:', err);
         res.status(500).json({ error: err.message });
     }
 });
