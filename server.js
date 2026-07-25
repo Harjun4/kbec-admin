@@ -494,14 +494,15 @@ app.get('/api/test-db', async (req, res) => {
         res.json({
             status: 'success',
             message: 'Terhubung ke TiDB Cloud!',
-            db_host: process.env.DB_HOST || 'localhost',
+            db_host: process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com',
             total_users: rows[0].total_users
         });
     } catch (err) {
-        res.status(500).json({
+        console.error('Test DB Error:', err);
+        res.json({
             status: 'error',
             message: err.message,
-            db_host: process.env.DB_HOST || 'localhost'
+            db_host: process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com'
         });
     }
 });
@@ -1311,12 +1312,14 @@ function getLocalIpAddress() {
     return '127.0.0.1';
 }
 
-app.listen(PORT, '0.0.0.0', () => {
-    const localIp = getLocalIpAddress();
-    console.log(`🚀 Server berjalan di:`);
-    console.log(`   - Local:   http://localhost:${PORT}`);
-    console.log(`   - Network: http://${localIp}:${PORT}`);
-});
+if (!process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+        const localIp = getLocalIpAddress();
+        console.log(`🚀 Server berjalan di:`);
+        console.log(`   - Local:   http://localhost:${PORT}`);
+        console.log(`   - Network: http://${localIp}:${PORT}`);
+    });
+}
 
 module.exports = app;
 
