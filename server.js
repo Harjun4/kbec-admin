@@ -482,25 +482,10 @@ async function seedDatabase() {
     }
 }
 
-let dbInitialized = false;
-let dbInitPromise = null;
-
-async function ensureDbInitialized(req, res, next) {
-    if (!dbInitialized) {
-        if (!dbInitPromise) {
-            dbInitPromise = seedDatabase().then(() => {
-                dbInitialized = true;
-            }).catch(err => {
-                console.error('❌ Failed to initialize database:', err);
-                dbInitPromise = null;
-            });
-        }
-        await dbInitPromise;
-    }
-    next();
+// Database seeding dipanggil hanya di local development (bila diperlukan)
+if (process.env.NODE_ENV === 'development') {
+    seedDatabase().catch(err => console.error('Seed error:', err));
 }
-
-app.use(ensureDbInitialized);
 
 // Endpoint diagnosa database TiDB untuk Vercel
 app.get('/api/test-db', async (req, res) => {
