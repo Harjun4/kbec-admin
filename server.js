@@ -144,9 +144,11 @@ async function generateUniqueStudentId() {
 // Helper untuk log aktivitas sistem
 async function logActivity(siswa, aktivitas, program, status, statusColor) {
     try {
+        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM activity_logs');
+        const nextId = (maxId || 0) + 1;
         await db.query(
-            'INSERT INTO activity_logs (siswa, aktivitas, program, status, status_color) VALUES (?, ?, ?, ?, ?)',
-            [siswa || 'Siswa', aktivitas || 'Aktivitas Sistem', program || '-', status || 'Berhasil', statusColor || 'text-blue-600 bg-blue-50']
+            'INSERT INTO activity_logs (id, siswa, aktivitas, program, status, status_color) VALUES (?, ?, ?, ?, ?, ?)',
+            [nextId, siswa || 'Siswa', aktivitas || 'Aktivitas Sistem', program || '-', status || 'Berhasil', statusColor || 'text-blue-600 bg-blue-50']
         );
     } catch (err) {
         console.error('❌ Error logging activity:', err);
