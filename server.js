@@ -543,39 +543,46 @@ app.get(['/api/test-db', '/test-db'], async (req, res) => {
 // 2. ENDPOINTS UTAMA (REST API)
 // ==========================================
 
-// --- AUTH / LOGIN (dengan Rate Limiting & Token Session) ---
-app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
+// --- AUTH / LOGIN (dengan Rate Limiting & Strict Password Verification) ---
+app.post(['/api/auth/login', '/auth/login'], loginRateLimiter, async (req, res) => {
     const { email, password } = req.body;
+    if (!email || !password) {
+        return res.status(400).json({ success: false, message: 'Email dan password wajib diisi.' });
+    }
+
     try {
+        const cleanEmail = email.trim();
         const passwordHashed = hashPassword(password);
-        // Cari user berdasarkan email di database TiDB
-        const [users] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
         
-        if (users.length > 0) {
-            const user = users[0];
-            // Auto sync password hash bila perlu
-            try {
-                if (user.password !== passwordHashed) {
-                    await db.query('UPDATE users SET password = ? WHERE id = ?', [passwordHashed, user.id]);
-                }
-            } catch (e) {}
-            
-            const token = generateToken();
-            return res.json({ success: true, token, user: { name: user.name, email: user.email } });
+        // Cari user berdasarkan email di database TiDB
+        const [users] = await db.query('SELECT * FROM users WHERE email = ?', [cleanEmail]);
+        
+        if (users.length === 0) {
+            return res.status(401).json({ success: false, message: 'Email atau password yang Anda masukkan salah.' });
         }
         
-        // Fallback: jika tabel users kosong atau email pertama kali masuk
-        const [allUsers] = await db.query('SELECT * FROM users LIMIT 1');
-        if (allUsers.length > 0) {
-            const u = allUsers[0];
-            const token = generateToken();
-            return res.json({ success: true, token, user: { name: u.name, email: u.email } });
+        const user = users[0];
+        
+        // Strict Password Check (cocokkan hash password atau plain text lama)
+        const isPasswordMatch = (user.password === passwordHashed) || (user.password === password);
+        
+        if (!isPasswordMatch) {
+            return res.status(401).json({ success: false, message: 'Email atau password yang Anda masukkan salah.' });
         }
 
+        // Migrasikan ke hash jika password di database masih plain text
+        if (user.password === password && user.password !== passwordHashed) {
+            try {
+                await db.query('UPDATE users SET password = ? WHERE id = ?', [passwordHashed, user.id]);
+            } catch (e) {}
+        }
+        
         const token = generateToken();
-        res.json({ success: true, token, user: { name: 'Admin Utama', email: email || 'admin@kbec.com' } });
+        await logActivity(user.name, 'Masuk ke Sistem (Login)', '-', 'Berhasil', 'text-emerald-600 bg-emerald-50');
+        return res.json({ success: true, token, user: { name: user.name, email: user.email } });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error('Error during login:', err);
+        res.status(500).json({ success: false, message: err.message });
     }
 });
 

@@ -189,9 +189,12 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })
             })
-            .then(res => {
-                if (!res.ok) throw new Error('Email atau password salah.');
-                return res.json();
+            .then(async res => {
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'Email atau password yang Anda masukkan salah.');
+                }
+                return data;
             })
             .then(data => {
                 localStorage.setItem('currentUser', JSON.stringify(data.user));
