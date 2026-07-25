@@ -80,14 +80,15 @@ window.handleLogout = function() {
     if (rawUser && !isAuthPage && window.location.protocol !== 'file:') {
         const API_BASE = window.location.origin;
         fetch(`${API_BASE}/api/auth/validate`)
-            .then(res => {
-                if (!res.ok) {
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.valid === false) {
                     localStorage.removeItem('currentUser');
                     localStorage.removeItem('authToken');
                     window.location.href = 'login.html';
                 }
             })
-            .catch(() => {}); // Lewati error jaringan jika server lokal offline
+            .catch(() => {}); // Tetap jaga user dalam sesi jika terjadi glitch jaringan
     }
 
     document.addEventListener("DOMContentLoaded", () => {
