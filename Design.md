@@ -1,68 +1,115 @@
-# Design Specifications
-## Panduan UI/UX & Sistem Desain - Dashboard Pengajar KBEC
+# Design Specifications (Design.md)
+## Panduan UI/UX & Sistem Desain — Dashboard Pengajar KBEC
 
 ---
 
 ### 1. Filosofi & Aesthetics Desain
-Untuk membedakan antarmuka **Dashboard Pengajar** dari Dashboard Super Admin (yang didominasi warna Biru `#0A58CA`), Dashboard Pengajar mengusung tema estetika **Fresh Emerald & Indigo Workspace**.
 
-Penggunaan palet warna Hijau Zamrud (*Emerald*) memberikan nuansa akademis yang segar, tenang, dan fokus pada pengajaran, dipadukan dengan aksen Indigo untuk elemen interaktif premium.
+Untuk membedakan antarmuka **Dashboard Pengajar** dari Dashboard Super Admin (dominasi Biru `#0A58CA`), Dashboard Pengajar mengusung tema **"Fresh Emerald & Indigo Workspace"** — memberikan nuansa akademis yang segar, tenang, dan fokus pada pengajaran.
 
 ---
 
 ### 2. Design System & Tokens
 
 #### A. Palet Warna (Color Palette)
-- **Primary Accent (Teacher Brand)**: Emerald Green (`#059669` / `bg-emerald-600` / `text-emerald-600`)
-- **Secondary Accent**: Indigo / Teal (`#0D9488` / `bg-teal-500`)
-- **Background Utama**: Slate Ultra Light (`#F8FAFC` / `bg-slate-50/50`)
-- **Card Background**: Pure White (`#FFFFFF`) dengan border halus (`border-slate-100`) dan bayangan lembut `shadow-[0_4px_20px_rgba(0,0,0,0.02)]`.
-- **Text Hierarki**:
-  - Primary Heading: Dark Slate (`#0F172A` / `text-slate-900`)
-  - Body Text: Medium Slate (`#334155` / `text-slate-700`)
-  - Subtitle / Muted: Light Slate (`#94A3B8` / `text-slate-400`)
 
-#### B. Typografi (Typography)
-- **Font Family**: `'Plus Jakarta Sans', sans-serif`
-- **Heading 1**: 24px (Font-weight: 800 ExtraBold, Tracking: Tight)
-- **Card Title**: 14px (Font-weight: 700 Bold)
-- **Body / Form**: 13px (Font-weight: 500 Medium)
-- **Badge / Tag**: 10px (Font-weight: 700 Bold, Uppercase)
+| Token | Nilai | Penggunaan |
+|---|---|---|
+| `--color-primary` | `#059669` (Emerald 600) | Tombol utama, header sidebar, aksen aktif |
+| `--color-secondary` | `#0D9488` (Teal 500) | Tombol sekunder, badge jadwal |
+| `--color-danger` | `#DC2626` (Red 600) | Tombol Check-out, pesan error GPS |
+| `--color-warning` | `#D97706` (Amber 600) | Status "Di luar radius", peringatan |
+| `--color-bg` | `#F8FAFC` (Slate 50) | Background halaman utama |
+| `--color-card` | `#FFFFFF` | Background kartu konten |
+| `--color-text-primary` | `#0F172A` (Slate 900) | Judul & heading utama |
+| `--color-text-muted` | `#94A3B8` (Slate 400) | Subtitle & label sekunder |
 
-#### C. Component Badges Status Presensi
-- **Hadir (H)**: `bg-emerald-50 text-emerald-700 border-emerald-200`
-- **Izin (I)**: `bg-blue-50 text-blue-700 border-blue-200`
-- **Sakit (S)**: `bg-amber-50 text-amber-700 border-amber-200`
-- **Alpa (A)**: `bg-rose-50 text-rose-700 border-rose-200`
+#### B. Typografi
+- **Font Family**: `'Plus Jakarta Sans', sans-serif` (diimpor dari Google Fonts)
+- **Heading 1** (Nama Pengajar di Header): 24px, Weight 800 ExtraBold
+- **Card Title**: 14px, Weight 700 Bold
+- **Body / Form Label**: 13px, Weight 500 Medium
+- **Badge / Tag Kecil**: 10px, Weight 700 Bold, UPPERCASE
 
 ---
 
-### 3. Struktur Layout & Komponen Utama
+### 3. Komponen UI Utama
 
-#### A. Navigation Sidebar (`Teacher Sidebar`)
-- **Logo & Header**: Icon `graduation-cap` dengan badge "Pengajar KBEC".
-- **Menu Utama**:
-  1. `layout-dashboard`: **Dashboard Utama**
-  2. `book-open`: **Kelas Saya**
-  3. `check-square`: **Input Absensi**
-  4. `award`: **Nilai & Progres Siswa**
-  5. `calendar`: **Jadwal Mengajar**
-  6. `user`: **Profil Pengajar**
+#### A. Navigation Sidebar Pengajar
+```
+┌──────────────────────────────┐
+│  🎓 KBEC Pengajar           │
+│  [Avatar] Nama Pengajar      │
+│  Keahlian / Spesialisasi     │
+├──────────────────────────────┤
+│  Dashboard                   │
+│  Kelas Saya                  │
+│  ▶ Check-in Kelas  [•LIVE]  │  ← Badge hijau berkedip saat aktif
+│  Absensi Siswa               │
+│  Nilai & Progres             │
+│  Jadwal Mengajar             │
+│  Profil Saya                 │
+├──────────────────────────────┤
+│  [Keluar / Logout]           │
+└──────────────────────────────┘
+```
 
-#### B. Quick Attendance Modal / Sheet
-- Modal pop-up modern tanpa *page reload*.
-- Menyediakan tombol cepat **"Tandai Semua Hadir"**.
-- Micro-animations pada saat mengklik tombol status (efek scale & color transition halus 200ms).
+#### B. Check-in Card Component (Fitur Utama)
 
-#### C. Student Progress Card Component
-Setiap kartu evaluasi siswa menampilkan:
-- Inisial Avatar Bulat Warna-Warni
-- Nama Siswa & ID Siswa
-- Input Nilai Angka (Daily, Mid, Final)
-- Textarea Catatan *Progress Note* Pengajar dengan indikator karakter otomatis.
+```
+┌──────────────────────────────────────────────────────────┐
+│  📍 Presensi Kehadiran Pengajar                          │
+│  Jum'at, 25 Juli 2026 — Pemrograman Web Lanjut          │
+│                                                          │
+│  Status Lokasi GPS:  🟢 DALAM RADIUS KBEC (42m)         │
+│  Koordinat:          -7.9666°, 112.6326°                 │
+│  Akurasi GPS:        ±8 meter                            │
+│                                                          │
+│  [ 📍 CHECK-IN KELAS ]    [ Waktu: 08:01:23 WIB ]      │
+│                                                          │
+│  ── Setelah Mengajar ─────────────────────────────────── │
+│                                                          │
+│  [ ⏹ CHECK-OUT KELAS ]   [ Waktu: 09:30:47 WIB ]      │
+│  Total Durasi: 1 jam 29 menit                            │
+└──────────────────────────────────────────────────────────┘
+```
+
+**States & Micro-animations Check-in**:
+- **State: Menunggu GPS** → Ikon spinner berputar + teks "Mendapatkan lokasi GPS..."
+- **State: Valid dalam Radius** → Badge hijau `bg-emerald-50 text-emerald-700` dengan ikon `check-circle` + `ring` animasi pulse.
+- **State: Di Luar Radius** → Badge merah `bg-rose-50 text-rose-700` dengan ikon `alert-triangle` + jarak dalam meter ditampilkan eksplisit.
+- **State: Berhasil Check-in** → Konfirmasi slide-down toast hijau + tombol Check-in berubah disable + timer aktif berjalan.
+- **State: Mode Online** → Badge biru `bg-blue-50 text-blue-700` — geofencing otomatis dilewati.
+
+#### C. Badge Status Presensi Siswa
+
+| Status | Class CSS |
+|---|---|
+| Hadir (H) | `bg-emerald-50 text-emerald-700 border border-emerald-200` |
+| Izin (I) | `bg-blue-50 text-blue-700 border border-blue-200` |
+| Sakit (S) | `bg-amber-50 text-amber-700 border border-amber-200` |
+| Alpa (A) | `bg-rose-50 text-rose-700 border border-rose-200` |
+
+#### D. Rekap Kehadiran Pengajar (Di Super Admin)
+
+Halaman `/pengajar.html` di Super Admin menambahkan tab **"Rekam Kehadiran"** yang menampilkan tabel:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  Rekam Kehadiran Pengajar                                              │
+│  Filter: [ Semua Pengajar ▾ ]  [ Bulan: Juli 2026 ▾ ]  [ Export ]   │
+├────────┬───────────────┬──────────────┬──────────────┬────────────────┤
+│ Tgl    │ Pengajar      │ Check-in     │ Check-out    │ Status Lokasi  │
+├────────┼───────────────┼──────────────┼──────────────┼────────────────┤
+│ 25 Jul │ Harjuna Putra │ 08:01 WIB    │ 09:30 WIB    │ 🟢 Valid (42m) │
+│ 24 Jul │ Budi Santoso  │ 10:00 WIB    │ 11:30 WIB    │ 🟢 Valid (18m) │
+│ 23 Jul │ Siti Rahayu   │ 13:05 WIB    │ 14:30 WIB    │ 🟡 Online Mode │
+└────────┴───────────────┴──────────────┴──────────────┴────────────────┘
+```
 
 ---
 
 ### 4. Responsivitas & Mobile Layout
-- **Desktop (>= 1024px)**: Sidebar tetap di sebelah kiri (W-64), konten utama di kanan.
-- **Tablet & Smartphone (< 1024px)**: Sidebar dapat disembunyikan (*collapsible burger menu*), tombol presensi berubah menjadi kartu bertumpuk vertikal dengan ukuran sentuh (*touch target*) minimal 44px x 44px.
+- **Desktop (≥1024px)**: Sidebar tetap di kiri (W-64), konten utama di kanan.
+- **Tablet & Smartphone (<1024px)**: Sidebar collapsible (burger menu), tombol Check-in berukuran besar dengan touch target minimal **56px × 56px** untuk kemudahan di lapangan.
+- Kartu Check-in didesain seperti **tombol aksi utama mobile** yang mudah dijangkau dengan ibu jari saat memegang ponsel.
