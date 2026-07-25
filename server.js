@@ -1005,7 +1005,7 @@ app.delete('/api/schedules/:id', async (req, res) => {
 });
 
 // --- DASHBOARD STATISTICS ---
-app.get('/api/dashboard/stats', async (req, res) => {
+app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], async (req, res) => {
     try {
         const [[{ count: totalStudents }]] = await db.query('SELECT COUNT(*) AS count FROM students');
         const [[{ count: totalTeachers }]] = await db.query('SELECT COUNT(*) AS count FROM teachers');
@@ -1142,7 +1142,7 @@ app.get('/api/dashboard/stats', async (req, res) => {
 });
 
 // Endpoint Log Aktivitas Sistem Terbaru
-app.get('/api/dashboard/activities', async (req, res) => {
+app.get(['/api/dashboard/activities', '/dashboard/activities', '/api/activities', '/activities'], async (req, res) => {
     try {
         const [rows] = await db.query(
             "SELECT siswa, aktivitas, program, status, status_color AS statusColor, DATE_FORMAT(created_at, '%d %b %H:%i') AS waktu FROM activity_logs ORDER BY id DESC LIMIT 50"
@@ -1323,7 +1323,7 @@ app.post('/api/attendance/monthly', async (req, res) => {
 });
 
 // --- REMINDERS (AGENDA MINGGUAN / REMINDER LAINNYA) ---
-app.get('/api/reminders', async (req, res) => {
+app.get(['/api/reminders', '/reminders'], async (req, res) => {
     try {
         const [rows] = await db.query("SELECT id, title, DATE_FORMAT(date, '%Y-%m-%d') AS date, time, location FROM reminders ORDER BY date ASC");
         res.json(rows);
@@ -1332,7 +1332,7 @@ app.get('/api/reminders', async (req, res) => {
     }
 });
 
-app.post('/api/reminders', async (req, res) => {
+app.post(['/api/reminders', '/reminders'], async (req, res) => {
     const { title, date, time, location } = req.body;
     if (!title || !date) {
         return res.status(400).json({ success: false, message: 'Judul agenda dan tanggal wajib diisi.' });
@@ -1342,13 +1342,14 @@ app.post('/api/reminders', async (req, res) => {
             'INSERT INTO reminders (title, date, time, location) VALUES (?, ?, ?, ?)',
             [title, date, time || '', location || '']
         );
+        await logActivity('Admin Utama', `Tambah Agenda (${title})`, '-', 'Berhasil', 'text-blue-600 bg-blue-50');
         res.status(201).json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-app.delete('/api/reminders/:id', async (req, res) => {
+app.delete(['/api/reminders/:id', '/reminders/:id'], async (req, res) => {
     const { id } = req.params;
     try {
         await db.query('DELETE FROM reminders WHERE id = ?', [id]);
