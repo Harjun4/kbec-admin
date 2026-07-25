@@ -66,6 +66,7 @@ function requireAuth(req, res, next) {
 
 
 const path = require('path');
+const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -75,10 +76,24 @@ app.use((req, res, next) => {
 });
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname))); // Menyajikan file HTML statis dari direktori saat ini
+app.use(express.static(path.join(__dirname)));
 
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Penanganan file statis (HTML/CSS/JS) dinamis untuk Vercel
+app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    
+    let relPath = req.path.startsWith('/') ? req.path.slice(1) : req.path;
+    if (!relPath) relPath = 'index.html';
+    
+    const fullPath = path.join(__dirname, relPath);
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        return res.sendFile(fullPath);
+    }
+    next();
 });
 
 // Helper untuk hash password menggunakan SHA-256 + Salt
