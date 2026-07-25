@@ -911,15 +911,19 @@ app.get('/api/classes', async (req, res) => {
     }
 });
 
-app.post('/api/classes', async (req, res) => {
+app.post(['/api/classes', '/classes'], async (req, res) => {
     const { nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
     try {
+        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM classes');
+        const nextId = (maxId || 0) + 1;
         await db.query(
-            'INSERT INTO classes (nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [nama, program, pengajar, kapasitas || 20, hari, mulai || '08:00', selesai || '09:30', tipe || 'Tatap Muka', ruang || 'Belum Diatur']
+            'INSERT INTO classes (id, nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [nextId, nama || 'Kelas Baru', program || null, pengajar || '-', kapasitas || 20, hari || 'Senin', mulai || '08:00', selesai || '09:30', tipe || 'Reguler', ruang || 'Ruang 1']
         );
-        res.status(201).json({ success: true });
+        await logActivity('Admin Utama', `Tambah Kelas (${nama})`, program || '-', 'Berhasil', 'text-blue-600 bg-blue-50');
+        res.status(201).json({ success: true, id: nextId });
     } catch (err) {
+        console.error('Error adding class:', err);
         res.status(500).json({ error: err.message });
     }
 });
