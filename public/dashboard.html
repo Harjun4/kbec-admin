@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="KBEC Course Management Admin System">
+    <title>KBEC Admin - Ringkasan Dasbor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="global-user.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #F8FAFC;
+        }
+
+        /* Custom scrollbar halus untuk sidebar & tabel */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #E2E8F0;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #CBD5E1;
+        }
+    </style>
+</head>
+
+<body class="text-slate-700 flex min-h-screen select-none">
+
+    <!-- SIDEBAR (TIDAK DIUBAH SAMA SEKALI SUEAI REQUES) -->
+    <aside
+        class="w-64 bg-white border-r border-slate-100 flex flex-col justify-between fixed h-full z-30 shadow-[4px_0_24px_rgba(0,0,0,0.01)]">
+        <div>
+            <div class="p-5 flex items-center gap-3">
+                <div class="bg-[#0A58CA] text-white p-2 rounded-xl flex items-center justify-center">
+                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-slate-900 text-sm leading-tight">KBEC Admin</h1>
+                    <p class="text-[10px] text-slate-400 font-medium">Course Management</p>
+                </div>
+            </div>
+
+            <nav class="px-3 py-2 space-y-0.5">
+                <a href="dashboard.html"
+                    class="relative w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold rounded-xl bg-[#0A58CA]/5 text-[#0A58CA]">
+                    <span class="absolute left-0 top-2 bottom-2 w-1 bg-[#0A58CA] rounded-r-md"></span>
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> <span>Dashboard</span>
+                </a>
+                <a href="siswa.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="users" class="w-4 h-4"></i> <span>Data Siswa</span>
+                </a>
+                <a href="pengajar.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="user-check" class="w-4 h-4"></i> <span>Data Pengajar</span>
+                </a>
+                <a href="kelas.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="book-open" class="w-4 h-4"></i> <span>Data Kelas</span>
+                </a>
+                <a href="program.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="layers" class="w-4 h-4"></i> <span>Program Kursus</span>
+                </a>
+                <a href="jadwal.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="calendar" class="w-4 h-4"></i> <span>Jadwal</span>
+                </a>
+                <a href="absensi.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="check-square" class="w-4 h-4"></i> <span>Absensi</span>
+                </a>
+                <a href="pembayaran.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="credit-card" class="w-4 h-4"></i> <span>Pembayaran</span>
+                </a>
+
+                <a href="laporan.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="file-text" class="w-4 h-4"></i> <span>Laporan</span>
+                </a>
+
+                <hr class="border-slate-100 my-2 mx-4">
+                <a href="profile.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="user-cog" class="w-4 h-4"></i> <span>Manajemen User</span>
+                </a>
+                <a href="profile.html"
+                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
+                    <i data-lucide="user" class="w-4 h-4"></i> <span>Profile</span>
+                </a>
+            </nav>
+        </div>
+
+        <div class="p-4">
+            <a href="#" onclick="window.handleLogout(); return false;"
+                class="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                <i data-lucide="log-out" class="w-4 h-4 text-rose-500"></i> <span>Logout</span>
+            </a>
+        </div>
+    </aside>
+
+    <!-- KONTEN UTAMA (PEMBERSIHAN DESAIN & TRANSLATE TOTAL) -->
+    <!-- KONTEN UTAMA (PEMBERSIHAN DESAIN & TRANSLATE TOTAL) -->
+    <div
+        class="flex-1 pl-0 lg:pl-64 min-h-screen flex flex-col justify-between w-full min-w-0 transition-all duration-300">
+        <div>
+            <!-- Header Atas Premium -->
+            <header
+                class="h-20 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-20">
+                <div class="relative w-full max-w-[200px] sm:max-w-xs lg:w-96">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400"><i
+                            data-lucide="search" class="w-4 h-4"></i></span>
+                    <input type="text" placeholder="Cari data, jadwal, atau laporan..."
+                        class="w-full pl-10 pr-4 sm:pr-16 py-2 bg-slate-50/60 border border-slate-200/60 rounded-xl text-xs focus:outline-none focus:border-blue-500 focus:bg-white transition-all">
+                    <span
+                        class="hidden sm:flex absolute inset-y-0 right-3 items-center text-[9px] text-slate-400 font-bold border border-slate-200 px-1.5 py-0.5 rounded-md bg-white my-auto h-fit font-mono">CTRL
+                        + K</span>
+                </div>
+                <div class="flex items-center gap-2 sm:gap-4">
+                    <button onclick="alert('Tidak ada notifikasi baru.')"
+                        class="relative text-slate-500 p-2 hover:bg-slate-50 rounded-xl transition-colors"><i
+                            data-lucide="bell" class="w-4 h-4"></i><span
+                            class="absolute top-2 right-2 w-1.5 h-1.5 bg-blue-600 rounded-full"></span></button>
+                    <a href="profile.html" title="Pengaturan Profile"
+                        class="text-slate-500 p-2 hover:bg-slate-50 rounded-xl transition-colors flex items-center justify-center"><i
+                            data-lucide="settings" class="w-4 h-4"></i></a>
+
+                    <div class="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-slate-100">
+                        <div class="text-right hidden sm:block">
+                            <h4 class="text-xs font-bold text-slate-900 leading-tight">Admin KBEC</h4>
+                            <p class="text-[9px] text-slate-400 font-bold tracking-wider uppercase">Super Administrator
+                            </p>
+                        </div>
+                        <div
+                            class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 border border-blue-200/20 flex items-center justify-center font-bold text-xs text-white shadow-sm">
+                            AK
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
+                <!-- Judul & Aksi Utama -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900 tracking-tight">Ringkasan Dasbor</h2>
+                        <p class="text-xs text-slate-400 mt-0.5">Selamat datang kembali, Admin. Berikut ringkasan
+                            operasional KBEC hari ini.</p>
+                    </div>
+                    <div class="flex items-center gap-2.5">
+                        <button id="btn-today-date"
+                            class="flex-1 sm:flex-none items-center justify-center gap-2 bg-white border border-slate-200/80 text-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-sm hover:bg-slate-50 transition-colors">
+                            <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i> <span
+                                id="today-date-text">...</span>
+                        </button>
+                        <button onclick="window.location.href='siswa.html'"
+                            class="flex-1 sm:flex-none items-center justify-center gap-1.5 bg-[#0A58CA] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-blue-500/10 transition-all">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Pendaftaran Baru
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Grid Kartu Statistik Premium (6 Kolom Lebih Terang & Terbaca) -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <!-- Total Siswa -->
+                    <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] space-y-3 cursor-pointer hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/5 transition-all duration-200"
+                        onclick="window.location.href='siswa.html'">
+                        <div class="flex items-center justify-between">
+                            <div class="p-2 bg-blue-50 text-blue-600 rounded-xl"><i data-lucide="users"
+                                    class="w-4 h-4"></i></div>
+                            <span
+                                class="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">+12%</span>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 font-bold tracking-wide uppercase">Total Siswa</p>
+                            <h3 id="dash-total-students" class="text-xl font-extrabold text-slate-900 mt-0.5">0</h3>
+                        </div>
+                    </div>
+                    <!-- Total Pengajar -->
+                    <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] space-y-3 cursor-pointer hover:border-cyan-400 hover:shadow-lg hover:shadow-cyan-500/5 transition-all duration-200"
+                        onclick="window.location.href='pengajar.html'">
+                        <div class="flex items-center justify-between">
+                            <div class="p-2 bg-cyan-50 text-cyan-600 rounded-xl"><i data-lucide="book-open"
+                                    class="w-4 h-4"></i></div>
+                            <span
+                                class="text-[10px] font-bold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded-full">Stabil</span>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 font-bold tracking-wide uppercase">Total Pengajar</p>
+                            <h3 id="dash-total-teachers" class="text-xl font-extrabold text-slate-900 mt-0.5">0</h3>
+                        </div>
+                    </div>
+                    <!-- Data Kelas -->
+                    <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] space-y-3 cursor-pointer hover:border-indigo-400 hover:shadow-lg hover:shadow-indigo-500/5 transition-all duration-200"
+                        onclick="window.location.href='kelas.html'">
+                        <div class="flex items-center justify-between">
+                            <div class="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><i data-lucide="door-open"
+                                    class="w-4 h-4"></i></div>
+                            <span id="dash-active-classes-badge"
+                                class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full">Aktif</span>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 font-bold tracking-wide uppercase">Total Kelas</p>
+                            <h3 id="dash-total-classes" class="text-xl font-extrabold text-slate-900 mt-0.5">0</h3>
+                        </div>
+                    </div>
+                    <!-- Program -->
+                    <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] space-y-3 cursor-pointer hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/5 transition-all duration-200"
+                        onclick="window.location.href='program.html'">
+                        <div class="flex items-center justify-between">
+                            <div class="p-2 bg-purple-50 text-purple-600 rounded-xl"><i data-lucide="book-marked"
+                                    class="w-4 h-4"></i></div>
+                            <span
+                                class="text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full">Aktif</span>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 font-bold tracking-wide uppercase">Program Kursus</p>
+                            <h3 id="dash-total-programs" class="text-xl font-extrabold text-slate-900 mt-0.5">0</h3>
+                        </div>
+                    </div>
+                    <!-- Absensi -->
+                    <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] space-y-3 cursor-pointer hover:border-rose-400 hover:shadow-lg hover:shadow-rose-500/5 transition-all duration-200"
+                        onclick="window.location.href='absensi.html'">
+                        <div class="flex items-center justify-between">
+                            <div class="p-2 bg-rose-50 text-rose-600 rounded-xl"><i data-lucide="user-check"
+                                    class="w-4 h-4"></i></div>
+                            <span id="dash-attendance-percent"
+                                class="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-full">100%</span>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 font-bold tracking-wide uppercase">Absensi Hari Ini</p>
+                            <h3 id="dash-attendance-rate" class="text-xl font-extrabold text-slate-900 mt-0.5">0</h3>
+                        </div>
+                    </div>
+                    <!-- Bayar Hari Ini -->
+                    <div class="bg-white border border-slate-100 p-4 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] space-y-3 cursor-pointer hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-200"
+                        onclick="window.location.href='pembayaran.html'">
+                        <div class="flex items-center justify-between">
+                            <div class="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><i data-lucide="credit-card"
+                                    class="w-4 h-4"></i></div>
+                            <span id="dash-total-revenue-badge"
+                                class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">Lunas</span>
+                        </div>
+                        <div>
+                            <p class="text-[10px] text-slate-400 font-bold tracking-wide uppercase">Transaksi Masuk</p>
+                            <h3 id="dash-total-transactions" class="text-xl font-extrabold text-slate-900 mt-0.5">0</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bagian Grafik -->
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                    <!-- Grafik Pertumbuhan Siswa -->
+                    <div
+                        class="lg:col-span-3 bg-white border border-slate-100 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] flex flex-col justify-between min-h-[380px]">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-900">Grafik Pertumbuhan Siswa</h4>
+                                <p class="text-xs text-slate-400">Data pendaftaran bulanan sepanjang tahun </p>
+                            </div>
+                            <select id="filter-growth-period" onchange="updateGrowthChartFilter()"
+                                class="bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-600 px-3 py-1.5 rounded-xl outline-none cursor-pointer hover:border-blue-400 transition-colors">
+                                <option value="semua">Semua Bulan (Tahun Ini)</option>
+                                <option value="6bulan">6 Bulan Terakhir</option>
+                                <option value="3bulan">3 Bulan Terakhir</option>
+                                <optgroup label="Bulan Spesifik (Detail Mingguan)">
+                                    <option value="1">Januari</option>
+                                    <option value="2">Februari</option>
+                                    <option value="3">Maret</option>
+                                    <option value="4">April</option>
+                                    <option value="5">Mei</option>
+                                    <option value="6">Juni</option>
+                                    <option value="7">Juli</option>
+                                    <option value="8">Agustus</option>
+                                    <option value="9">September</option>
+                                    <option value="10">Oktober</option>
+                                    <option value="11">November</option>
+                                    <option value="12">Desember</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <div class="relative flex-1 h-56 mt-4">
+                            <canvas id="studentGrowthChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Grafik Pembayaran -->
+                    <div
+                        class="lg:col-span-2 bg-white border border-slate-100 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] flex flex-col justify-between min-h-[380px]">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h4 class="text-sm font-bold text-slate-900">Distribusi Pendapatan</h4>
+                                <p class="text-xs text-slate-400">Persentase kas masuk per bidang program</p>
+                            </div>
+                            <a href="pembayaran.html"
+                                class="text-xs font-semibold text-blue-600 flex items-center gap-1 hover:text-blue-700 transition-colors">Detail
+                                <i data-lucide="arrow-right" class="w-3 h-3"></i></a>
+                        </div>
+                        <div class="relative flex-1 h-56 mt-4">
+                            <canvas id="revenueDistributionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bagian Bawah: Recent Activity & Upcoming Schedule -->
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                    <!-- Tabel Aktivitas Terbaru -->
+                    <div
+                        class="lg:col-span-3 bg-white border border-slate-100 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] space-y-5">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-bold text-slate-900">Aktivitas Sistem Terbaru</h4>
+                            <a href="#" onclick="openActivityLogsModal(event)"
+                                class="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors">Lihat
+                                Semua</a>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs text-slate-600">
+                                <thead>
+                                    <tr
+                                        class="text-[10px] text-slate-400 font-bold tracking-wider uppercase border-b border-slate-100 pb-2">
+                                        <th class="pb-3 font-bold">Siswa</th>
+                                        <th class="pb-3 font-bold">Aktivitas Log</th>
+                                        <th class="pb-3 font-bold">Program</th>
+                                        <th class="pb-3 font-bold text-right">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-activities-tbody" class="divide-y divide-slate-50/60 font-medium">
+                                    <!-- Dynamic Activity Logs rendered via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Agenda & Reminder Mingguan -->
+                    <div
+                        class="lg:col-span-2 bg-white border border-slate-100 p-6 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] flex flex-col justify-between">
+                        <div class="space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h4 class="text-sm font-bold text-slate-900">Agenda & Reminder</h4>
+                                <div class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                                    Reminder Tertulis</div>
+                            </div>
+
+                            <div id="reminder-list-container" class="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+                                <!-- Reminders will load dynamically here -->
+                            </div>
+                        </div>
+
+                        <button onclick="openReminderModal()"
+                            class="w-full mt-4 border border-dashed border-slate-200 hover:border-blue-500 hover:bg-blue-50/30 text-slate-500 hover:text-blue-600 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all">
+                            <i data-lucide="plus" class="w-4 h-4"></i> Tambah Agenda / Reminder
+                        </button>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <footer
+            class="p-8 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 mt-12 font-medium">
+            <p>© 2024 Kampung Bahasa English Course (KBEC). Hak cipta dilindungi undang-undang.</p>
+            <div class="flex gap-4">
+                <a href="#" class="hover:text-slate-600 transition-colors">Kebijakan Privasi</a>
+                <a href="#" class="hover:text-slate-600 transition-colors">Syarat & Ketentuan</a>
+                <a href="#" class="hover:text-slate-600 transition-colors">Pusat Bantuan</a>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Modal Log Aktivitas Sistem (Lihat Semua) -->
+    <div id="activity-logs-modal"
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4">
+        <div
+            class="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden transform scale-95 transition-transform duration-300 max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-2 bg-blue-50 text-blue-600 rounded-xl"><i data-lucide="list-todo" class="w-4 h-4"></i>
+                    </div>
+                    <h3 class="text-base font-bold text-slate-900">Seluruh Log Aktivitas Sistem</h3>
+                </div>
+                <button onclick="closeActivityLogsModal()"
+                    class="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4">
+                <div class="table-responsive">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead>
+                            <tr
+                                class="text-[10px] text-slate-400 font-bold tracking-wider uppercase border-b border-slate-100 pb-2">
+                                <th class="pb-3 font-bold">Siswa</th>
+                                <th class="pb-3 font-bold">Aktivitas Log</th>
+                                <th class="pb-3 font-bold">Program</th>
+                                <th class="pb-3 font-bold text-right">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modal-activity-logs-tbody" class="divide-y divide-slate-50/60 font-medium">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="px-6 py-3 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+                <button onclick="closeActivityLogsModal()"
+                    class="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Tambah Reminder / Agenda -->
+    <div id="reminder-modal"
+        class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4">
+        <div
+            class="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden transform scale-95 transition-transform duration-300 border border-slate-100">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="calendar-plus" class="w-4 h-4 text-blue-600"></i>
+                    <h4 class="text-sm font-bold text-slate-900">Tambah Agenda / Reminder</h4>
+                </div>
+                <button onclick="closeReminderModal()" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <form id="reminder-form" onsubmit="saveReminder(event)" class="p-6 space-y-4">
+                <div class="space-y-1.5">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Nama / Judul
+                        Agenda</label>
+                    <input type="text" id="rem-title" required placeholder="Contoh: Rapat Kerja Internal"
+                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Tanggal</label>
+                        <input type="date" id="rem-date" required
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold">
+                    </div>
+                    <div class="space-y-1.5">
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Waktu (Jam)</label>
+                        <input type="text" id="rem-time" placeholder="Contoh: 10:00 - 12:00"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold">
+                    </div>
+                </div>
+                <div class="space-y-1.5">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Lokasi /
+                        Keterangan</label>
+                    <input type="text" id="rem-location" placeholder="Contoh: Aula Utama / Zoom"
+                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold">
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="closeReminderModal()"
+                        class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Batal</button>
+                    <button type="submit"
+                        class="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm">Simpan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
+        let growthChartInstance = null;
+        let distributionChartInstance = null;
+
+        async function getDashboardStats(growthPeriod = 'semua') {
+            try {
+                const res = await fetch(`${API_BASE}/api/dashboard/stats?growthPeriod=${encodeURIComponent(growthPeriod)}`);
+                if (!res.ok) throw new Error('Network response failed');
+                return await res.json();
+            } catch (err) {
+                console.error('Error fetching dashboard stats:', err);
+                return null;
+            }
+        }
+
+        async function getActivityLogs() {
+            try {
+                const res = await fetch(`${API_BASE}/api/dashboard/activities`);
+                if (!res.ok) throw new Error('Network response failed');
+                return await res.json();
+            } catch (err) {
+                console.error('Error fetching activity logs:', err);
+                return [];
+            }
+        }
+
+        async function renderActivityLogs() {
+            const tbody = document.getElementById('recent-activities-tbody');
+            const modalTbody = document.getElementById('modal-activity-logs-tbody');
+            if (!tbody) return;
+
+            let logs = await getActivityLogs();
+            if (!logs || logs.length === 0) {
+                logs = [
+                    { siswa: 'Ahmad Syarif', aktivitas: 'Pembayaran Tagihan (INV-26011)', program: 'TOEFL Prep', status: 'Berhasil', statusColor: 'text-emerald-600 bg-emerald-50' },
+                    { siswa: 'Budi Mansur', aktivitas: 'Pembayaran Tagihan (INV-26012)', program: 'Beginner 1', status: 'Berhasil', statusColor: 'text-emerald-600 bg-emerald-50' },
+                    { siswa: 'Citra Sari', aktivitas: 'Pembayaran Tagihan (INV-26013)', program: 'Intermediate 1', status: 'Tertunda', statusColor: 'text-amber-700 bg-amber-50' },
+                    { siswa: 'Ahmad Syarif', aktivitas: 'Presensi Kelas TOEFL Prep Intensive', program: 'TOEFL Prep', status: 'Hadir', statusColor: 'text-emerald-600 bg-emerald-50' },
+                    { siswa: 'Budi Mansur', aktivitas: 'Pendaftaran Siswa Baru', program: 'Beginner 1', status: 'Terverifikasi', statusColor: 'text-blue-600 bg-blue-50' }
+                ];
+            }
+
+            const getInitials = (name) => {
+                return (name || 'S').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            };
+
+            const colors = ['bg-blue-50 text-blue-600', 'bg-purple-50 text-purple-600', 'bg-amber-50 text-amber-600', 'bg-emerald-50 text-emerald-600', 'bg-cyan-50 text-cyan-600'];
+
+            const renderRow = (item, idx) => `
+                <tr class="hover:bg-slate-50/40 transition-colors group">
+                    <td class="py-3 flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full ${colors[idx % colors.length]} font-bold text-xs flex items-center justify-center shadow-xs">
+                            ${getInitials(item.siswa)}
+                        </div>
+                        <span class="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">${item.siswa}</span>
+                    </td>
+                    <td class="py-3 text-slate-500">${item.aktivitas}</td>
+                    <td class="py-3 text-slate-600 font-semibold">${item.program}</td>
+                    <td class="py-3 text-right">
+                        <span class="text-[10px] font-bold ${item.statusColor || 'text-blue-600 bg-blue-50'} px-2.5 py-1 rounded-full">${item.status}</span>
+                    </td>
+                </tr>
+            `;
+
+            tbody.innerHTML = logs.slice(0, 5).map((item, idx) => renderRow(item, idx)).join('');
+
+            if (modalTbody) {
+                modalTbody.innerHTML = logs.map((item, idx) => renderRow(item, idx)).join('');
+            }
+        }
+
+        function openActivityLogsModal(e) {
+            if (e) e.preventDefault();
+            const modal = document.getElementById('activity-logs-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.querySelector('.transform').classList.remove('scale-95');
+                }, 10);
+            }
+        }
+
+        function closeActivityLogsModal() {
+            const modal = document.getElementById('activity-logs-modal');
+            if (modal) {
+                modal.classList.add('opacity-0');
+                modal.querySelector('.transform').classList.add('scale-95');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+        }
+
+        async function loadDashboardStats() {
+            const stats = await getDashboardStats();
+            if (stats) {
+                document.getElementById('dash-total-students').innerText = stats.totalStudents.toLocaleString();
+                document.getElementById('dash-total-teachers').innerText = stats.totalTeachers.toLocaleString();
+                document.getElementById('dash-total-classes').innerText = stats.totalClasses.toLocaleString();
+                document.getElementById('dash-total-programs').innerText = stats.totalPrograms.toLocaleString();
+
+                const activeClassesBadge = document.getElementById('dash-active-classes-badge');
+                if (activeClassesBadge) {
+                    activeClassesBadge.innerText = `${stats.totalClasses} Aktif`;
+                }
+
+                const hadirCount = stats.todayHadir !== undefined ? stats.todayHadir : 0;
+                const totalCount = stats.todayTotal !== undefined ? stats.todayTotal : 0;
+                document.getElementById('dash-attendance-rate').innerText = `${hadirCount} / ${totalCount}`;
+                document.getElementById('dash-attendance-percent').innerText = stats.attendanceRate || '100%';
+
+                document.getElementById('dash-total-transactions').innerText = `${stats.totalTransactions.toLocaleString()} Transaksi`;
+                const revBadge = document.getElementById('dash-total-revenue-badge');
+                if (revBadge) {
+                    const totalRev = stats.totalRevenue || 0;
+                    revBadge.innerText = totalRev >= 1000000
+                        ? `Rp ${(totalRev / 1000000).toFixed(1)}jt`
+                        : `Rp ${totalRev.toLocaleString('id-ID')}`;
+                }
+
+                // 1. Render Line Chart: Grafik Pertumbuhan Siswa Kumulatif (Data Real Database)
+                if (stats.monthlyGrowth) {
+                    renderGrowthChart(stats.monthlyGrowth);
+                }
+
+                // 2. Render Bar Chart: Distribusi Pendapatan Lunas
+                let programLabels = [];
+                let programData = [];
+                if (stats.revenueByProgram && stats.revenueByProgram.length > 0) {
+                    programLabels = stats.revenueByProgram.map(r => r.program);
+                    programData = stats.revenueByProgram.map(r => r.total);
+                } else {
+                    programLabels = ['Beginner 1', 'Intermediate 1', 'TOEFL Prep', 'Elementary 1'];
+                    programData = [0, 0, 0, 0];
+                }
+
+                const distCtx = document.getElementById('revenueDistributionChart').getContext('2d');
+                if (distributionChartInstance) {
+                    distributionChartInstance.destroy();
+                }
+                distributionChartInstance = new Chart(distCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: programLabels,
+                        datasets: [{
+                            label: 'Kas Masuk Lunas (Rp)',
+                            data: programData,
+                            backgroundColor: ['#0EA5E9', '#334155', '#0A58CA', '#CBD5E1', '#E2E8F0'],
+                            borderRadius: 6,
+                            borderSkipped: false,
+                            barThickness: 24
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { font: { family: 'Plus Jakarta Sans', size: 9, weight: '600' }, color: '#94A3B8' }
+                            },
+                            y: {
+                                grid: { color: '#F1F5F9' },
+                                ticks: {
+                                    font: { family: 'Plus Jakarta Sans', size: 9 },
+                                    color: '#94A3B8',
+                                    callback: function (val) {
+                                        if (val >= 1000000) return 'Rp ' + (val / 1000000) + 'jt';
+                                        return 'Rp ' + val.toLocaleString('id-ID');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Fungsi Memperbarui Grafik Pertumbuhan berdasarkan Pilihan Filter Dropdown
+        async function updateGrowthChartFilter() {
+            const periodSelect = document.getElementById('filter-growth-period');
+            const selectedVal = periodSelect ? periodSelect.value : 'semua';
+            const stats = await getDashboardStats(selectedVal);
+            if (stats && stats.monthlyGrowth) {
+                renderGrowthChart(stats.monthlyGrowth);
+            }
+        }
+
+        function renderGrowthChart(monthlyGrowth) {
+            const growthLabels = (monthlyGrowth && monthlyGrowth.labels) ? monthlyGrowth.labels : ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun'];
+            const growthData = (monthlyGrowth && monthlyGrowth.data) ? monthlyGrowth.data : [0, 0, 0, 0];
+            const datasetLabel = (monthlyGrowth && monthlyGrowth.title) ? monthlyGrowth.title : 'Siswa Terdaftar';
+
+            const growthCtx = document.getElementById('studentGrowthChart').getContext('2d');
+            if (growthChartInstance) {
+                growthChartInstance.destroy();
+            }
+            growthChartInstance = new Chart(growthCtx, {
+                type: 'line',
+                data: {
+                    labels: growthLabels,
+                    datasets: [{
+                        label: datasetLabel,
+                        data: growthData,
+                        borderColor: '#0A58CA',
+                        backgroundColor: 'rgba(10, 88, 202, 0.05)',
+                        borderWidth: 3.5,
+                        fill: true,
+                        tension: 0.35,
+                        pointBackgroundColor: '#0A58CA',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5.5,
+                        pointHoverRadius: 7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    return datasetLabel + ': ' + (context.raw || 0) + ' Siswa';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { family: 'Plus Jakarta Sans', size: 10, weight: '600' }, color: '#94A3B8' }
+                        },
+                        y: {
+                            grid: { color: '#F1F5F9' },
+                            beginAtZero: true,
+                            ticks: { font: { family: 'Plus Jakarta Sans', size: 10 }, color: '#94A3B8', precision: 0 }
+                        }
+                    }
+                }
+            });
+        }
+        // Reminder & Agenda System
+        function openReminderModal() {
+            document.getElementById('reminder-form').reset();
+            const modal = document.getElementById('reminder-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.querySelector('.transform').classList.remove('scale-95');
+                }, 10);
+            }
+        }
+
+        function closeReminderModal() {
+            const modal = document.getElementById('reminder-modal');
+            if (modal) {
+                modal.classList.add('opacity-0');
+                modal.querySelector('.transform').classList.add('scale-95');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
+        }
+
+        async function saveReminder(e) {
+            e.preventDefault();
+            const title = document.getElementById('rem-title').value;
+            const date = document.getElementById('rem-date').value;
+            const time = document.getElementById('rem-time').value;
+            const location = document.getElementById('rem-location').value;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/reminders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, date, time, location })
+                });
+                if (!res.ok) throw new Error();
+                closeReminderModal();
+                await renderReminders();
+            } catch (err) {
+                console.error(err);
+                alert('Gagal menyimpan agenda/reminder.');
+            }
+        }
+
+        async function deleteReminder(id) {
+            if (!confirm('Hapus agenda/reminder ini?')) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/reminders/${id}`, {
+                    method: 'DELETE'
+                });
+                if (!res.ok) throw new Error();
+                await renderReminders();
+            } catch (err) {
+                console.error(err);
+                alert('Gagal menghapus agenda.');
+            }
+        }
+
+        async function renderReminders() {
+            const container = document.getElementById('reminder-list-container');
+            if (!container) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/reminders`);
+                const reminders = await res.json();
+
+                if (reminders.length === 0) {
+                    container.innerHTML = `<p class="text-center text-slate-400 py-6 text-xs font-semibold">Tidak ada agenda atau reminder terdaftar.</p>`;
+                    return;
+                }
+
+                const months = ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGS", "SEP", "OKT", "NOV", "DES"];
+                container.innerHTML = reminders.map(r => {
+                    const dateObj = new Date(r.date);
+                    const day = dateObj.getDate();
+                    const month = months[dateObj.getMonth()];
+                    return `
+                        <div class="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl transition-colors group cursor-pointer">
+                            <div class="flex items-center gap-4">
+                                <div class="bg-slate-50 border border-slate-100 rounded-xl p-2 text-center min-w-[50px] shadow-xs group-hover:bg-blue-50 group-hover:border-blue-100 transition-colors">
+                                    <p class="text-[9px] text-slate-400 font-bold uppercase group-hover:text-blue-500">${month}</p>
+                                    <p class="text-sm font-extrabold text-slate-800 leading-none mt-0.5 group-hover:text-blue-600">${day}</p>
+                                </div>
+                                <div>
+                                    <h5 class="text-xs font-bold text-slate-800 group-hover:text-blue-600 transition-colors">${r.title}</h5>
+                                    <p class="text-[11px] text-slate-400 mt-0.5">${r.time || 'Sepanjang hari'} ${r.location ? '• ' + r.location : ''}</p>
+                                </div>
+                            </div>
+                            <button onclick="deleteReminder(${r.id})" class="text-slate-300 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition-all opacity-0 group-hover:opacity-100">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+                if (window.lucide) lucide.createIcons();
+            } catch (err) {
+                console.error(err);
+                container.innerHTML = `<p class="text-center text-rose-500 py-6 text-xs font-semibold">Gagal memuat agenda.</p>`;
+            }
+        }
+
+        window.onload = async function () {
+            lucide.createIcons();
+            // Tampilkan tanggal hari ini secara dinamis
+            const todayText = document.getElementById('today-date-text');
+            if (todayText) {
+                todayText.innerText = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+            }
+            await loadDashboardStats();
+            await renderActivityLogs();
+            await renderReminders();
+        };
+    </script>
+</body>
+
+</html>

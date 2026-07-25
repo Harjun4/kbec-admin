@@ -77,29 +77,21 @@ app.use((req, res, next) => {
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
-app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => {
-    const indexPath = fs.existsSync(path.join(__dirname, 'public', 'index.html')) 
-        ? path.join(__dirname, 'public', 'index.html') 
-        : path.join(__dirname, 'index.html');
-    res.sendFile(indexPath);
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Penanganan file statis dinamis
+// Penanganan file statis (HTML/CSS/JS) dinamis untuk Vercel
 app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
     
     let relPath = req.path.startsWith('/') ? req.path.slice(1) : req.path;
     if (!relPath) relPath = 'index.html';
     
-    const publicPath = path.join(__dirname, 'public', relPath);
-    if (fs.existsSync(publicPath) && fs.statSync(publicPath).isFile()) {
-        return res.sendFile(publicPath);
-    }
-    const rootPath = path.join(__dirname, relPath);
-    if (fs.existsSync(rootPath) && fs.statSync(rootPath).isFile()) {
-        return res.sendFile(rootPath);
+    const fullPath = path.join(__dirname, relPath);
+    if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        return res.sendFile(fullPath);
     }
     next();
 });
