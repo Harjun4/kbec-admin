@@ -5,7 +5,10 @@
 
 ### 1. Aturan Hak Akses (RBAC Rules)
 
-#### A. Batasan Data Pengajar (Data Scoping)
+#### A. Prinsip Pemisahan Dashboard
+- **RBAC-00 (Separated Dashboard)**: Dashboard Pengajar (`teacher-*.html`) adalah aplikasi web yang **sepenuhnya terpisah** dari Dashboard Super Admin. Pengajar **tidak pernah masuk** ke halaman `login.html` utama. Mereka memiliki halaman login sendiri (`teacher-login.html`), sesi sendiri (`teacherSession` di localStorage), dan tidak bisa berpindah ke URL halaman Super Admin karena guard halaman akan menolak akses tanpa `role: "admin"`.
+
+#### B. Batasan Data Pengajar (Data Scoping)
 - **RBAC-01 (Strict Ownership)**: Pengajar **HANYA** dapat melihat kelas, siswa, dan jadwal yang nama pengajarnya tercantum pada kolom `classes.pengajar`.
 - **RBAC-02 (Prohibition of Admin Features)**: Pengajar **DILARANG**:
   - Mengakses data keuangan / pembayaran (`payments`).

@@ -1,114 +1,149 @@
 # Architecture Document
-## Arsitektur Sistem & Spesifikasi Teknis — Dashboard Pengajar KBEC
+## Arsitektur Sistem — Dashboard Pengajar KBEC (Terpisah dari Super Admin)
+### Versi: 2.0 | Status: FINAL
 
 ---
 
-### 1. Overview Arsitektur Sistem
-
-Dashboard Pengajar bukan sistem terpisah, melainkan **ekstensi terintegrasi** dari sistem KBEC Admin yang sudah ada. Pengajar mengakses Portal Pengajar (`teacher-*.html`) dan seluruh data ditulis ke TiDB Cloud yang sama — sehingga Super Admin dapat memantau semua aktivitas secara real-time.
+### 1. Prinsip Arsitektur: Separated UI, Shared Database
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    KBEC INTEGRATED SYSTEM                       │
-│                                                                 │
-│  [ Super Admin Dashboard ]     [ Teacher Dashboard ]           │
-│        (admin-*.html)               (teacher-*.html)           │
-│              │                           │                     │
-│              └─────────────┬─────────────┘                     │
-│                            │ HTTP / HTTPS (REST API)            │
-│                            ▼                                    │
-│         [ Vercel Serverless — server.js / api/index.js ]       │
-│                            │                                    │
-│         ┌──────────────────┼──────────────────┐                │
-│         │           Node MySQL2                │                │
-│         ▼                  ▼                  ▼                │
-│  [  teachers  ]    [  attendance  ]   [ teacher_checkins ]     │
-│  [ students   ]    [ student_grades ] [  activity_logs  ]     │
-│  [  classes   ]    [  schedules    ] [   reminders      ]     │
-│         └──────────────────┴──────────────────┘                │
-│                    TiDB Cloud (Shared Database)                 │
-└─────────────────────────────────────────────────────────────────┘
+╔══════════════════════════════════════════════════════════════════════╗
+║              KBEC SYSTEM — 2 DASHBOARD, 1 DATABASE                 ║
+╠══════════════════════════╦═══════════════════════════════════════════╣
+║   SUPER ADMIN DASHBOARD  ║       TEACHER DASHBOARD                  ║
+║                          ║                                           ║
+║   login.html             ║   teacher-login.html                     ║
+║   dashboard.html         ║   teacher-dashboard.html                 ║
+║   siswa.html             ║   teacher-checkin.html                   ║
+║   pengajar.html          ║   teacher-classes.html                   ║
+║   kelas.html             ║   teacher-attendance.html                ║
+║   absensi.html           ║   teacher-grades.html                    ║
+║   pembayaran.html        ║   teacher-schedules.html                 ║
+║   program.html           ║   teacher-profile.html                   ║
+║   jadwal.html            ║                                           ║
+║   profile.html           ║                                           ║
+╠══════════════════════════╩═══════════════════════════════════════════╣
+║                    server.js — Express.js                           ║
+║         /api/admin/*  ←──────────────────→  /api/teacher/*         ║
+╠══════════════════════════════════════════════════════════════════════╣
+║              TiDB Cloud — kbec_db (Single Shared Database)         ║
+║   [students] [teachers] [classes] [attendance] [payments]          ║
+║   [teacher_checkins] [student_grades] [activity_logs] ...          ║
+╚══════════════════════════════════════════════════════════════════════╝
 ```
 
 ---
 
 ### 2. Technology Stack
 
-| Layer | Teknologi | Alasan Pemilihan |
+| Layer | Teknologi | Catatan |
 |---|---|---|
-| **Frontend UI** | HTML5, Vanilla JavaScript (ES6+), TailwindCSS (CDN) | Ringan, tanpa bundler berat, kompatibel penuh lintas perangkat mobile/desktop. |
-| **GPS & Geolocation** | Browser Geolocation API (`navigator.geolocation`) + Haversine Formula | Native API browser, tanpa library tambahan, akurasi tinggi. |
-| **Iconography** | Lucide Icons | Visual modern, konsisten dengan antarmuka Super Admin. |
-| **Backend Server** | Node.js + Express.js | Arsitektur event-driven non-blocking, cepat untuk REST API simultan. |
-| **Database** | TiDB Cloud (MySQL Engine, Shared) | Database yang sama dengan Super Admin — satu sumber kebenaran (*single source of truth*). |
-| **Keamanan Auth** | SHA-256 HMAC Salting + Server-side Timestamp | Kata sandi aman, timestamp kehadiran tidak bisa dimanipulasi dari klien. |
-| **Hosting** | Vercel Serverless Functions | Auto CI/CD dari GitHub `main` branch, skalabilitas otomatis. |
+| **Frontend UI** | HTML5, Vanilla JavaScript (ES6+), TailwindCSS (CDN), Lucide Icons | Konsisten dengan Super Admin, zero bundler |
+| **GPS & Geolocation** | Browser Geolocation API + Haversine Formula (server-side) | Native, tanpa library tambahan |
+| **Backend** | Node.js + Express.js (`server.js`) | Satu file server untuk kedua dashboard |
+| **Database** | TiDB Cloud `kbec_db` | Database bersama — sumber kebenaran tunggal |
+| **Autentikasi** | SHA-256 HMAC Salting — tabel `teachers`, key sesi berbeda | `teacherSession` vs `authToken` di localStorage |
+| **Hosting** | Vercel Serverless | Auto CI/CD dari GitHub `main` |
 
 ---
 
-### 3. Arsitektur Keamanan & Hak Akses (RBAC)
+### 3. Routing & RBAC Middleware
 
-Sistem menggunakan **Role-Based Access Control (RBAC)** tiga tingkat:
-
-| Role | Akses |
-|---|---|
-| `admin` | Akses penuh ke seluruh sistem, termasuk monitoring rekap kehadiran pengajar |
-| `teacher` | Terbatas pada data kelas milik sendiri, absensi siswa, nilai, check-in diri sendiri |
-| `guest` | Redirect otomatis ke halaman login |
+Satu file `server.js` melayani kedua dashboard dengan middleware yang berbeda:
 
 ```javascript
-// Middleware Guard: Hanya izinkan role teacher atau admin
-function requireTeacherRole(req, res, next) {
-    const userRole = req.headers['x-user-role'];
-    if (userRole === 'teacher' || userRole === 'admin') return next();
+// ============================================================
+// MIDDLEWARE RBAC — DIPISAHKAN PER ROUTE PREFIX
+// ============================================================
+
+// Guard untuk Super Admin: hanya role 'admin'
+function requireAdmin(req, res, next) {
+    const role = req.headers['x-user-role'];
+    if (role === 'admin') return next();
+    return res.status(403).json({ success: false, message: 'Akses ditolak: Khusus Super Admin.' });
+}
+
+// Guard untuk Pengajar: role 'teacher' atau 'admin' (admin bisa lihat semua)
+function requireTeacher(req, res, next) {
+    const role = req.headers['x-user-role'];
+    if (role === 'teacher' || role === 'admin') return next();
     return res.status(403).json({ success: false, message: 'Akses ditolak: Khusus akun Pengajar.' });
+}
+
+// Contoh penerapan:
+app.post('/api/teacher/login', ...);               // Publik
+app.get('/api/teacher/dashboard',  requireTeacher, ...); // Teacher only
+app.get('/api/admin/teacher-checkins', requireAdmin, ...); // Admin only
+```
+
+---
+
+### 4. Alur Autentikasi — Dua Login Terpisah
+
+#### Super Admin Login Flow:
+```
+login.html ──POST /api/auth/login──► server.js ──► tabel users ──► authToken di localStorage
+```
+
+#### Teacher Login Flow:
+```
+teacher-login.html ──POST /api/teacher/login──► server.js ──► tabel teachers ──► teacherSession di localStorage
+```
+
+**Guard halaman di setiap `teacher-*.html`:**
+```javascript
+const session = JSON.parse(localStorage.getItem('teacherSession') || 'null');
+if (!session || session.role !== 'teacher') {
+    window.location.href = 'teacher-login.html';
 }
 ```
 
 ---
 
-### 4. Arsitektur Geofencing & GPS Check-in
+### 5. Arsitektur GPS Geofencing & Check-in
 
-#### Alur Teknis Check-in Tatap Muka:
+#### Alur Teknis (Tatap Muka):
 ```
-[Pengajar tekan tombol Check-in]
+[Pengajar tekan "CHECK-IN KELAS" di teacher-checkin.html]
          │
          ▼
-[Browser request GPS via navigator.geolocation.getCurrentPosition()]
+[navigator.geolocation.getCurrentPosition()]
          │
-         ├─ Izin Ditolak ──► Tampilkan error "Izin GPS diperlukan"
+         ├─ Ditolak ──► Toast error "Izin GPS wajib diaktifkan"
          │
-         ▼ Izin Diberikan
-[Kalkulasi jarak Haversine:
-  distance = haversine(user.lat, user.lng, kbec.lat, kbec.lng)]
+         ▼ Berhasil mendapat koordinat
+[Client kirim POST /api/teacher/checkin:
+  { class_id, lat, lng, accuracy, tipe: "tatap_muka" }]
          │
-         ├─ distance > 100m ──► Tampilkan error "Di luar radius KBEC (XXXm)"
+         ▼ Di SERVER (bukan di client):
+[Hitung jarak Haversine(lat, lng, KBEC_LAT, KBEC_LNG)]
          │
-         ▼ distance <= 100m
-[Kirim POST /api/teacher/checkin ke server:
-  { class_id, latitude, longitude, tipe: "hadir" }]
+         ├─ jarak > 100m ──► HTTP 403: "Di luar radius KBEC (XXXm)"
+         │
+         ▼ jarak ≤ 100m
+[INSERT teacher_checkins:
+  checkin_time = NOW()   ← Timestamp DARI SERVER, bukan klien
+  status_lokasi = 'VALID_IN_RANGE'
+  jarak_dari_kbec = jarak]
          │
          ▼
-[Server mencatat waktu dengan NOW() MySQL — BUKAN waktu klien]
-[INSERT INTO teacher_checkins (..., checkin_time = NOW())]
-         │
-         ▼
-[Server JUGA memanggil logActivity() → activity_logs]
-[Super Admin melihat log baru di Dashboard dalam <1 detik]
+[logActivity() ──► activity_logs]
+[Super Admin melihat di Dashboard dalam <1 detik]
 ```
 
-#### Koordinat Referensi KBEC (Dapat Dikonfigurasi via ENV):
-```javascript
-// Koordinat Resmi Fasilitas KBEC (bisa diubah di .env)
-const KBEC_LAT = process.env.KBEC_LATITUDE  || -7.9666;  // default: contoh koordinat
-const KBEC_LNG = process.env.KBEC_LONGITUDE || 112.6326; // default: contoh koordinat
-const KBEC_RADIUS_M = parseInt(process.env.KBEC_RADIUS_METERS || '100'); // 100 meter
+> **Kritis — Keamanan Timestamp**: Validasi jarak & pencatatan waktu **selalu dilakukan di server** menggunakan `NOW()` MySQL. Client hanya mengirim koordinat, tidak mengirim waktu.
+
+#### Koordinat KBEC (Dikonfigurasi via ENV):
+```env
+KBEC_LATITUDE=-7.9666
+KBEC_LONGITUDE=112.6326
+KBEC_RADIUS_METERS=100
 ```
 
-#### Formula Haversine (Jarak antara 2 Koordinat GPS):
+#### Formula Haversine (Dijalankan di server.js):
 ```javascript
 function haversineDistance(lat1, lng1, lat2, lng2) {
-    const R = 6371000; // Radius bumi dalam meter
+    const R = 6371000;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
     const a = Math.sin(dLat/2)**2 +
@@ -121,36 +156,38 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
 
 ---
 
-### 5. Rute REST API Terdedikasi Pengajar
+### 6. Endpoint API Lengkap
 
-| Method | Endpoint API | Deskripsi | Scope |
+#### Teacher Dashboard Endpoints (`/api/teacher/*`)
+| Method | Endpoint | Deskripsi | Guard |
 |---|---|---|---|
-| `POST` | `/api/teacher/login` | Login khusus pengajar | Publik |
-| `GET` | `/api/teacher/dashboard` | Statistik & jadwal hari ini | Teacher |
-| `GET` | `/api/teacher/classes` | Kelas yang diampu pengajar | Teacher |
-| `GET` | `/api/teacher/classes/:id/students` | Daftar siswa di kelas tertentu | Teacher |
-| `POST` | `/api/teacher/attendance` | Input presensi harian siswa | Teacher |
-| `GET` | `/api/teacher/grades` | Data nilai siswa | Teacher |
-| `POST` | `/api/teacher/grades` | Input / update nilai & progress note | Teacher |
-| `POST` | `/api/teacher/checkin` | Check-in kehadiran pengajar + GPS | Teacher |
-| `POST` | `/api/teacher/checkout` | Check-out kehadiran pengajar | Teacher |
-| `GET` | `/api/teacher/checkins` | Riwayat rekam kehadiran pengajar | Teacher |
-| `GET` | `/api/admin/teacher-checkins` | Rekap kehadiran semua pengajar | Admin only |
-| `PUT` | `/api/teacher/profile` | Update profil & password pengajar | Teacher |
+| `POST` | `/api/teacher/login` | Login pengajar | Publik |
+| `GET` | `/api/teacher/dashboard` | Statistik & jadwal hari ini | `requireTeacher` |
+| `GET` | `/api/teacher/classes` | Kelas yang diampu pengajar login | `requireTeacher` |
+| `GET` | `/api/teacher/classes/:id/students` | Siswa di kelas tertentu | `requireTeacher` |
+| `POST` | `/api/teacher/attendance` | Input presensi siswa | `requireTeacher` |
+| `GET` | `/api/teacher/grades` | Data nilai siswa | `requireTeacher` |
+| `POST` | `/api/teacher/grades` | Upsert nilai & progress note | `requireTeacher` |
+| `POST` | `/api/teacher/checkin` | Check-in + validasi GPS | `requireTeacher` |
+| `POST` | `/api/teacher/checkout` | Check-out + hitung durasi | `requireTeacher` |
+| `GET` | `/api/teacher/checkins` | Riwayat check-in diri sendiri | `requireTeacher` |
+| `PUT` | `/api/teacher/profile` | Update profil & password | `requireTeacher` |
+
+#### Admin Monitoring Endpoints (`/api/admin/*`)
+| Method | Endpoint | Deskripsi | Guard |
+|---|---|---|---|
+| `GET` | `/api/admin/teacher-checkins` | Rekap check-in semua pengajar | `requireAdmin` |
+| `GET` | `/api/admin/teacher-checkins/:id` | Rekap check-in 1 pengajar | `requireAdmin` |
 
 ---
 
-### 6. Pola Integrasi dengan Super Admin
+### 7. Integrasi Data dengan Super Admin
 
-Seluruh aksi pengajar yang mengubah data secara otomatis memanggil fungsi `logActivity()` di server, sehingga log langsung tampil di widget **Log Aktivitas Terbaru** pada Dashboard Super Admin:
+Semua data yang diinput pengajar tersimpan ke tabel yang sama sehingga Super Admin dapat memantau tanpa ada duplikasi data:
 
-```javascript
-// Dipanggil setelah setiap aksi penting pengajar di server.js
-await logActivity(
-    teacher.nama,
-    'Check-in Kelas · GPS Terverifikasi',
-    `[${kelas}] · ${distance.toFixed(0)}m dari KBEC`,
-    'Berhasil',
-    'text-emerald-600 bg-emerald-50'
-);
+```
+Teacher input absensi siswa ──► tabel attendance ──► dibaca Super Admin di absensi.html
+Teacher input nilai         ──► tabel student_grades ──► dibaca Super Admin di siswa.html
+Teacher check-in GPS        ──► tabel teacher_checkins ──► dibaca Super Admin di pengajar.html
+Semua aksi pengajar         ──► tabel activity_logs ──► muncul di dashboard.html Super Admin
 ```

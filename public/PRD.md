@@ -1,110 +1,144 @@
 # Product Requirements Document (PRD)
 ## Dashboard Khusus Pengajar — KBEC (Kampung Bahasa English Course)
+### Versi: 2.0 | Status: FINAL (Disetujui)
 
 ---
 
-### 1. Ringkasan Eksekutif & Visi Produk
-**Dashboard Khusus Pengajar KBEC** adalah portal terdedikasi yang dirancang khusus untuk para tenaga pengajar (instruktur/tentor) di Kampung Bahasa English Course. Portal ini memisahkan hak akses pengajar dari Super Admin, memberikan pengalaman pengguna yang cepat, intuitif, dan aman untuk mengelola presensi harian siswa, penilaian progres belajar, jadwal mengajar harian, serta absensi kehadiran pengajar itu sendiri dengan bukti waktu (timestamp) dan lokasi GPS terverifikasi.
+### 1. Keputusan Arsitektur Utama: Dashboard Terpisah
 
-> **Prinsip Integrasi**: Dashboard Pengajar BUKAN sistem terpisah. Seluruh data (presensi siswa, nilai, absensi pengajar, log aktivitas) secara real-time tersinkron ke Dashboard Super Admin yang sudah ada, sehingga Super Admin dapat memantau seluruh aktivitas pengajar dari satu titik kontrol terpusat.
+> **Dashboard Pengajar adalah aplikasi web yang SEPENUHNYA TERPISAH dari Dashboard Super Admin.**
+
+Kedua dashboard menggunakan **database yang sama** (TiDB Cloud `kbec_db`), namun memiliki:
+- URL / halaman HTML yang berbeda (`teacher-*.html` vs halaman admin yang sudah ada).
+- Halaman login yang berbeda (`teacher-login.html` vs `login.html`).
+- Sidebar dan navigasi yang berbeda (tema Emerald vs tema Biru Super Admin).
+- Hak akses endpoint API yang berbeda (`/api/teacher/*` vs `/api/admin/*`).
+
+**Mengapa dipisahkan?**
+
+| Alasan | Penjelasan |
+|---|---|
+| **Fokus UX** | Pengajar tidak perlu melihat menu konfigurasi sistem, keuangan, atau manajemen user yang tidak relevan. UI pengajar harus bersih, cepat, dan fokus pada tugas mengajar. |
+| **Keamanan** | Pengajar tidak boleh memiliki akses — bahkan tidak sengaja — ke data sensitif seperti pembayaran, gaji, atau konfigurasi database. |
+| **Routing & Middleware** | Backend memisahkan endpoint `/api/teacher/*` dari `/api/admin/*` dengan middleware RBAC yang berbeda. |
+| **Skalabilitas** | Di masa depan, Dashboard Pengajar bisa dikembangkan menjadi Progressive Web App (PWA) yang dapat diinstall di smartphone pengajar, tanpa mempengaruhi Dashboard Super Admin. |
 
 ---
 
-### 2. User Persona & Peran (Role)
-- **Role**: `pengajar` (Teacher / Instruktur KBEC)
-- **Target Pengguna**: Seluruh tentor/guru KBEC yang mengampu program kursus (Basic, Intermediate, Advanced, TOEFL Prep, dll).
-- **Karakteristik & Kebutuhan**:
-  - Membutuhkan akses cepat ke daftar siswa di kelas yang diajarnya saja.
-  - Menginginkan tombol presensi cepat (Hadir/Izin/Sakit/Alpa) tanpa konfigurasi rumit.
-  - Membutuhkan form pengisian nilai & catatan perkembangan (*progress notes*) siswa per pertemuan.
-  - Memerlukan tombol **Check-in** kehadiran diri sendiri dengan bukti GPS & waktu yang terverifikasi.
+### 2. Hierarki Role & Hak Akses (RBAC — 3 Tingkatan)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     KBEC System RBAC                        │
+│                                                             │
+│  [ Super Admin ]                                            │
+│    Kontrol Penuh Sistem                                     │
+│    ✅ Manajemen User (tambah/hapus Admin & Pengajar)        │
+│    ✅ Konfigurasi Global Platform KBEC                      │
+│    ✅ Seluruh Data Keuangan & Pembayaran                    │
+│    ✅ Monitoring Rekap Kehadiran Semua Pengajar             │
+│    ✅ Seluruh Data Siswa, Kelas, Program                    │
+│           │                                                  │
+│           ▼                                                  │
+│  [ Admin / Staff Akademik ] ← Opsional, Direkomendasikan   │
+│    Operasional Harian                                        │
+│    ✅ Menyetujui izin & dispensasi pengajar                 │
+│    ✅ Mengatur jadwal kelas & penugasan guru                 │
+│    ✅ Memvalidasi rekap jam mengajar untuk payroll          │
+│    ❌ Tidak bisa mengubah konfigurasi sistem inti           │
+│    ❌ Tidak bisa menghapus akun pengguna                    │
+│           │                                                  │
+│           ▼                                                  │
+│  [ Pengajar / Teacher ]                                     │
+│    Fokus Mengajar                                            │
+│    ✅ Lihat jadwal & kelas milik sendiri saja               │
+│    ✅ Input absensi siswa di kelas yang diampu              │
+│    ✅ Input nilai & catatan progress siswa                  │
+│    ✅ Check-in / Check-out kehadiran sendiri + GPS          │
+│    ❌ Tidak bisa melihat data pengajar lain                 │
+│    ❌ Tidak bisa melihat data keuangan/pembayaran           │
+│    ❌ Tidak bisa menghapus kelas, siswa, atau program       │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-### 3. Lingkup Fitur Utama (Core Features)
+### 3. Pemetaan Halaman (URL Routing)
 
-#### A. Autentikasi & Portal Masuk Pengajar (`teacher-login.html`)
-- Login khusus pengajar menggunakan Email & Password akun pengajar dari tabel `teachers`.
-- Sesi terisolasi dengan penanda hak akses `role: "teacher"`.
-- Proteksi navigasi otomatis: Pengajar tidak dapat mengakses fitur administratif Super Admin.
+| Halaman | File | Akses | Deskripsi |
+|---|---|---|---|
+| **Login Pengajar** | `teacher-login.html` | Publik | Portal masuk khusus pengajar |
+| **Dashboard Pengajar** | `teacher-dashboard.html` | Teacher | Statistik, jadwal hari ini, log aktivitas diri sendiri |
+| **Check-in Kehadiran** | `teacher-checkin.html` | Teacher | Absensi kehadiran pengajar + GPS Geofencing |
+| **Kelas Saya** | `teacher-classes.html` | Teacher | Daftar kelas yang diampu |
+| **Absensi Siswa** | `teacher-attendance.html` | Teacher | Input presensi harian siswa per kelas |
+| **Nilai & Progres** | `teacher-grades.html` | Teacher | Input nilai tugas, UTS, UAS, progress note |
+| **Jadwal Mingguan** | `teacher-schedules.html` | Teacher | Jadwal Senin–Sabtu milik pengajar |
+| **Profil Pengajar** | `teacher-profile.html` | Teacher | Update data pribadi & password |
+
+---
+
+### 4. Fitur Utama (Core Features)
+
+#### A. Portal Login Pengajar (`teacher-login.html`)
+- Login terpisah menggunakan email & password akun pengajar dari tabel `teachers`.
+- Sesi tersimpan di `localStorage` dengan key berbeda dari Super Admin (`teacherSession` bukan `authToken`).
+- Guard navigasi otomatis: Jika bukan pengajar login, redirect ke `teacher-login.html`.
 
 #### B. Dashboard Ringkasan Pengajar (`teacher-dashboard.html`)
-- **Statistik Ringkas Pengajar**:
-  - Total Kelas yang Diampu
-  - Total Siswa Aktif di Kelas Pengajar
-  - Jam Mengajar Minggu Ini
-  - Persentase Kehadiran Siswa di Kelas Pengajar
-- **Widget Jadwal Mengajar Hari Ini**: Kartu berisi nama kelas, waktu, program, dan ruang kelas.
-- **Log Aktivitas Pengajar**: Riwayat presensi & check-in yang baru saja dilakukan.
+- Statistik: Total Kelas Diampu, Total Siswa, Jam Mengajar Minggu Ini, % Kehadiran Siswa.
+- Widget Jadwal Hari Ini.
+- Log Aktivitas Diri Sendiri (presensi & check-in yang dilakukan pengajar tersebut).
 
-#### C. Absensi Kehadiran Pengajar dengan GPS Check-in (`teacher-checkin.html`)
-Fitur utama baru: Sistem absensi kehadiran pengajar itu sendiri (bukan siswa) dengan validasi waktu & lokasi nyata.
+#### C. Absensi Kehadiran Pengajar + GPS Geofencing (`teacher-checkin.html`)
+- **Check-in Tatap Muka**: Validasi GPS, radius ≤ 100m dari gedung KBEC, timestamp dari server.
+- **Check-in Online**: Geofencing dilewati, timestamp server tetap digunakan.
+- **Check-out**: Merekam waktu selesai & menghitung durasi mengajar.
+- Koordinat, akurasi GPS, jarak dari KBEC, dan status lokasi dicatat di `teacher_checkins`.
+- Rekap kehadiran pengajar ini **dapat dilihat oleh Super Admin** di halaman Pengajar yang sudah ada.
 
-**Sub-fitur Mekanisme Check-in / Check-out**:
+#### D. Kelas Saya (`teacher-classes.html`)
+- Hanya menampilkan kelas yang `classes.pengajar = [Nama Pengajar Login]`.
 
-1. **Check-in Kelas Tatap Muka (Geofencing)**:
-   - Pengajar menekan tombol **"Check-in Kelas"**.
-   - Browser meminta izin akses GPS (`navigator.geolocation`).
-   - Sistem menghitung jarak antara koordinat GPS pengajar dengan titik koordinat resmi gedung KBEC.
-   - Jika pengajar berada dalam radius ≤ 100 meter dari gedung KBEC → **Check-in diizinkan & timestamp + koordinat disimpan**.
-   - Jika pengajar berada di luar radius → **Check-in DITOLAK** dengan pesan error informatif.
-   - Setelah selesai mengajar, pengajar menekan tombol **"Check-out"** yang juga menyimpan timestamp akhir.
+#### E. Absensi Siswa (`teacher-attendance.html`)
+- One-click attendance (H/S/I/A), tombol "Tandai Semua Hadir".
+- Data tersimpan di tabel `attendance` yang sama dengan Super Admin.
 
-2. **Check-in Kelas Online (Fleksibel)**:
-   - Untuk kelas online/remote, geofencing dinonaktifkan secara otomatis.
-   - Pengajar cukup menekan tombol Check-in yang langsung menyimpan timestamp server (bukan timestamp klien) untuk mencegah manipulasi waktu.
+#### F. Nilai & Progres Siswa (`teacher-grades.html`)
+- Input nilai tugas, UTS, UAS (0–100). Auto-konversi ke grade letter (A/B/C/D/E).
+- Catatan Progress Note kualitatif.
 
-3. **Bukti Rekam Kehadiran**:
-   - Setiap Check-in menyimpan: `waktu_checkin` (ISO timestamp), `latitude`, `longitude`, `alamat_otomatis` (reverse geocoding), `status_lokasi` (`"VALID_IN_RANGE"` / `"OUT_OF_RANGE_BYPASS"` / `"ONLINE_MODE"`), dan `foto_selfie` (opsional, Base64 thumbnail).
-
-#### D. Manajemen Kelas Saya (`teacher-classes.html`)
-- Daftar kelas yang secara khusus diampu oleh pengajar yang sedang login.
-- Detail Siswa Per Kelas: Daftar siswa terdaftar, status keaktifan, dan rekapitulasi kehadiran.
-
-#### E. Presensi Siswa Harian (`teacher-attendance.html`)
-- Pilihan tanggal & kelas mengajar.
-- Fitur **One-Click Attendance**: Tombol status Hadir (H), Sakit (S), Izin (I), Alpa (A) untuk setiap siswa.
-- Tombol **"Tandai Semua Hadir"** untuk mempercepat proses absensi.
-- Penyimpanan langsung ke TiDB Cloud dan otomatis muncul di log aktivitas Super Admin.
-
-#### F. Penilaian & Catatan Perkembangan Siswa (`teacher-grades.html`)
-- Input nilai evaluasi siswa: Nilai Tugas (0-100), UTS (0-100), UAS (0-100).
-- Catatan *Progress Notes*: Catatan kualitatif kelancaran speaking, grammar, dan keaktifan.
-- Data langsung tersinkron ke tabel `student_grades` dan dapat dilihat oleh Super Admin.
-
-#### G. Jadwal Mengajar Mingguan (`teacher-schedules.html`)
-- Kalender/tabel jadwal mengajar Senin-Sabtu.
-- Filter berdasarkan hari dan tipe kelas (Reguler / Private / Online).
+#### G. Jadwal Mingguan (`teacher-schedules.html`)
+- Tabel kalender Senin–Sabtu.
 
 #### H. Profil Pengajar (`teacher-profile.html`)
-- Update data pribadi (Nama, Email, Kontak, Spesialisasi, Foto Avatar).
-- Perbarui Password dengan fitur ikon mata show/hide.
+- Update nama, email, kontak, spesialisasi, foto avatar, dan password.
 
 ---
 
-### 4. Integrasi dengan Dashboard Super Admin
+### 5. Integrasi Data (Bukan UI) dengan Super Admin
 
-| Fitur Pengajar | Terlihat oleh Super Admin | Lokasi di Super Admin |
-|---|---|---|
-| Check-in / Check-out Pengajar | ✅ Ya | Halaman Pengajar → Tab Rekam Kehadiran |
-| Presensi Siswa yang Diisi Pengajar | ✅ Ya | Halaman Absensi (data gabungan) |
-| Nilai & Progress Note Siswa | ✅ Ya | Detail Profil Siswa → Tab Nilai |
-| Log Aktivitas Pengajar | ✅ Ya | Dashboard → Widget Log Aktivitas Terbaru |
-| Penambahan Pengajar Baru | ❌ Hanya Super Admin | Manajemen Pengajar → Tambah Pengajar |
+Meskipun UI terpisah, **data yang diinput pengajar langsung tersimpan ke database bersama** sehingga Super Admin tetap dapat memantaunya:
 
----
-
-### 5. Non-Functional Requirements (NFR)
-- **Performa**: Waktu muat halaman & respon API presensi < 1 detik. Respon validasi GPS < 3 detik.
-- **Keamanan**: Timestamp check-in menggunakan waktu server (`NOW()` di TiDB Cloud) bukan waktu klien, sehingga tidak bisa dimanipulasi.
-- **Responsivitas**: Tampilan 100% responsif (Mobile-first ready), sehingga pengajar dapat mengabsen menggunakan smartphone di lokasi kelas.
-- **Privasi Lokasi**: Koordinat GPS pengajar disimpan dengan enkripsi dan hanya dapat dilihat oleh Super Admin.
+| Data yang Diinput Pengajar | Terlihat oleh Super Admin di |
+|---|---|
+| Presensi siswa | Halaman Absensi Super Admin |
+| Nilai & Progress Note | Detail Siswa → Tab Nilai |
+| Check-in/out + GPS | Halaman Pengajar → Tab Rekam Kehadiran |
+| Log Aktivitas | Dashboard → Widget Log Aktivitas Terbaru |
 
 ---
 
-### 6. Kriteria Keberhasilan (Success Metrics)
-- 100% data absensi siswa terisi secara digital tanpa penggunaan kertas manual.
-- 100% kehadiran pengajar tercatat dengan timestamp + koordinat GPS yang terverifikasi.
-- Zero manipulasi waktu kehadiran (server-side timestamp enforcement).
-- Zero data breach / tidak ada kebocoran akses data keuangan kepada role pengajar.
-- Kepuasan pengajar (CSAT) terhadap kecepatan penginputan nilai dan absensi harian > 90%.
+### 6. Non-Functional Requirements
+- **Performa**: Load halaman < 1 detik, respons validasi GPS < 3 detik.
+- **Keamanan**: Server-side timestamp (tidak bisa dimanipulasi), RBAC ketat per endpoint.
+- **Responsivitas**: Mobile-first. Check-in card dioptimalkan untuk penggunaan dengan satu tangan di smartphone.
+
+---
+
+### 7. Kriteria Keberhasilan (Success Metrics)
+- 100% data absensi siswa terisi secara digital.
+- 100% kehadiran pengajar tercatat dengan timestamp + GPS terverifikasi.
+- Zero akses pengajar ke data keuangan atau konfigurasi sistem.
+- Zero manipulasi timestamp kehadiran (server-side enforcement).
+- CSAT pengajar terhadap kemudahan penggunaan > 90%.
