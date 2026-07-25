@@ -12,9 +12,9 @@ const dbConfig = {
     queueLimit: 0
 };
 
-// Dukungan SSL untuk TiDB Cloud dan database remote di Render.com
+// Dukungan SSL untuk TiDB Cloud dan database remote di Render.com / Vercel
 if (process.env.DB_SSL === 'true' || (process.env.DB_HOST && process.env.DB_HOST !== 'localhost' && process.env.DB_HOST !== '127.0.0.1')) {
-    dbConfig.ssl = { minVersion: 'TLSv1.2', rejectUnauthorized: true };
+    dbConfig.ssl = { minVersion: 'TLSv1.2', rejectUnauthorized: false };
 }
 
 const pool = mysql.createPool(dbConfig);
