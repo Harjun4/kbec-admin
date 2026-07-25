@@ -606,12 +606,12 @@ app.post('/api/auth/register', async (req, res) => {
 });
 
 // --- AUTH / PROFILE UPDATE ---
-app.put('/api/auth/profile', async (req, res) => {
+app.put(['/api/auth/profile', '/auth/profile'], async (req, res) => {
     const { name, email, password, oldEmail } = req.body;
     try {
-        // Cek jika email baru sudah digunakan oleh user lain
-        if (email !== oldEmail) {
-            const [existing] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+        const targetEmail = oldEmail || email || 'admin@kbec.com';
+        if (email && targetEmail !== email) {
+            const [existing] = await db.query('SELECT * FROM users WHERE email = ? AND email != ?', [email, targetEmail]);
             if (existing.length > 0) {
                 return res.status(400).json({ success: false, message: 'Email baru sudah digunakan oleh akun lain.' });
             }
@@ -620,17 +620,19 @@ app.put('/api/auth/profile', async (req, res) => {
         if (password) {
             const passwordHashed = hashPassword(password);
             await db.query(
-                'UPDATE users SET name = ?, email = ?, password = ? WHERE email = ?',
-                [name, email, passwordHashed, oldEmail]
+                'UPDATE users SET name = ?, email = ?, password = ? WHERE email = ? OR id = 1',
+                [name || 'Admin Utama', email || targetEmail, passwordHashed, targetEmail]
             );
         } else {
             await db.query(
-                'UPDATE users SET name = ?, email = ? WHERE email = ?',
-                [name, email, oldEmail]
+                'UPDATE users SET name = ?, email = ? WHERE email = ? OR id = 1',
+                [name || 'Admin Utama', email || targetEmail, targetEmail]
             );
         }
-        res.json({ success: true, user: { name, email } });
+        await logActivity(name || 'Admin Utama', 'Pembaruan Profil & Kata Sandi', '-', 'Berhasil', 'text-emerald-600 bg-emerald-50');
+        res.json({ success: true, user: { name: name || 'Admin Utama', email: email || targetEmail } });
     } catch (err) {
+        console.error('Error updating profile:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -839,48 +841,60 @@ app.delete('/api/teachers/:id', async (req, res) => {
 });
 
 // --- PROGRAM STUDI (PROGRAMS) ---
-app.get('/api/programs', async (req, res) => {
+app.get(['/api/programs', '/programs'], async (req, res) => {
     try {
-        const [rows] = await db.query('SELECT * FROM programs');
+        const [rows] = await db.query('SELECT * FROM programs ORDER BY id ASC');
         res.json(rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-app.post('/api/programs', async (req, res) => {
+app.post(['/api/programs', '/programs'], async (req, res) => {
     const { nama, cat, level, deskripsi, biaya, durasi, sesi } = req.body;
+    if (!nama || !nama.trim()) {
+        return res.status(400).json({ success: false, message: 'Nama program wajib diisi.' });
+    }
     try {
+        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM programs');
+        const nextId = (maxId || 0) + 1;
+        const cleanBiaya = parseInt(String(biaya || 0).replace(/[^0-9]/g, ''), 10) || 0;
         await db.query(
-            'INSERT INTO programs (nama, cat, level, deskripsi, biaya, durasi, sesi) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [nama, cat, level, deskripsi, biaya, durasi, sesi]
+            'INSERT INTO programs (id, nama, cat, level, deskripsi, biaya, durasi, sesi) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [nextId, nama.trim(), cat || 'beginner', level || 'Dasar 1', deskripsi || '', cleanBiaya, durasi || '3 Bulan', sesi || '12 Sesi']
         );
-        res.status(201).json({ success: true });
+        await logActivity('Admin Utama', `Tambah Program Kursus (${nama})`, nama, 'Berhasil', 'text-blue-600 bg-blue-50');
+        res.status(201).json({ success: true, id: nextId, nama });
     } catch (err) {
+        console.error('Error adding program:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
-app.put('/api/programs/:id', async (req, res) => {
+app.put(['/api/programs/:id', '/programs/:id'], async (req, res) => {
     const { id } = req.params;
     const { nama, cat, level, deskripsi, biaya, durasi, sesi } = req.body;
     try {
+        const cleanBiaya = parseInt(String(biaya || 0).replace(/[^0-9]/g, ''), 10) || 0;
         await db.query(
             'UPDATE programs SET nama = ?, cat = ?, level = ?, deskripsi = ?, biaya = ?, durasi = ?, sesi = ? WHERE id = ?',
-            [nama, cat, level, deskripsi, biaya, durasi, sesi, id]
+            [nama, cat || 'beginner', level || 'Dasar 1', deskripsi || '', cleanBiaya, durasi || '3 Bulan', sesi || '12 Sesi', id]
         );
+        await logActivity('Admin Utama', `Pembaruan Program (${nama})`, nama, 'Berhasil', 'text-emerald-600 bg-emerald-50');
         res.json({ success: true });
     } catch (err) {
+        console.error('Error updating program:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
-app.delete('/api/programs/:id', async (req, res) => {
+app.delete(['/api/programs/:id', '/programs/:id'], async (req, res) => {
     const { id } = req.params;
     try {
         await db.query('DELETE FROM programs WHERE id = ?', [id]);
         res.json({ success: true });
     } catch (err) {
+        console.error('Error deleting program:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -982,20 +996,41 @@ app.get('/api/schedules', async (req, res) => {
     }
 });
 
-app.post('/api/schedules', async (req, res) => {
-    const { hari, mulai, selesai, kelas, program, tipe, pengajar, ruang } = req.body;
+app.post(['/api/classes', '/classes'], async (req, res) => {
+    const { nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
     try {
+        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM classes');
+        const nextId = (maxId || 0) + 1;
         await db.query(
-            'INSERT INTO classes (nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [kelas, program, pengajar, 20, hari, mulai, selesai, tipe, ruang]
+            'INSERT INTO classes (id, nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [nextId, nama || 'Kelas Baru', program || null, pengajar || '-', kapasitas || 20, hari || 'Senin', mulai || '08:00', selesai || '09:30', tipe || 'Reguler', ruang || 'Ruang 1']
         );
-        res.status(201).json({ success: true });
+        await logActivity('Admin Utama', `Tambah Kelas (${nama})`, program || '-', 'Berhasil', 'text-blue-600 bg-blue-50');
+        res.status(201).json({ success: true, id: nextId });
     } catch (err) {
+        console.error('Error adding class:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
-app.delete('/api/schedules/:id', async (req, res) => {
+app.post(['/api/schedules', '/schedules'], async (req, res) => {
+    const { hari, mulai, selesai, kelas, program, tipe, pengajar, ruang } = req.body;
+    try {
+        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM classes');
+        const nextId = (maxId || 0) + 1;
+        await db.query(
+            'INSERT INTO classes (id, nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [nextId, kelas || 'Kelas Baru', program || null, pengajar || '-', 20, hari || 'Senin', mulai || '08:00', selesai || '09:30', tipe || 'Reguler', ruang || 'Ruang 1']
+        );
+        await logActivity('Admin Utama', `Tambah Jadwal (${kelas})`, program || '-', 'Berhasil', 'text-blue-600 bg-blue-50');
+        res.status(201).json({ success: true, id: nextId });
+    } catch (err) {
+        console.error('Error adding schedule:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete(['/api/schedules/:id', '/schedules/:id'], async (req, res) => {
     const { id } = req.params;
     try {
         await db.query('DELETE FROM class_students WHERE class_id = ?', [id]);
@@ -1237,7 +1272,7 @@ app.delete('/api/payments/:id', async (req, res) => {
 });
 
 // --- ABSENSI (ATTENDANCE) ---
-app.get('/api/attendance', async (req, res) => {
+app.get(['/api/attendance', '/attendance'], async (req, res) => {
     const { tanggal, kelas } = req.query;
     try {
         let query = "SELECT id, student_id, nama, program, kelas, status, inisial, DATE_FORMAT(tanggal, '%Y-%m-%d') AS tanggal FROM attendance";
@@ -1259,69 +1294,73 @@ app.get('/api/attendance', async (req, res) => {
     }
 });
 
-app.post('/api/attendance/bulk', async (req, res) => {
-    const { list, tanggal, kelas } = req.body; // list: [{ student_id, nama, program, status, inisial }]
+app.post(['/api/attendance/bulk', '/attendance/bulk'], async (req, res) => {
+    const { list, tanggal, kelas } = req.body;
     if (!list || !Array.isArray(list) || !tanggal || !kelas) {
         return res.status(400).json({ success: false, message: 'Data list, tanggal, dan kelas wajib disertakan.' });
     }
     
     try {
-        // Hapus absensi kelas tersebut pada tanggal tersebut terlebih dahulu agar bisa ditimpa
         await db.query('DELETE FROM attendance WHERE tanggal = ? AND kelas = ?', [tanggal, kelas]);
         
-        // Insert data baru dalam bentuk batch multi-value
         if (list.length > 0) {
+            const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM attendance');
+            let currentId = maxId || 0;
             const values = list.map(item => [
+                ++currentId,
                 item.id || item.student_id,
                 item.nama,
-                item.program,
+                item.program || '-',
                 kelas,
                 item.status,
                 item.inisial || 'S',
                 tanggal
             ]);
             await db.query(
-                'INSERT INTO attendance (student_id, nama, program, kelas, status, inisial, tanggal) VALUES ?',
+                'INSERT INTO attendance (id, student_id, nama, program, kelas, status, inisial, tanggal) VALUES ?',
                 [values]
             );
         }
         await logActivity(`Siswa Kelas ${kelas}`, `Presensi Harian (${tanggal})`, '-', 'Berhasil', 'text-emerald-600 bg-emerald-50');
         res.json({ success: true });
     } catch (err) {
+        console.error('Error saving bulk attendance:', err);
         res.status(500).json({ error: err.message });
     }
 });
 
-app.post('/api/attendance/monthly', async (req, res) => {
-    const { kelas, bulan, list } = req.body; // list: [{ id, nama, program, status, inisial, tanggal }]
+app.post(['/api/attendance/monthly', '/attendance/monthly'], async (req, res) => {
+    const { kelas, bulan, list } = req.body;
     if (!list || !Array.isArray(list) || !kelas || !bulan) {
         return res.status(400).json({ success: false, message: 'Data list, kelas, dan bulan wajib disertakan.' });
     }
 
     try {
-        // Hapus absensi kelas tersebut pada bulan tersebut terlebih dahulu
         await db.query('DELETE FROM attendance WHERE kelas = ? AND tanggal LIKE ?', [kelas, `${bulan}-%`]);
 
-        // Filter item valid dan insert secara batch multi-value
         const validItems = list.filter(item => item.status && item.status !== '-');
         if (validItems.length > 0) {
+            const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM attendance');
+            let currentId = maxId || 0;
             const values = validItems.map(item => [
+                ++currentId,
                 item.id || item.student_id,
                 item.nama,
-                item.program,
+                item.program || '-',
                 kelas,
                 item.status,
                 item.inisial || 'S',
                 item.tanggal
             ]);
             await db.query(
-                'INSERT INTO attendance (student_id, nama, program, kelas, status, inisial, tanggal) VALUES ?',
+                'INSERT INTO attendance (id, student_id, nama, program, kelas, status, inisial, tanggal) VALUES ?',
                 [values]
             );
         }
         await logActivity(`Siswa Kelas ${kelas}`, `Presensi Bulanan (${bulan})`, '-', 'Berhasil', 'text-emerald-600 bg-emerald-50');
         res.json({ success: true });
     } catch (err) {
+        console.error('Error saving monthly attendance:', err);
         res.status(500).json({ error: err.message });
     }
 });

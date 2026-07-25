@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 
 <head>
@@ -266,7 +266,7 @@
                     <div class="p-2 bg-blue-50 text-[#0A58CA] rounded-lg">
                         <i data-lucide="book-marked" class="w-4 h-4"></i>
                     </div>
-                    <h3 class="font-bold text-slate-900 text-base">Tambah Program Baru</h3>
+                    <h3 id="modal-program-title" class="font-bold text-slate-900 text-base">Tambah Program Baru</h3>
                 </div>
                 <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
                     <i data-lucide="x" class="w-5 h-5"></i>
@@ -274,6 +274,7 @@
             </div>
 
             <form id="form-tambah-program" onsubmit="saveProgram(event)" class="p-6 space-y-4">
+                <input type="hidden" id="input-program-id">
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Nama
                         Program</label>
@@ -356,7 +357,6 @@
             grid.innerHTML = "";
 
             programData.forEach((prog, index) => {
-                // Skema pewarnaan visual modern dinamis berdasarkan kategori
                 let colorTheme = { bg: 'bg-blue-50/70', badge: 'text-blue-700 bg-blue-50', icon: 'text-blue-600 border-blue-100', stroke: 'border-l-blue-500', lucide: 'smile' };
 
                 if (prog.cat === 'intermediate') {
@@ -365,12 +365,22 @@
                     colorTheme = { bg: 'bg-purple-50/70', badge: 'text-purple-700 bg-purple-50', icon: 'text-purple-600 border-purple-100', stroke: 'border-l-purple-500', lucide: 'award' };
                 }
 
+                const displayBiaya = typeof prog.biaya === 'number' ? prog.biaya.toLocaleString('id-ID') : (prog.biaya || '0');
+
                 grid.innerHTML += `
                     <div data-category="${prog.cat}" class="program-card bg-white border border-slate-100 border-l-4 ${colorTheme.stroke} rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.01)] overflow-hidden flex flex-col justify-between transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl hover:shadow-slate-200/40">
                         <div>
-                            <div class="h-24 ${colorTheme.bg} p-5 relative flex items-center overflow-hidden">
+                            <div class="h-24 ${colorTheme.bg} p-5 relative flex items-center justify-between overflow-hidden">
                                 <div class="w-11 h-11 bg-white ${colorTheme.icon} rounded-xl flex items-center justify-center border shadow-sm z-10">
                                     <i data-lucide="${colorTheme.lucide}" class="w-5 h-5"></i>
+                                </div>
+                                <div class="flex items-center gap-1 z-10 bg-white/80 backdrop-blur-sm p-1 rounded-xl border border-slate-100 shadow-sm">
+                                    <button onclick="openEditProgramModal(${index})" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Program">
+                                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                    <button onclick="deleteProgram(${index})" class="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors" title="Hapus Program">
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                    </button>
                                 </div>
                                 <i data-lucide="graduation-cap" class="w-20 h-20 text-slate-900/5 absolute -right-2 -bottom-4"></i>
                             </div>
@@ -379,14 +389,14 @@
                                     <h4 class="program-name font-bold text-slate-800 text-sm tracking-tight leading-snug">${prog.nama}</h4>
                                     <span class="text-[9px] font-bold ${colorTheme.badge} px-2 py-0.5 rounded-md tracking-wide uppercase whitespace-nowrap">${prog.level}</span>
                                 </div>
-                                <p class="text-xs text-slate-500 leading-relaxed font-medium line-clamp-3">${prog.deskripsi}</p>
+                                <p class="text-xs text-slate-500 leading-relaxed font-medium line-clamp-3">${prog.deskripsi || 'Tidak ada deskripsi.'}</p>
                             </div>
                         </div>
                         <div class="px-5 pb-5">
                             <div class="space-y-2 text-[11px] font-semibold border-t border-slate-100 pt-3.5">
-                                <div class="flex justify-between"><span class="text-slate-400">Biaya Kursus</span><span class="text-[#0A58CA] font-bold text-xs">Rp ${prog.biaya}</span></div>
-                                <div class="flex justify-between"><span class="text-slate-400">Durasi</span><span class="text-slate-700 font-bold">${prog.durasi}</span></div>
-                                <div class="flex justify-between"><span class="text-slate-400">Total Pertemuan</span><span class="text-slate-700 font-bold">${prog.sesi}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-400">Biaya Kursus</span><span class="text-[#0A58CA] font-bold text-xs">Rp ${displayBiaya}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-400">Durasi</span><span class="text-slate-700 font-bold">${prog.durasi || '-'}</span></div>
+                                <div class="flex justify-between"><span class="text-slate-400">Total Pertemuan</span><span class="text-slate-700 font-bold">${prog.sesi || '-'}</span></div>
                             </div>
                         </div>
                     </div>
@@ -424,35 +434,80 @@
         function closeModal() {
             document.getElementById('program-modal').classList.add('hidden');
             document.getElementById('form-tambah-program').reset();
+            document.getElementById('input-program-id').value = '';
+            document.getElementById('modal-program-title').innerText = 'Tambah Program Baru';
+        }
+
+        function openEditProgramModal(index) {
+            const prog = programData[index];
+            if (!prog) return;
+            document.getElementById('input-program-id').value = prog.id;
+            document.getElementById('input-nama').value = prog.nama || '';
+            document.getElementById('input-filter-cat').value = prog.cat || 'basic';
+            document.getElementById('input-level').value = prog.level || 'Dasar 1';
+            document.getElementById('input-deskripsi').value = prog.deskripsi || '';
+            document.getElementById('input-biaya').value = prog.biaya || '';
+            document.getElementById('input-durasi').value = prog.durasi || '';
+            document.getElementById('input-sesi').value = prog.sesi || '';
+            document.getElementById('modal-program-title').innerText = 'Edit Program Kursus';
+            openModal();
+        }
+
+        async function deleteProgram(index) {
+            const prog = programData[index];
+            if (!prog) return;
+            if (confirm(`Apakah Anda yakin ingin menghapus program "${prog.nama}"?`)) {
+                try {
+                    const res = await fetch(`${API_BASE}/api/programs/${encodeURIComponent(prog.id)}`, {
+                        method: 'DELETE'
+                    });
+                    if (!res.ok) throw new Error();
+                    showToast(`Program "${prog.nama}" berhasil dihapus.`, 'success');
+                    await fetchPrograms();
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal menghapus program dari database.', 'error');
+                }
+            }
         }
 
         // SIMPAN DATA DARI FORM INPUT KE GRID SECARA REAL-TIME VIA API
         async function saveProgram(e) {
             e.preventDefault();
-            const nama = document.getElementById('input-nama').value;
+            const id = document.getElementById('input-program-id').value;
+            const nama = document.getElementById('input-nama').value.trim();
             const cat = document.getElementById('input-filter-cat').value;
-            const level = document.getElementById('input-level').value;
-            const deskripsi = document.getElementById('input-deskripsi').value;
-            let biayaRaw = document.getElementById('input-biaya').value;
-            const durasi = document.getElementById('input-durasi').value;
-            const sesi = document.getElementById('input-sesi').value;
+            const level = document.getElementById('input-level').value.trim();
+            const deskripsi = document.getElementById('input-deskripsi').value.trim();
+            const biaya = document.getElementById('input-biaya').value;
+            const durasi = document.getElementById('input-durasi').value.trim();
+            const sesi = document.getElementById('input-sesi').value.trim();
 
-            const biaya = parseInt(biayaRaw).toLocaleString('id-ID');
             const payload = { nama, cat, level, deskripsi, biaya, durasi, sesi };
 
             try {
-                const res = await fetch(`${API_BASE}/api/programs`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (!res.ok) throw new Error();
-                showToast(`Program "${nama}" berhasil ditambahkan ke database!`, 'success');
+                if (!id) {
+                    const res = await fetch(`${API_BASE}/api/programs`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!res.ok) throw new Error();
+                    showToast(`Program "${nama}" berhasil ditambahkan ke database!`, 'success');
+                } else {
+                    const res = await fetch(`${API_BASE}/api/programs/${encodeURIComponent(id)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!res.ok) throw new Error();
+                    showToast(`Program "${nama}" berhasil diperbarui!`, 'success');
+                }
                 closeModal();
                 await fetchPrograms();
             } catch (err) {
                 console.error(err);
-                showToast('Gagal menambahkan program ke database.', 'error');
+                showToast('Gagal menyimpan program ke database.', 'error');
             }
         }
 

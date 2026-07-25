@@ -195,17 +195,27 @@
                         <form id="profile-password-form" onsubmit="updateProfilePassword(event)" class="space-y-4">
                             <div class="space-y-1.5">
                                 <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Password Baru</label>
-                                <input type="password" id="profile-password" required placeholder="Minimal 6 karakter"
-                                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
+                                <div class="relative">
+                                    <input type="password" id="profile-password" required placeholder="Minimal 6 karakter"
+                                        class="w-full px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
+                                    <button type="button" onclick="togglePasswordVisibility('profile-password', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="space-y-1.5">
                                 <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Konfirmasi Password Baru</label>
-                                <input type="password" id="profile-confirm" required placeholder="Ulangi password baru"
-                                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
+                                <div class="relative">
+                                    <input type="password" id="profile-confirm" required placeholder="Ulangi password baru"
+                                        class="w-full px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
+                                    <button type="button" onclick="togglePasswordVisibility('profile-confirm', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="pt-2">
                                 <button type="submit"
-                                    class="w-full bg-amber-550 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md shadow-amber-500/10 bg-amber-600 flex items-center justify-center gap-1.5">
+                                    class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md shadow-amber-500/10 flex items-center justify-center gap-1.5">
                                     <i data-lucide="shield-check" class="w-4 h-4"></i> Perbarui Sandi Keamanan
                                 </button>
                             </div>
@@ -229,6 +239,18 @@
     <script>
         const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
         let currentUser = null;
+
+        function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const isPassword = input.type === 'password';
+            input.type = isPassword ? 'text' : 'password';
+            const icon = btn.querySelector('i');
+            if (icon) {
+                icon.setAttribute('data-lucide', isPassword ? 'eye-off' : 'eye');
+                if (window.lucide) lucide.createIcons();
+            }
+        }
 
         window.onload = function() {
             // Muat data user dari localStorage
