@@ -482,10 +482,6 @@ async function seedDatabase() {
     }
 }
 
-// Database seeding dipanggil hanya di local development (bila diperlukan)
-if (process.env.NODE_ENV === 'development') {
-    seedDatabase().catch(err => console.error('Seed error:', err));
-}
 
 // Endpoint diagnosa database TiDB untuk Vercel
 app.get('/api/test-db', async (req, res) => {
@@ -1312,7 +1308,7 @@ function getLocalIpAddress() {
     return '127.0.0.1';
 }
 
-if (!process.env.VERCEL) {
+if (require.main === module) {
     app.listen(PORT, '0.0.0.0', () => {
         const localIp = getLocalIpAddress();
         console.log(`🚀 Server berjalan di:`);
