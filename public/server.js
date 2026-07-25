@@ -696,21 +696,7 @@ app.post('/api/students', async (req, res) => {
             if (pRows.length > 0) validProgram = pRows[0].nama;
         }
 
-        let finalNama = nama.trim();
-        const [dupRows] = await db.query('SELECT id FROM students WHERE nama = ?', [finalNama]);
-        if (dupRows.length > 0) {
-            let count = 2;
-            let candidate = `${finalNama} ${count}`;
-            while (true) {
-                const [cRows] = await db.query('SELECT id FROM students WHERE nama = ?', [candidate]);
-                if (cRows.length === 0) {
-                    finalNama = candidate;
-                    break;
-                }
-                count++;
-                candidate = `${finalNama} ${count}`;
-            }
-        }
+        const finalNama = nama.trim();
 
         await db.query(
             'INSERT INTO students (id, nama, alamat, kontak, program, level, status, initial, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
