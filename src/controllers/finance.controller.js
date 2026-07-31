@@ -207,7 +207,7 @@ async function deleteBill(req, res, next) {
 
 async function getStudentBillsSummary(req, res, next) {
     try {
-        const { bulan, unit, status, search } = req.query;
+        const { bulan, unit, program, status, search } = req.query;
         const targetBulan = (bulan && bulan !== 'Semua' && bulan.trim()) ? bulan.trim() : new Date().toISOString().slice(0, 7);
 
         let whereClauses = ["(s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')"];
@@ -241,6 +241,12 @@ async function getStudentBillsSummary(req, res, next) {
             const bNamaClean = String(b.nama || '').toLowerCase().trim();
 
             if (b.student_id && !knownStudentIds.has(bIdClean) && !knownStudentNames.has(bNamaClean)) {
+                if (search && search.trim()) {
+                    const sTerm = search.trim().toLowerCase();
+                    const matchesSearch = bIdClean.includes(sTerm) || bNamaClean.includes(sTerm);
+                    if (!matchesSearch) continue;
+                }
+
                 knownStudentIds.add(bIdClean);
                 knownStudentNames.add(bNamaClean);
                 students.push({
@@ -286,6 +292,16 @@ async function getStudentBillsSummary(req, res, next) {
                 if (!matchUnit) continue;
             }
 
+            // Filter program if specified
+            if (program && program !== 'Semua') {
+                const pLow = program.toLowerCase().trim();
+                const stdProgLow = (std.program || '').toLowerCase();
+                const stdLevelLow = (std.level || '').toLowerCase();
+                if (stdProgLow !== pLow && stdLevelLow !== pLow && !stdProgLow.includes(pLow) && !stdLevelLow.includes(pLow)) {
+                    continue;
+                }
+            }
+
             // Find matching program fee
             let progName = (std.level && std.level.trim()) ? std.level.trim() : (std.program || 'Beginner 1');
             let matchedProg = programs.find(p => p.nama.toLowerCase() === progName.toLowerCase());
@@ -316,8 +332,16 @@ async function getStudentBillsSummary(req, res, next) {
             let monthTunggakanNominal = 0;
 
             if (monthBill) {
-                monthStatus = monthBill.status;
-                monthTunggakanNominal = Math.max(0, Number(monthBill.nominal || 0) - Number(monthBill.terbayar || 0));
+                const nom = Number(monthBill.nominal || 0);
+                const terb = Number(monthBill.terbayar || 0);
+                if (terb >= nom && nom > 0) {
+                    monthStatus = 'Lunas';
+                } else if (terb > 0) {
+                    monthStatus = 'Partial';
+                } else {
+                    monthStatus = monthBill.status || 'Tertagih';
+                }
+                monthTunggakanNominal = Math.max(0, nom - terb);
             } else if (unitName === 'Arabin') {
                 sppNominal = 0;
                 monthStatus = 'Beasiswa';
@@ -328,7 +352,7 @@ async function getStudentBillsSummary(req, res, next) {
 
             if (monthStatus === 'Lunas' || monthStatus === 'Beasiswa') {
                 totalLunasCount++;
-            } else if (monthStatus === 'Tertagih' || monthStatus === 'Tunggakan') {
+            } else if (monthStatus === 'Tertagih' || monthStatus === 'Tunggakan' || monthStatus === 'Partial') {
                 totalTunggakanCount++;
             }
 
@@ -336,7 +360,8 @@ async function getStudentBillsSummary(req, res, next) {
             if (status && status !== 'Semua') {
                 const sUpper = status.toUpperCase();
                 if (sUpper === 'LUNAS' && monthStatus !== 'Lunas' && monthStatus !== 'Beasiswa') continue;
-                if ((sUpper === 'TERTAGIH' || sUpper === 'TUNGGAKAN') && monthStatus !== 'Tertagih' && monthStatus !== 'Tunggakan') continue;
+                if (sUpper === 'PARTIAL' && monthStatus !== 'Partial') continue;
+                if ((sUpper === 'TUNGGAKAN' || sUpper === 'TERTAGIH') && monthStatus !== 'Tertagih' && monthStatus !== 'Tunggakan') continue;
                 if (sUpper === 'BELUM ADA TAGIHAN' && monthStatus !== 'Belum Ada Tagihan') continue;
             }
 
@@ -525,8 +550,15 @@ async function createPayment(req, res, next) {
 
         // Handle bill settlement logic
         if (bill_id && bill_id !== 'ALL') {
-            await conn.query('UPDATE bills SET terbayar = terbayar + ?, status = CASE WHEN terbayar + ? >= nominal THEN ? ELSE status END WHERE id = ?', [cleanJumlah, cleanJumlah, 'Lunas', bill_id]);
-        } else if (finalStudentId && status === 'Lunas') {
+            const [[bRow]] = await conn.query('SELECT nominal, terbayar FROM bills WHERE id = ?', [bill_id]);
+            if (bRow) {
+                const newTerbayar = Number(bRow.terbayar || 0) + cleanJumlah;
+                const newStatus = newTerbayar >= Number(bRow.nominal || 0) ? 'Lunas' : (newTerbayar > 0 ? 'Partial' : 'Tertagih');
+                await conn.query('UPDATE bills SET terbayar = ?, status = ? WHERE id = ?', [newTerbayar, newStatus, bill_id]);
+            } else {
+                await conn.query('UPDATE bills SET terbayar = terbayar + ?, status = CASE WHEN terbayar + ? >= nominal THEN ? ELSE ? END WHERE id = ?', [cleanJumlah, cleanJumlah, 'Lunas', 'Partial', bill_id]);
+            }
+        } else if (finalStudentId) {
             // Settle all unpaid/partially-paid bills for this student starting from oldest month (FIFO)
             const cleanId = String(finalStudentId).split('-')[0].trim();
             const [pendingBills] = await conn.query(
@@ -541,11 +573,13 @@ async function createPayment(req, res, next) {
                 if (needed <= 0) continue;
 
                 const addPay = Math.min(needed, remainingPayment);
-                const isFullyPaid = (Number(b.terbayar || 0) + addPay) >= Number(b.nominal || 0);
+                const newTerbayar = Number(b.terbayar || 0) + addPay;
+                const isFullyPaid = newTerbayar >= Number(b.nominal || 0);
+                const newStatus = isFullyPaid ? 'Lunas' : (newTerbayar > 0 ? 'Partial' : 'Tertagih');
 
                 await conn.query(
-                    'UPDATE bills SET terbayar = terbayar + ?, status = ? WHERE id = ?',
-                    [addPay, isFullyPaid ? 'Lunas' : 'Tertagih', b.id]
+                    'UPDATE bills SET terbayar = ?, status = ? WHERE id = ?',
+                    [newTerbayar, newStatus, b.id]
                 );
                 remainingPayment -= addPay;
             }

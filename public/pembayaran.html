@@ -672,12 +672,32 @@
                         </div>
 
                         <div class="flex flex-col">
-                            <span class="text-[10px] font-bold text-slate-400 mb-1 pl-1">Status Tagihan</span>
+                            <span class="text-[10px] font-bold text-slate-400 mb-1 pl-1">Program / Level</span>
+                            <select id="filter-std-program" onchange="fetchStudentBillsSummary()"
+                                class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 cursor-pointer min-w-[130px]">
+                                <option value="Semua">Semua Program</option>
+                                <option value="Beginner 1">Beginner 1</option>
+                                <option value="Beginner 2">Beginner 2</option>
+                                <option value="Elementary 1A">Elementary 1A</option>
+                                <option value="Elementary 1B">Elementary 1B</option>
+                                <option value="Elementary 2A">Elementary 2A</option>
+                                <option value="Elementary 2B">Elementary 2B</option>
+                                <option value="PAUD">PAUD / KB</option>
+                                <option value="TKA">TK A</option>
+                                <option value="TKB">TK B</option>
+                                <option value="Calistung 1">Calistung 1</option>
+                                <option value="Bimbel SD">Bimbel SD</option>
+                            </select>
+                        </div>
+
+                        <div class="flex flex-col">
+                            <span class="text-[10px] font-bold text-slate-400 mb-1 pl-1">Status Pembayaran</span>
                             <select id="filter-std-status" onchange="fetchStudentBillsSummary()"
                                 class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 cursor-pointer min-w-[130px]">
                                 <option value="Semua">Semua Status</option>
                                 <option value="Lunas">Lunas / Beasiswa</option>
-                                <option value="Tertagih">Ada Tunggakan / Tertagih</option>
+                                <option value="Partial">Partial (Bayar Sebagian)</option>
+                                <option value="Tunggakan">Tunggakan / Belum Bayar</option>
                                 <option value="Belum Ada Tagihan">Belum Ada Tagihan</option>
                             </select>
                         </div>
@@ -1211,18 +1231,20 @@
         async function fetchStudentBillsSummary() {
             const bulanEl = document.getElementById('filter-std-bulan');
             const unitEl = document.getElementById('filter-std-unit');
+            const progEl = document.getElementById('filter-std-program');
             const statusEl = document.getElementById('filter-std-status');
             const searchEl = document.getElementById('search-bill-data') || document.getElementById('search-data');
 
             const bulan = bulanEl ? bulanEl.value : '';
             const unit = unitEl ? unitEl.value : 'Semua';
+            const program = progEl ? progEl.value : 'Semua';
             const status = statusEl ? statusEl.value : 'Semua';
             const search = searchEl ? searchEl.value : '';
 
             try {
-                let res = await fetch(`${API_BASE}/api/finance/bills/per-student?bulan=${bulan}&unit=${unit}&status=${status}&search=${encodeURIComponent(search)}`);
+                let res = await fetch(`${API_BASE}/api/finance/bills/per-student?bulan=${bulan}&unit=${unit}&program=${encodeURIComponent(program)}&status=${status}&search=${encodeURIComponent(search)}`);
                 if (!res.ok) {
-                    res = await fetch(`${API_BASE}/api/bills/per-student?bulan=${bulan}&unit=${unit}&status=${status}&search=${encodeURIComponent(search)}`);
+                    res = await fetch(`${API_BASE}/api/bills/per-student?bulan=${bulan}&unit=${unit}&program=${encodeURIComponent(program)}&status=${status}&search=${encodeURIComponent(search)}`);
                 }
 
                 const cType = res.headers.get('content-type') || '';
@@ -1274,6 +1296,8 @@
                 } else if (s.status === 'Lunas' || (tagihanBulanIni <= 0 && totalTunggakan <= 0)) {
                     isLunas = true;
                     stBadge = '<span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">LUNAS</span>';
+                } else if (s.status === 'Partial') {
+                    stBadge = '<span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">PARTIAL</span>';
                 } else {
                     stBadge = '<span class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-rose-50 text-rose-700 border border-rose-200 whitespace-nowrap">ADA TUNGGAKAN</span>';
                 }
@@ -1400,7 +1424,7 @@
 
             document.getElementById('form-kategori').value = 'SPP';
             document.getElementById('form-jumlah').value = amount > 0 ? amount : 175000;
-            document.getElementById('form-status').value = 'Lunas';
+            document.getElementById('form-status').value = 'Tertagih';
             document.getElementById('form-metode').value = 'Tunai';
             document.getElementById('form-tanggal').value = new Date().toISOString().slice(0, 10);
 

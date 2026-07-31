@@ -15,15 +15,14 @@ async function createProgram(req, res, next) {
         return res.status(400).json({ success: false, message: 'Nama program wajib diisi.' });
     }
     try {
-        const [[maxRow]] = await db.query('SELECT COALESCE(MAX(id), 0) AS max_id FROM programs');
-        const nextId = parseInt(maxRow ? (maxRow.max_id || 0) : 0, 10) + 1;
         const cleanBiaya = parseInt(String(biaya || 0).replace(/[^0-9]/g, ''), 10) || 0;
 
-        await db.query(
-            'INSERT INTO programs (id, nama, cat, level, deskripsi, biaya, durasi, sesi) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [nextId, nama.trim(), cat || 'KBEC', level || 'Dasar 1', deskripsi || '', cleanBiaya, durasi || '3 Bulan', sesi || '24 Sesi']
+        const [result] = await db.query(
+            'INSERT INTO programs (nama, cat, level, deskripsi, biaya, durasi, sesi) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [nama.trim(), cat || 'KBEC', level || 'Dasar 1', deskripsi || '', cleanBiaya, durasi || '3 Bulan', sesi || '24 Sesi']
         );
-        res.status(201).json({ success: true, id: nextId, nama: nama.trim() });
+        const newId = (result && result.length > 0 && result[0].id) ? result[0].id : (result.insertId || null);
+        res.status(201).json({ success: true, id: newId, nama: nama.trim() });
     } catch (err) {
         next(err);
     }

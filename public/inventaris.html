@@ -362,9 +362,12 @@
             const searchVal = (document.getElementById('search-item-input')?.value || '').toLowerCase();
 
             const filtered = inventoryItems.filter(item => {
-                const matchKat = katFilter === 'Semua' || item.kategori === katFilter;
-                const matchSearch = item.nama_barang.toLowerCase().includes(searchVal) || item.kode_barang.toLowerCase().includes(searchVal);
-                return matchKat && matchSearch;
+                const matchKat = katFilter === 'Semua' || item.kategori === katKatFilter;
+                const itemNama = (item.nama_barang || item.nama || '').toLowerCase();
+                const itemKode = (item.kode_barang || item.kode || item.id || '').toLowerCase();
+                const itemKat = (item.kategori || '').toLowerCase();
+                const matchSearch = !searchVal || itemNama.includes(searchVal) || itemKode.includes(searchVal) || itemKat.includes(searchVal);
+                return (katFilter === 'Semua' || item.kategori === katFilter) && matchSearch;
             });
 
             document.getElementById('showing-count').innerText = filtered.length;

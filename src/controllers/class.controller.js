@@ -1,7 +1,7 @@
 const db = require('../config/db');
 
 async function resolveValidProgramName(programInput) {
-    if (!programInput) return null;
+    if (!programInput || !String(programInput).trim()) return 'KBEC';
     const pTrim = String(programInput).trim();
     try {
         const [[progExact]] = await db.query('SELECT nama FROM programs WHERE nama = ? LIMIT 1', [pTrim]);
@@ -10,9 +10,9 @@ async function resolveValidProgramName(programInput) {
         const [[progCat]] = await db.query('SELECT nama FROM programs WHERE cat = ? OR nama ILIKE ? OR cat ILIKE ? LIMIT 1', [pTrim, `%${pTrim}%`, `%${pTrim}%`]);
         if (progCat) return progCat.nama;
         
-        return null;
+        return pTrim;
     } catch (e) {
-        return null;
+        return pTrim;
     }
 }
 
@@ -31,8 +31,13 @@ async function createClass(req, res, next) {
     const { nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
     try {
         const validProgram = await resolveValidProgramName(program);
-        const [[maxRow]] = await db.query('SELECT COALESCE(MAX(id), 0) AS max_id FROM classes');
-        const nextId = parseInt(maxRow ? (maxRow.max_id || 0) : 0, 10) + 1;
+        const [allClasses] = await db.query('SELECT id FROM classes');
+        let maxNum = 0;
+        allClasses.forEach(c => {
+            const num = parseInt(String(c.id).replace(/[^0-9]/g, ''), 10);
+            if (!isNaN(num) && num > maxNum) maxNum = num;
+        });
+        const nextId = String(maxNum + 1);
 
         await db.query(
             'INSERT INTO classes (id, nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',

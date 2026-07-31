@@ -418,7 +418,8 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    if (!res.ok) throw new Error();
+                    const resData = await res.json();
+                    if (!res.ok || resData.error) throw new Error(resData.error || 'Server error');
                     showToast(`Program "${nama}" berhasil ditambahkan!`, 'success');
                 } else {
                     const res = await fetch(`${API_BASE}/api/programs/${encodeURIComponent(id)}`, {
@@ -426,14 +427,15 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    if (!res.ok) throw new Error();
+                    const resData = await res.json();
+                    if (!res.ok || resData.error) throw new Error(resData.error || 'Server error');
                     showToast(`Program "${nama}" berhasil diperbarui!`, 'success');
                 }
                 closeModal();
                 await fetchPrograms();
             } catch (err) {
                 console.error(err);
-                showToast('Gagal menyimpan program ke database.', 'error');
+                showToast(err.message || 'Gagal menyimpan program ke database.', 'error');
             }
         }
 

@@ -264,40 +264,12 @@ function renderDynamicGlobalSidebar() {
 
                 <!-- 👤 Manajemen User (Super Admin Only) -->
                 ${isSuperAdmin ? `
-                <div>
-                    <button onclick="window.toggleMenu('menu-users')"
-                        class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold ${openUsers ? 'text-[#0A58CA] font-bold' : 'text-slate-600'} rounded-xl hover:bg-slate-50 transition-all">
-                        <div class="flex items-center gap-3">
-                            <i data-lucide="user-check" class="w-4 h-4 ${openUsers ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
-                            <span>Manajemen User</span>
-                        </div>
-                        <i data-lucide="chevron-down" id="arrow-menu-users" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openUsers ? 'rotate-180' : ''}"></i>
-                    </button>
-                    <div id="menu-users" class="${openUsers ? '' : 'hidden'} pl-9 pr-2 py-1 space-y-1 text-xs font-medium">
-                        <a href="profile.html#users" class="block py-1.5 px-2 rounded-lg ${currentPath === 'profile.html' && !fullHash.includes('roles') ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Data User</a>
-                        <a href="profile.html#roles" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Hak Akses Role</a>
-                        <a href="profile.html#reset-password" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Reset Password</a>
-                    </div>
-                </div>
-                ` : ''}
-
-                <!-- ⚙️ Pengaturan (Super Admin Only) -->
-                ${isSuperAdmin ? `
-                <div>
-                    <button onclick="window.toggleMenu('menu-settings')"
-                        class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold ${openSettings ? 'text-[#0A58CA] font-bold' : 'text-slate-600'} rounded-xl hover:bg-slate-50 transition-all">
-                        <div class="flex items-center gap-3">
-                            <i data-lucide="sliders" class="w-4 h-4 ${openSettings ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
-                            <span>Pengaturan</span>
-                        </div>
-                        <i data-lucide="chevron-down" id="arrow-menu-settings" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openSettings ? 'rotate-180' : ''}"></i>
-                    </button>
-                    <div id="menu-settings" class="${openSettings ? '' : 'hidden'} pl-9 pr-2 py-1 space-y-1 text-xs font-medium">
-                        <a href="program.html" class="block py-1.5 px-2 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50/50">Nominal Program</a>
-                        <a href="profile.html#backup" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Backup Database</a>
-                        <a href="dashboard.html#activity-logs" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Log Aktivitas</a>
-                    </div>
-                </div>
+                <a href="profile.html"
+                    class="relative w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-bold rounded-xl ${currentPath === 'profile.html' ? 'bg-[#0A58CA]/10 text-[#0A58CA] shadow-xs' : 'text-slate-600 hover:bg-slate-50'} transition-all">
+                    ${currentPath === 'profile.html' ? '<span class="absolute left-0 top-2 bottom-2 w-1 bg-[#0A58CA] rounded-r-md"></span>' : ''}
+                    <i data-lucide="user-check" class="w-4 h-4 ${currentPath === 'profile.html' ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
+                    <span>Manajemen User</span>
+                </a>
                 ` : ''}
             </nav>
         </div>

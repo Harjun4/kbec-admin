@@ -504,7 +504,7 @@
                         matchesProgram = true;
                     } else if (pLow === 'arabin' && (stdUnitLow === 'arabin' || stdId.endsWith('-A') || stdId.includes('-A') || stdProgLow.includes('arabin'))) {
                         matchesProgram = true;
-                    } else if (pLow === 'tk' && (stdUnitLow === 'tk' || stdId.endsWith('-TK') || stdId.includes('-TK') || stdProgLow.includes('tk') || stdProgLow.includes('kb'))) {
+                    } else if (pLow === 'tk' && (stdUnitLow === 'tk' || stdId.endsWith('-TK') || stdId.includes('-TK') || stdProgLow === 'tk' || stdProgLow === 'tka' || stdProgLow === 'tkb' || stdProgLow === 'paud' || (stdProgLow.includes('kb') && !stdProgLow.includes('kbec')))) {
                         matchesProgram = true;
                     } else if (pLow === 'kbec' && (stdUnitLow === 'kbec' || stdProgLow.includes('kbec') || (!stdId.includes('-') && stdId.length >= 8))) {
                         matchesProgram = true;
