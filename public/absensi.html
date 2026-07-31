@@ -470,23 +470,23 @@
             const grid = document.getElementById('class-grid');
             grid.innerHTML = '';
             classes.forEach(c => {
-                const isActive = activeClass && activeClass.id === c.id;
+                const isActive = activeClass && String(activeClass.id) === String(c.id);
                 grid.innerHTML += `
-                    <div onclick="selectClass(${c.id})" class="p-4 rounded-2xl border transition-all cursor-pointer ${isActive ? 'bg-blue-50/80 border-[#0A58CA] shadow-sm' : 'bg-white border-slate-200/60 hover:border-slate-300'}">
+                    <div onclick="selectClass('${c.id}')" class="p-4 rounded-2xl border transition-all cursor-pointer ${isActive ? 'bg-blue-50/95 border-[#0A58CA] ring-2 ring-[#0A58CA]/40 shadow-md scale-[1.01]' : 'bg-white border-slate-200/60 hover:border-slate-300'}">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded ${isActive ? 'bg-[#0A58CA] text-white' : 'bg-slate-100 text-slate-500'}">${c.program || 'Reguler'}</span>
-                            <span class="text-xs font-bold text-slate-400">${c.terisi}/${c.kapasitas} Siswa</span>
+                            <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded ${isActive ? 'bg-[#0A58CA] text-white shadow-xs' : 'bg-slate-100 text-slate-500'}">${c.program || 'Reguler'}</span>
+                            <span class="text-xs font-bold ${isActive ? 'text-[#0A58CA]' : 'text-slate-400'}">${c.terisi}/${c.kapasitas} Siswa</span>
                         </div>
-                        <h4 class="font-extrabold text-sm text-slate-900">${c.nama}</h4>
-                        <p class="text-[11px] text-slate-400 font-medium">${c.pengajar || 'Pengajar KBEC'}</p>
+                        <h4 class="font-extrabold text-sm ${isActive ? 'text-[#0A58CA]' : 'text-slate-900'}">${c.nama}</h4>
+                        <p class="text-[11px] ${isActive ? 'text-blue-700 font-bold' : 'text-slate-400 font-medium'}">${c.pengajar || 'Pengajar KBEC'}</p>
                     </div>
                 `;
             });
-            lucide.createIcons();
+            if (window.lucide) lucide.createIcons();
         }
 
         async function selectClass(classId) {
-            activeClass = classesData.find(c => c.id === classId) || { id: classId, nama: 'Kelas KBEC', pengajar: 'Pengajar KBEC' };
+            activeClass = classesData.find(c => String(c.id) === String(classId)) || { id: classId, nama: 'Kelas KBEC', pengajar: 'Pengajar KBEC' };
             renderClassGrid(classesData);
             if (activeMode === 'daily') await loadClassAttendanceDirect();
             else if (activeMode === 'monthly') await loadMonthlyAttendance();
@@ -734,6 +734,12 @@
             `;
 
             tbody.innerHTML = '';
+            if (!data.report || data.report.length === 0) {
+                const totalCols = 10 + (data.dates ? data.dates.length * 3 : 0);
+                tbody.innerHTML = `<tr><td colspan="${totalCols}" class="text-center py-12 text-slate-400 font-bold">Belum ada siswa pada kelas ini.</td></tr>`;
+                return;
+            }
+
             data.report.forEach(r => {
                 let sessionCells = '';
                 data.dates.forEach(d => {

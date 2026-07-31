@@ -254,7 +254,7 @@ async function getStudentBillsSummary(req, res, next) {
                     nama: b.nama || 'Siswa',
                     initial: b.nama ? b.nama.slice(0, 2).toUpperCase() : 'S',
                     program: b.program || b.unit || 'KBEC',
-                    level: b.program || 'Beginner 1',
+                    level: b.program || b.unit || '-',
                     status: 'Aktif',
                     kontak: '-'
                 });
@@ -292,14 +292,31 @@ async function getStudentBillsSummary(req, res, next) {
                 if (!matchUnit) continue;
             }
 
+            // Match student's bills reliably
+            const stdIdClean = String(std.id).toLowerCase();
+            const stdNamaClean = String(std.nama).toLowerCase().trim();
+
+            const stdBills = allBills.filter(b => {
+                const bIdClean = String(b.student_id || '').toLowerCase();
+                const bNamaClean = String(b.nama || '').toLowerCase().trim();
+                return bIdClean === stdIdClean || bNamaClean === stdNamaClean || (bIdClean && bIdClean.split('-')[0] === stdIdClean.split('-')[0]);
+            });
+
+            const monthBill = stdBills.find(b => b.bulan_tagihan === targetBulan);
+
             // Filter program if specified
             if (program && program !== 'Semua') {
                 const pLow = program.toLowerCase().trim();
-                const stdProgLow = (std.program || '').toLowerCase();
-                const stdLevelLow = (std.level || '').toLowerCase();
-                if (stdProgLow !== pLow && stdLevelLow !== pLow && !stdProgLow.includes(pLow) && !stdLevelLow.includes(pLow)) {
-                    continue;
-                }
+                const stdProgLow = (std.program || '').toLowerCase().trim();
+                const stdLevelLow = (std.level || '').toLowerCase().trim();
+                const billProgLow = monthBill ? (monthBill.program || '').toLowerCase().trim() : '';
+
+                const matchesProg = (stdProgLow === pLow) ||
+                                    (stdLevelLow === pLow) ||
+                                    (billProgLow === pLow) ||
+                                    (stdProgLow.includes(pLow) && !stdLevelLow.startsWith('tk') && !stdLevelLow.startsWith('paud')) ||
+                                    (stdLevelLow.includes(pLow) && !stdLevelLow.startsWith('tk') && !stdLevelLow.startsWith('paud'));
+                if (!matchesProg) continue;
             }
 
             // Find matching program fee

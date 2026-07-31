@@ -349,6 +349,19 @@
             }
         }
 
+        function filterByCat(catName) {
+            const selectEl = document.getElementById('filter-kategori');
+            if (selectEl && catName) {
+                const catLow = catName.toLowerCase().trim();
+                let matchedOpt = Array.from(selectEl.options).find(o => o.value.toLowerCase().includes(catLow) || catLow.includes(o.value.toLowerCase()));
+                if (matchedOpt) {
+                    selectEl.value = matchedOpt.value;
+                }
+            }
+            renderInvTable();
+        }
+        window.filterByCat = filterByCat;
+
         function updateSummaryCards(summary) {
             document.getElementById('stat-total-items').innerText = summary.totalItems || 0;
             document.getElementById('stat-total-stock').innerText = summary.totalStock || 0;
@@ -362,12 +375,15 @@
             const searchVal = (document.getElementById('search-item-input')?.value || '').toLowerCase();
 
             const filtered = inventoryItems.filter(item => {
-                const matchKat = katFilter === 'Semua' || item.kategori === katKatFilter;
+                const itemKat = (item.kategori || '').toLowerCase().trim();
+                const targetKat = katFilter.toLowerCase().trim();
+                const matchKat = katFilter === 'Semua' || itemKat === targetKat || itemKat.includes(targetKat) || targetKat.includes(itemKat);
+
                 const itemNama = (item.nama_barang || item.nama || '').toLowerCase();
                 const itemKode = (item.kode_barang || item.kode || item.id || '').toLowerCase();
-                const itemKat = (item.kategori || '').toLowerCase();
                 const matchSearch = !searchVal || itemNama.includes(searchVal) || itemKode.includes(searchVal) || itemKat.includes(searchVal);
-                return (katFilter === 'Semua' || item.kategori === katFilter) && matchSearch;
+
+                return matchKat && matchSearch;
             });
 
             document.getElementById('showing-count').innerText = filtered.length;

@@ -284,18 +284,6 @@ async function getPerformanceReport(req, res, next) {
         }
         let [students] = await db.query(studentQuery, studentParams);
 
-        if (students.length === 0) {
-            if (classObj && classObj.program) {
-                [students] = await db.query('SELECT s.id, s.nama, s.program, s.level, s.initial FROM students s WHERE s.program = ?', [classObj.program]);
-            }
-            if (students.length === 0 && classObj && classObj.nama) {
-                [students] = await db.query('SELECT s.id, s.nama, s.program, s.level, s.initial FROM students s WHERE s.program = ? OR s.level = ?', [classObj.nama, classObj.nama]);
-            }
-            if (students.length === 0) {
-                [students] = await db.query('SELECT id, nama, program, level, initial FROM students LIMIT 50');
-            }
-        }
-
         if (!classObj) {
             const [[firstClass]] = await db.query('SELECT * FROM classes ORDER BY id ASC LIMIT 1');
             if (firstClass) {
