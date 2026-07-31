@@ -1,23 +1,41 @@
-// global-user.js - Integrasi User Session, Responsive Mobile Sidebar, Auth Guard & Global Search KBEC Admin
+// global-user.js - Integrasi User Session, Dynamic Responsive Tree Submenu Sidebar, Auth Guard & Global Search KBEC Admin
 
 // Intercept Global Fetch untuk melampirkan Token Autentikasi secara otomatis
 (function() {
     const originalFetch = window.fetch;
     window.fetch = function(url, options = {}) {
         options.headers = options.headers || {};
-        const token = localStorage.getItem('authToken') || 'kbec_admin_session_token_2026';
-        if (typeof options.headers.set === 'function') {
-            options.headers.set('Authorization', `Bearer ${token}`);
-        } else if (Array.isArray(options.headers)) {
-            options.headers.push(['Authorization', `Bearer ${token}`]);
-        } else {
-            options.headers['Authorization'] = `Bearer ${token}`;
+        const token = localStorage.getItem('authToken');
+        if (token) {
+            if (typeof options.headers.set === 'function') {
+                options.headers.set('Authorization', `Bearer ${token}`);
+            } else if (Array.isArray(options.headers)) {
+                options.headers.push(['Authorization', `Bearer ${token}`]);
+            } else {
+                options.headers['Authorization'] = `Bearer ${token}`;
+            }
         }
         return originalFetch.call(this, url, options);
     };
 })();
 
-// Global Sidebar Toggle Helper
+// Global Helper Toggle Submenu (Accordion)
+window.toggleMenu = function(menuId) {
+    const menu = document.getElementById(menuId);
+    const arrow = document.getElementById('arrow-' + menuId);
+    if (menu) {
+        const isHidden = menu.classList.contains('hidden');
+        if (isHidden) {
+            menu.classList.remove('hidden');
+            if (arrow) arrow.classList.add('rotate-180');
+        } else {
+            menu.classList.add('hidden');
+            if (arrow) arrow.classList.remove('rotate-180');
+        }
+    }
+};
+
+// Global Responsive Sidebar Mobile Drawer Toggle Helper
 window.toggleSidebar = function(show) {
     const sidebar = document.querySelector('aside');
     let backdrop = document.getElementById('sidebar-backdrop');
@@ -25,24 +43,22 @@ window.toggleSidebar = function(show) {
     if (!backdrop) {
         backdrop = document.createElement('div');
         backdrop.id = 'sidebar-backdrop';
-        backdrop.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 hidden lg:hidden transition-opacity duration-300';
+        backdrop.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 hidden transition-opacity duration-300';
         backdrop.onclick = () => window.toggleSidebar(false);
         document.body.appendChild(backdrop);
     }
     
     if (!sidebar) return;
     
-    sidebar.classList.add('transition-transform', 'duration-300', 'ease-in-out');
-    
-    const isHidden = sidebar.classList.contains('-translate-x-full');
+    const isHidden = sidebar.style.transform === 'translateX(-100%)';
     const shouldOpen = show !== undefined ? show : isHidden;
     
     if (shouldOpen) {
-        sidebar.classList.remove('-translate-x-full');
+        sidebar.style.transform = 'translateX(0)';
         backdrop.classList.remove('hidden');
         document.body.style.overflow = 'hidden';
     } else {
-        sidebar.classList.add('-translate-x-full');
+        sidebar.style.transform = 'translateX(-100%)';
         backdrop.classList.add('hidden');
         document.body.style.overflow = '';
     }
@@ -57,30 +73,296 @@ window.handleLogout = function() {
     }
 };
 
+// Render Sidebar Terpadu dengan Tree Submenu & Otorisasi Role
+function renderDynamicGlobalSidebar() {
+    let sidebar = document.querySelector('aside');
+    if (!sidebar) {
+        sidebar = document.createElement('aside');
+        document.body.prepend(sidebar);
+    }
+    // Bersihkan style inline dan gunakan kelas CSS terstruktur
+    sidebar.style.cssText = '';
+    sidebar.className = 'w-64 bg-white border-r border-slate-100 flex flex-col justify-between fixed h-full z-40 shadow-[4px_0_24px_rgba(0,0,0,0.03)] transition-transform duration-300 kbec-sidebar';
+
+    const rawUser = localStorage.getItem('currentUser');
+    const currentUser = JSON.parse(rawUser || '{"name":"Super Admin KBEC","role":"Super Admin"}');
+    const userRole = currentUser.role || 'Super Admin';
+    const isSuperAdmin = userRole.toLowerCase().includes('super');
+    const isTeacher = userRole.toLowerCase().includes('pengajar') || userRole.toLowerCase().includes('teacher');
+
+    const currentPath = window.location.pathname.split('/').pop().toLowerCase() || 'dashboard.html';
+    const fullSearch = window.location.search;
+    const fullHash = window.location.hash.toLowerCase();
+
+    // Tentukan Submenu mana yang harus terbuka secara otomatis
+    let openSiswa = currentPath === 'siswa.html';
+    let openAkademik = ['pengajar.html', 'kelas.html', 'absensi.html', 'jadwal.html'].includes(currentPath);
+    let openKeuangan = ['pembayaran.html'].includes(currentPath);
+    let openInventaris = currentPath === 'inventaris.html' || fullHash.includes('inventaris');
+    let openLaporan = currentPath === 'laporan.html';
+    let openUnitProgram = currentPath === 'program.html';
+    let openUsers = currentPath === 'profile.html' && (fullHash.includes('users') || fullHash.includes('roles') || fullHash.includes('reset'));
+    let openSettings = (currentPath === 'profile.html' && fullHash.includes('backup'));
+
+    const isKbecActive = currentPath === 'program.html' && (fullHash.includes('kbec') || (!fullHash || fullHash === '#all' || fullHash === '#'));
+    const isBimbelActive = currentPath === 'program.html' && fullHash.includes('bimbel');
+    const isCalistungActive = currentPath === 'program.html' && fullHash.includes('calistung');
+    const isTkActive = currentPath === 'program.html' && fullHash.includes('tk');
+    const isArabinActive = currentPath === 'program.html' && fullHash.includes('arabin');
+
+    const fullSearchLower = (fullSearch || '').toLowerCase();
+    const isPinActive = currentPath === 'inventaris.html' && (fullHash.includes('pin') || fullSearchLower.includes('pin'));
+    const isModulActive = currentPath === 'inventaris.html' && (fullHash.includes('modul') || fullSearchLower.includes('modul'));
+    const isKaosActive = currentPath === 'inventaris.html' && (fullHash.includes('kaos') || fullSearchLower.includes('kaos') || fullHash.includes('seragam'));
+    const isVocabActive = currentPath === 'inventaris.html' && (fullHash.includes('vocab') || fullSearchLower.includes('vocab'));
+
+    const sidebarHTML = `
+        <div>
+            <!-- Header Brand Sidebar -->
+            <div class="p-5 flex items-center justify-between border-b border-slate-100/60">
+                <div class="flex items-center gap-3">
+                    <div class="bg-[#0A58CA] text-white p-2.5 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/20">
+                        <i data-lucide="${isTeacher ? 'award' : 'shield-check'}" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-extrabold text-slate-900 text-sm leading-tight">KBEC System</h1>
+                        <span class="text-[9px] font-extrabold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md uppercase tracking-wider">${userRole}</span>
+                    </div>
+                </div>
+                <button onclick="window.toggleSidebar(false)" class="lg:hidden text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Navigasi Tree Menu -->
+            <nav class="px-3 py-3 space-y-1 overflow-y-auto max-h-[calc(100vh-140px)]">
+                
+                <!-- 🏠 Dashboard -->
+                <a href="dashboard.html"
+                    class="relative w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-bold rounded-xl ${currentPath === 'dashboard.html' ? 'bg-[#0A58CA]/10 text-[#0A58CA] shadow-xs' : 'text-slate-600 hover:bg-slate-50'} transition-all">
+                    ${currentPath === 'dashboard.html' ? '<span class="absolute left-0 top-2 bottom-2 w-1 bg-[#0A58CA] rounded-r-md"></span>' : ''}
+                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> 
+                    <span>Dashboard</span>
+                </a>
+
+                <!-- 👨🎓 Data Siswa -->
+                <div>
+                    <button onclick="window.toggleMenu('menu-siswa')"
+                        class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold ${openSiswa ? 'text-[#0A58CA] font-bold' : 'text-slate-600'} rounded-xl hover:bg-slate-50 transition-all">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="users" class="w-4 h-4 ${openSiswa ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
+                            <span>Data Siswa</span>
+                        </div>
+                        <i data-lucide="chevron-down" id="arrow-menu-siswa" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openSiswa ? 'rotate-180' : ''}"></i>
+                    </button>
+                    <div id="menu-siswa" class="${openSiswa ? '' : 'hidden'} pl-9 pr-2 py-1 space-y-1 text-xs font-medium">
+                        <a href="siswa.html" class="block py-1.5 px-2 rounded-lg ${currentPath === 'siswa.html' && !fullSearch ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Semua Siswa</a>
+                        <a href="siswa.html?program=KBEC" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Data KBEC</a>
+                        <a href="siswa.html?program=TK" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Data TK</a>
+                        <a href="siswa.html?program=Bimbel" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Data Bimbel</a>
+                        <a href="siswa.html?program=Calistung" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Data Calistung</a>
+                        <a href="siswa.html?program=Arabin" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50/50 flex items-center justify-between"><span>Data Arabin</span><span class="text-[9px] font-bold px-1 rounded bg-amber-100 text-amber-800">Beasiswa</span></a>
+                    </div>
+                </div>
+
+                <!-- 📚 Akademik -->
+                <div>
+                    <button onclick="window.toggleMenu('menu-akademik')"
+                        class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold ${openAkademik ? 'text-[#0A58CA] font-bold' : 'text-slate-600'} rounded-xl hover:bg-slate-50 transition-all">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="book-open" class="w-4 h-4 ${openAkademik ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
+                            <span>Akademik</span>
+                        </div>
+                        <i data-lucide="chevron-down" id="arrow-menu-akademik" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openAkademik ? 'rotate-180' : ''}"></i>
+                    </button>
+                    <div id="menu-akademik" class="${openAkademik ? '' : 'hidden'} pl-9 pr-2 py-1 space-y-1 text-xs font-medium">
+                        <a href="pengajar.html" class="block py-1.5 px-2 rounded-lg ${currentPath === 'pengajar.html' ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Guru / Pengajar</a>
+                        <a href="kelas.html" class="block py-1.5 px-2 rounded-lg ${currentPath === 'kelas.html' ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Kelas & Jadwal</a>
+                        <a href="absensi.html?mode=excel" class="block py-1.5 px-2 rounded-lg ${currentPath === 'absensi.html' ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Kinerja Siswa</a>
+                    </div>
+                </div>
+
+                <!-- 💰 Keuangan -->
+                ${!isTeacher ? `
+                <div>
+                    <button onclick="window.toggleMenu('menu-keuangan')"
+                        class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold ${openKeuangan ? 'text-[#0A58CA] font-bold' : 'text-slate-600'} rounded-xl hover:bg-slate-50 transition-all">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="credit-card" class="w-4 h-4 ${openKeuangan ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
+                            <span>Keuangan</span>
+                        </div>
+                        <i data-lucide="chevron-down" id="arrow-menu-keuangan" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openKeuangan ? 'rotate-180' : ''}"></i>
+                    </button>
+                    <div id="menu-keuangan" class="${openKeuangan ? '' : 'hidden'} pl-9 pr-2 py-1 space-y-1 text-xs font-medium">
+                        <a href="pembayaran.html#bills" onclick="if(typeof window.switchTab === 'function') window.switchTab('bills');" class="block py-1.5 px-2 rounded-lg ${currentPath === 'pembayaran.html' && (!fullHash || fullHash.includes('bills')) ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Tagihan SPP</a>
+                        <a href="pembayaran.html#payments" onclick="if(typeof window.switchTab === 'function') window.switchTab('payments');" class="block py-1.5 px-2 rounded-lg ${currentPath === 'pembayaran.html' && fullHash.includes('payments') ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Pembayaran & Kuitansi</a>
+                        <a href="pembayaran.html#deposits" onclick="if(typeof window.switchTab === 'function') window.switchTab('deposits');" class="block py-1.5 px-2 rounded-lg ${currentPath === 'pembayaran.html' && (fullHash.includes('deposits') || fullHash.includes('setoran')) ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Setoran Kasir</a>
+                        <a href="pembayaran.html#petty" onclick="if(typeof window.switchTab === 'function') window.switchTab('petty');" class="block py-1.5 px-2 rounded-lg ${currentPath === 'pembayaran.html' && (fullHash.includes('petty') || fullHash.includes('kas')) ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Kas Kecil</a>
+                    </div>
+                </div>
+                ` : ''}
+
+                <!-- 🏫 Pengelolaan Unit & Program -->
+                ${!isTeacher ? `
+                <div>
+                    <button onclick="window.toggleMenu('menu-pendaftaran')"
+                        class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold ${openUnitProgram ? 'text-[#0A58CA] font-bold' : 'text-slate-600'} rounded-xl hover:bg-slate-50 transition-all">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="layers" class="w-4 h-4 ${openUnitProgram ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
+                            <span>Pengelolaan Unit & Program</span>
+                        </div>
+                        <i data-lucide="chevron-down" id="arrow-menu-pendaftaran" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openUnitProgram ? 'rotate-180' : ''}"></i>
+                    </button>
+                    <div id="menu-pendaftaran" class="${openUnitProgram ? '' : 'hidden'} pl-9 pr-2 py-1 space-y-1 text-xs font-medium">
+                        <a href="program.html#kbec" onclick="if(typeof window.switchUnitTab==='function') window.switchUnitTab('KBEC');" class="block py-1.5 px-2 rounded-lg ${isKbecActive ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Unit KBEC</a>
+                        <a href="program.html#bimbel" onclick="if(typeof window.switchUnitTab==='function') window.switchUnitTab('Bimbel');" class="block py-1.5 px-2 rounded-lg ${isBimbelActive ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Unit Bimbel</a>
+                        <a href="program.html#calistung" onclick="if(typeof window.switchUnitTab==='function') window.switchUnitTab('Calistung');" class="block py-1.5 px-2 rounded-lg ${isCalistungActive ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Unit Calistung</a>
+                        <a href="program.html#tk" onclick="if(typeof window.switchUnitTab==='function') window.switchUnitTab('TK');" class="block py-1.5 px-2 rounded-lg ${isTkActive ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Unit TK</a>
+                        <a href="program.html#arabin" onclick="if(typeof window.switchUnitTab==='function') window.switchUnitTab('Arabin');" class="block py-1.5 px-2 rounded-lg ${isArabinActive ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Unit Arabin (Beasiswa)</a>
+                    </div>
+                </div>
+                ` : ''}
+
+                <!-- 📦 Inventaris -->
+                ${!isTeacher ? `
+                <div>
+                    <button onclick="window.toggleMenu('menu-inventaris')"
+                        class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold ${openInventaris ? 'text-[#0A58CA] font-bold' : 'text-slate-600'} rounded-xl hover:bg-slate-50 transition-all">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="package" class="w-4 h-4 ${openInventaris ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
+                            <span>Inventaris</span>
+                        </div>
+                        <i data-lucide="chevron-down" id="arrow-menu-inventaris" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openInventaris ? 'rotate-180' : ''}"></i>
+                    </button>
+                    <div id="menu-inventaris" class="${openInventaris ? '' : 'hidden'} pl-9 pr-2 py-1 space-y-1 text-xs font-medium">
+                        <a href="inventaris.html#pin" onclick="if(typeof window.filterByCat==='function') window.filterByCat('PIN KBEC');" class="block py-1.5 px-2 rounded-lg ${isPinActive ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">PIN KBEC</a>
+                        <a href="inventaris.html#modul" onclick="if(typeof window.filterByCat==='function') window.filterByCat('Modul Cetak');" class="block py-1.5 px-2 rounded-lg ${isModulActive ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Modul Cetak</a>
+                        <a href="inventaris.html#kaos" onclick="if(typeof window.filterByCat==='function') window.filterByCat('Kaos & Seragam');" class="block py-1.5 px-2 rounded-lg ${isKaosActive ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Kaos & Seragam</a>
+                        <a href="inventaris.html#vocab" onclick="if(typeof window.filterByCat==='function') window.filterByCat('Vocabulary Book');" class="block py-1.5 px-2 rounded-lg ${isVocabActive ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Vocabulary Book</a>
+                    </div>
+                </div>
+                ` : ''}
+
+                <!-- 📊 Laporan -->
+                <div>
+                    <button onclick="window.toggleMenu('menu-laporan')"
+                        class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold ${openLaporan ? 'text-[#0A58CA] font-bold' : 'text-slate-600'} rounded-xl hover:bg-slate-50 transition-all">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="file-bar-chart" class="w-4 h-4 ${openLaporan ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
+                            <span>Laporan</span>
+                        </div>
+                        <i data-lucide="chevron-down" id="arrow-menu-laporan" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openLaporan ? 'rotate-180' : ''}"></i>
+                    </button>
+                    <div id="menu-laporan" class="${openLaporan ? '' : 'hidden'} pl-9 pr-2 py-1 space-y-1 text-xs font-medium">
+                        <a href="laporan.html?type=pembayaran" class="block py-1.5 px-2 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50/50">Laporan Pembayaran</a>
+                        <a href="laporan.html?type=setoran" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Laporan Setoran</a>
+                        <a href="laporan.html?type=kas" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Laporan Kas</a>
+                        <a href="laporan.html?type=kehadiran" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Laporan Kehadiran</a>
+                        <a href="laporan.html?type=kinerja" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Laporan Kinerja Siswa</a>
+                    </div>
+                </div>
+
+                <!-- 👤 Manajemen User (Super Admin Only) -->
+                ${isSuperAdmin ? `
+                <div>
+                    <button onclick="window.toggleMenu('menu-users')"
+                        class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold ${openUsers ? 'text-[#0A58CA] font-bold' : 'text-slate-600'} rounded-xl hover:bg-slate-50 transition-all">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="user-check" class="w-4 h-4 ${openUsers ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
+                            <span>Manajemen User</span>
+                        </div>
+                        <i data-lucide="chevron-down" id="arrow-menu-users" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openUsers ? 'rotate-180' : ''}"></i>
+                    </button>
+                    <div id="menu-users" class="${openUsers ? '' : 'hidden'} pl-9 pr-2 py-1 space-y-1 text-xs font-medium">
+                        <a href="profile.html#users" class="block py-1.5 px-2 rounded-lg ${currentPath === 'profile.html' && !fullHash.includes('roles') ? 'text-blue-600 font-bold bg-blue-50/60' : 'text-slate-600 hover:text-blue-600 hover:bg-blue-50/50'}">Data User</a>
+                        <a href="profile.html#roles" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Hak Akses Role</a>
+                        <a href="profile.html#reset-password" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Reset Password</a>
+                    </div>
+                </div>
+                ` : ''}
+
+                <!-- ⚙️ Pengaturan (Super Admin Only) -->
+                ${isSuperAdmin ? `
+                <div>
+                    <button onclick="window.toggleMenu('menu-settings')"
+                        class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs font-semibold ${openSettings ? 'text-[#0A58CA] font-bold' : 'text-slate-600'} rounded-xl hover:bg-slate-50 transition-all">
+                        <div class="flex items-center gap-3">
+                            <i data-lucide="sliders" class="w-4 h-4 ${openSettings ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
+                            <span>Pengaturan</span>
+                        </div>
+                        <i data-lucide="chevron-down" id="arrow-menu-settings" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openSettings ? 'rotate-180' : ''}"></i>
+                    </button>
+                    <div id="menu-settings" class="${openSettings ? '' : 'hidden'} pl-9 pr-2 py-1 space-y-1 text-xs font-medium">
+                        <a href="program.html" class="block py-1.5 px-2 rounded-lg text-slate-600 hover:text-blue-600 hover:bg-blue-50/50">Nominal Program</a>
+                        <a href="profile.html#backup" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Backup Database</a>
+                        <a href="dashboard.html#activity-logs" class="block py-1.5 px-2 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50/50">Log Aktivitas</a>
+                    </div>
+                </div>
+                ` : ''}
+            </nav>
+        </div>
+
+        <div class="p-4 border-t border-slate-100">
+            <a href="#" onclick="window.handleLogout(); return false;"
+                class="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
+                <i data-lucide="log-out" class="w-4 h-4 text-rose-500"></i> <span>Keluar System</span>
+            </a>
+        </div>
+    `;
+
+    sidebar.innerHTML = sidebarHTML;
+
+    // Re-initialize Lucide Icons untuk elemen sidebar yang baru dibuat
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+    }
+
+    // Auto-close sidebar jika link di-klik pada layar mobile (<1024px)
+    const links = sidebar.querySelectorAll('a');
+    links.forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth < 1024) {
+                window.toggleSidebar(false);
+            }
+        });
+    });
+
+    // Responsif: Sembunyikan di mobile, tampilkan di desktop
+    function applyResponsiveSidebar() {
+        if (window.innerWidth >= 1024) {
+            sidebar.style.transform = 'translateX(0)';
+        } else {
+            sidebar.style.transform = 'translateX(-100%)';
+        }
+    }
+    applyResponsiveSidebar();
+    window.addEventListener('resize', applyResponsiveSidebar);
+}
+
 (function() {
-    // 0. Auth Guard: Jalankan SEGERA sebelum DOM selesai dirender untuk keamanan maksimal
+    // 0. Auth Guard: Jalankan SEGERA sebelum DOM selesai dirender
     const currentPath = window.location.pathname.toLowerCase();
     const isAuthPage = currentPath.endsWith('login.html') || currentPath.endsWith('register.html');
     const rawUser = localStorage.getItem('currentUser');
     const authToken = localStorage.getItem('authToken');
 
-    // Jika belum login dan mencoba akses halaman admin -> lempar ke login.html
     if (!rawUser && !isAuthPage) {
         window.location.href = 'login.html';
         return;
     }
 
-    // Jika sudah login dan mencoba akses login.html / register.html -> lempar ke dashboard.html
     if (rawUser && isAuthPage) {
         window.location.href = 'dashboard.html';
         return;
     }
 
-    // Async Token Validation Guard
     if (rawUser && !isAuthPage && window.location.protocol !== 'file:') {
         const API_BASE = window.location.origin;
         fetch(`${API_BASE}/api/auth/validate`)
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) throw new Error('Invalid token');
+                return res.json();
+            })
             .then(data => {
                 if (data && data.valid === false) {
                     localStorage.removeItem('currentUser');
@@ -88,41 +370,34 @@ window.handleLogout = function() {
                     window.location.href = 'login.html';
                 }
             })
-            .catch(() => {}); // Tetap jaga user dalam sesi jika terjadi glitch jaringan
+            .catch(() => {
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('authToken');
+                window.location.href = 'login.html';
+            });
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-        // 1. Setup responsive sidebar & backdrop overlay
-        const sidebar = document.querySelector('aside');
-        if (sidebar) {
-            sidebar.classList.add('transition-transform', 'duration-300', 'ease-in-out', '-translate-x-full', 'lg:translate-x-0', 'z-40');
-            
-            if (!document.getElementById('sidebar-backdrop')) {
-                const backdrop = document.createElement('div');
-                backdrop.id = 'sidebar-backdrop';
-                backdrop.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 hidden lg:hidden transition-opacity duration-300';
-                backdrop.onclick = () => window.toggleSidebar(false);
-                document.body.appendChild(backdrop);
-            }
-            
-            const navLinks = sidebar.querySelectorAll('nav a');
-            navLinks.forEach(link => {
-                link.addEventListener('click', () => {
-                    if (window.innerWidth < 1024) {
-                        window.toggleSidebar(false);
-                    }
-                });
-            });
+        // 1. Render Sidebar Terpadu secara Otomatis di Semua Halaman
+        renderDynamicGlobalSidebar();
+
+        // 2. Setup Backdrop mobile overlay
+        if (!document.getElementById('sidebar-backdrop')) {
+            const backdrop = document.createElement('div');
+            backdrop.id = 'sidebar-backdrop';
+            backdrop.className = 'fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-30 hidden lg:hidden transition-opacity duration-300';
+            backdrop.onclick = () => window.toggleSidebar(false);
+            document.body.appendChild(backdrop);
         }
-        
-        // 2. Tautkan tombol Hamburger di Header
+
+        // 3. Tautkan tombol Hamburger di Header untuk Layar Mobile
         const header = document.querySelector('header');
         if (header && !header.querySelector('.mobile-menu-btn')) {
             const firstChild = header.firstElementChild;
             const menuBtn = document.createElement('button');
             menuBtn.type = 'button';
-            menuBtn.className = 'mobile-menu-btn lg:hidden p-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 focus:outline-none transition-colors mr-3 flex items-center justify-center';
-            menuBtn.setAttribute('aria-label', 'Buka Menu');
+            menuBtn.className = 'mobile-menu-btn lg:hidden p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 focus:outline-none transition-colors mr-3 flex items-center justify-center';
+            menuBtn.setAttribute('aria-label', 'Buka Menu Navigasi');
             menuBtn.onclick = () => window.toggleSidebar(true);
             menuBtn.innerHTML = `<i data-lucide="menu" class="w-5 h-5"></i>`;
             
@@ -141,23 +416,11 @@ window.handleLogout = function() {
             }
         }
 
-        // 3. Ubah tautan Menu Profile di sidebar secara otomatis
-        const links = document.querySelectorAll('a');
-        links.forEach(link => {
-            const onclickAttr = link.getAttribute('onclick');
-            if (onclickAttr && (onclickAttr.includes('Profile') || onclickAttr.includes('profile'))) {
-                link.removeAttribute('onclick');
-                link.setAttribute('href', 'profile.html');
-            }
-        });
-
-        // 4. Muat data user dari localStorage
-        const currentUser = JSON.parse(rawUser || '{"name":"Admin KBEC","email":"admin@kbec.com"}');
-        
-        // 5. Perbarui nama user serta inisial avatar di Header
+        // 4. Update Profil & Avatar User di Header
+        const currentUser = JSON.parse(rawUser || '{"name":"Super Admin KBEC","email":"admin@kbec.com"}');
         const paragraphs = document.getElementsByTagName('p');
         for (let p of paragraphs) {
-            if (p.textContent.trim() === 'Super Administrator') {
+            if (p.textContent.trim().includes('Super Administrator') || p.textContent.trim().includes('Administrator')) {
                 const parent = p.parentElement;
                 if (parent) {
                     const nameEl = parent.querySelector('h4');
@@ -176,40 +439,17 @@ window.handleLogout = function() {
                 }
             }
         }
-        
-        // 6. Hubungkan semua tombol Pengaturan di Header ke profile.html
-        const headerButtons = document.querySelectorAll('header button');
-        headerButtons.forEach(btn => {
-            const onclickAttr = btn.getAttribute('onclick');
-            if (onclickAttr && onclickAttr.toLowerCase().includes('pengaturan')) {
-                btn.onclick = () => window.location.href = 'profile.html';
-            }
-        });
 
-        // 7. Otomatis tautkan semua tombol / link Logout
-        const allElements = document.querySelectorAll('a, button');
-        allElements.forEach(el => {
-            const text = el.textContent.trim().toLowerCase();
-            const onclickAttr = (el.getAttribute('onclick') || '').toLowerCase();
-            if (text.includes('logout') || onclickAttr.includes('login.html')) {
-                el.onclick = function(e) {
-                    e.preventDefault();
-                    window.handleLogout();
-                };
-            }
-        });
-
-        // 8. 🔍 FITUR GLOBAL SEARCH INTERAKTIF DI HEADER
+        // 5. Setup Global Header Search Interaktif
         setupGlobalHeaderSearch();
     });
 })();
 
-// Logic Global Search Modal & Handler
+// Logic Global Search Modal & Keyboard Shortcut (CTRL+K)
 function setupGlobalHeaderSearch() {
     const searchInputs = document.querySelectorAll('header input[type="text"]');
     if (searchInputs.length === 0) return;
 
-    // Buat Modal Dropdown Hasil Pencarian
     let searchResultModal = document.getElementById('global-search-modal');
     if (!searchResultModal) {
         searchResultModal = document.createElement('div');
@@ -228,7 +468,7 @@ function setupGlobalHeaderSearch() {
                     </button>
                 </div>
                 <div id="global-search-results" class="p-4 overflow-y-auto space-y-4 text-xs">
-                    <p class="text-center text-slate-400 py-6">Ketik minimal 2 karakter untuk memulai pencarian...</p>
+                    <p class="text-center text-slate-400 py-6">Ketik minimal 2 karakter untuk mencari data...</p>
                 </div>
             </div>
         `;
@@ -237,7 +477,6 @@ function setupGlobalHeaderSearch() {
 
     const modalInput = document.getElementById('global-modal-input');
 
-    // Shortcut Keyboard (CTRL + K)
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
             e.preventDefault();
@@ -283,6 +522,12 @@ function closeGlobalSearchModal() {
     if (modal) modal.classList.add('hidden');
 }
 
+function escapeHTML(str) {
+    return String(str || '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[m]);
+}
+
 async function performGlobalSearch(query) {
     const modalResults = document.getElementById('global-search-results');
     if (!modalResults) return;
@@ -312,10 +557,10 @@ async function performGlobalSearch(query) {
                     <div onclick="window.location.href='siswa.html'; closeGlobalSearchModal();" 
                          class="p-2.5 bg-slate-50 hover:bg-blue-50 rounded-xl cursor-pointer flex items-center justify-between transition-colors">
                         <div>
-                            <p class="font-bold text-slate-900">${s.nama}</p>
-                            <p class="text-[10px] text-slate-400">${s.id} • ${s.program || 'Tidak ada program'}</p>
+                            <p class="font-bold text-slate-900">${escapeHTML(s.nama)}</p>
+                            <p class="text-[10px] text-slate-400">${escapeHTML(s.id)} • ${escapeHTML(s.program || 'Tanpa program')}</p>
                         </div>
-                        <span class="text-[10px] font-bold text-blue-600 bg-blue-100/60 px-2 py-0.5 rounded-full">${s.status || 'Aktif'}</span>
+                        <span class="text-[10px] font-bold text-blue-600 bg-blue-100/60 px-2 py-0.5 rounded-full">${escapeHTML(s.status || 'Aktif')}</span>
                     </div>
                 `;
             });
@@ -330,10 +575,10 @@ async function performGlobalSearch(query) {
                     <div onclick="window.location.href='pengajar.html'; closeGlobalSearchModal();" 
                          class="p-2.5 bg-slate-50 hover:bg-[#0A58CA]/5 rounded-xl cursor-pointer flex items-center justify-between transition-colors">
                         <div>
-                            <p class="font-bold text-slate-900">${t.nama}</p>
-                            <p class="text-[10px] text-slate-400">${t.id} • ${t.email || ''}</p>
+                            <p class="font-bold text-slate-900">${escapeHTML(t.nama)}</p>
+                            <p class="text-[10px] text-slate-400">${escapeHTML(t.id)} • ${escapeHTML(t.email || '')}</p>
                         </div>
-                        <span class="text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full">${t.status || 'Aktif'}</span>
+                        <span class="text-[10px] font-bold text-cyan-600 bg-cyan-50 px-2 py-0.5 rounded-full">${escapeHTML(t.status || 'Aktif')}</span>
                     </div>
                 `;
             });
@@ -348,8 +593,8 @@ async function performGlobalSearch(query) {
                     <div onclick="window.location.href='kelas.html'; closeGlobalSearchModal();" 
                          class="p-2.5 bg-slate-50 hover:bg-indigo-50 rounded-xl cursor-pointer flex items-center justify-between transition-colors">
                         <div>
-                            <p class="font-bold text-slate-900">${c.nama}</p>
-                            <p class="text-[10px] text-slate-400">Pengajar: ${c.pengajar || '-'} • ${c.program}</p>
+                            <p class="font-bold text-slate-900">${escapeHTML(c.nama)}</p>
+                            <p class="text-[10px] text-slate-400">Pengajar: ${escapeHTML(c.pengajar || '-')} • ${escapeHTML(c.program)}</p>
                         </div>
                     </div>
                 `;
@@ -365,10 +610,10 @@ async function performGlobalSearch(query) {
                     <div onclick="window.location.href='pembayaran.html'; closeGlobalSearchModal();" 
                          class="p-2.5 bg-slate-50 hover:bg-emerald-50 rounded-xl cursor-pointer flex items-center justify-between transition-colors">
                         <div>
-                            <p class="font-bold text-slate-900">${p.id} - ${p.nama}</p>
+                            <p class="font-bold text-slate-900">${escapeHTML(p.id)} - ${escapeHTML(p.nama)}</p>
                             <p class="text-[10px] text-slate-400">Nominal: Rp ${p.jumlah ? p.jumlah.toLocaleString('id-ID') : 0}</p>
                         </div>
-                        <span class="text-[10px] font-bold ${p.status === 'Lunas' ? 'text-emerald-600 bg-emerald-100/60' : 'text-amber-600 bg-amber-100/60'} px-2 py-0.5 rounded-full">${p.status}</span>
+                        <span class="text-[10px] font-bold ${p.status === 'Lunas' ? 'text-emerald-600 bg-emerald-100/60' : 'text-amber-600 bg-amber-100/60'} px-2 py-0.5 rounded-full">${escapeHTML(p.status)}</span>
                     </div>
                 `;
             });
@@ -376,7 +621,7 @@ async function performGlobalSearch(query) {
         }
 
         if (totalFound === 0) {
-            modalResults.innerHTML = `<p class="text-center text-slate-400 py-6">Tidak ada hasil yang ditemukan untuk kata kunci "<span class="font-bold text-slate-700">${q}</span>".</p>`;
+            modalResults.innerHTML = `<p class="text-center text-slate-400 py-6">Tidak ada hasil yang ditemukan untuk kata kunci "<span class="font-bold text-slate-700">${escapeHTML(q)}</span>".</p>`;
         } else {
             modalResults.innerHTML = html;
         }
@@ -386,5 +631,3 @@ async function performGlobalSearch(query) {
         modalResults.innerHTML = '<p class="text-center text-rose-500 py-6 font-semibold">Gagal memuat hasil pencarian.</p>';
     }
 }
-
-

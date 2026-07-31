@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 
 <head>
@@ -111,7 +111,8 @@
 
                 <div class="grid grid-cols-2 gap-4">
                     <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Hari Belajar</label>
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Hari
+                            Belajar</label>
                         <select id="form-hari" required
                             class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer font-medium font-semibold text-slate-700">
                             <option value="" disabled selected>Pilih Hari / Serial Belajar</option>
@@ -140,7 +141,8 @@
                             class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-medium text-center">
                     </div>
                     <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tipe Belajar</label>
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tipe
+                            Belajar</label>
                         <select id="form-tipe" required
                             class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all cursor-pointer font-medium font-semibold text-slate-700">
                             <option value="Tatap Muka" selected>Tatap Muka</option>
@@ -148,7 +150,8 @@
                         </select>
                     </div>
                     <div class="space-y-1.5">
-                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Ruang Kelas / Link</label>
+                        <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Ruang Kelas /
+                            Link</label>
                         <input type="text" id="form-ruang" required placeholder="Contoh: Ruang Teori 1"
                             class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-medium">
                     </div>
@@ -190,8 +193,10 @@
             <!-- Form Tambah Siswa ke Kelas -->
             <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex gap-3 items-end">
                 <div class="flex-1 space-y-1.5">
-                    <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tambah Siswa ke Kelas</label>
-                    <input type="text" id="class-add-student-input" list="student-datalist" placeholder="Ketik nama atau ID siswa untuk mencari..."
+                    <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tambah Siswa ke
+                        Kelas</label>
+                    <input type="text" id="class-add-student-input" list="student-datalist"
+                        placeholder="Ketik nama atau ID siswa untuk mencari..."
                         class="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 transition-all font-semibold text-slate-700">
                     <datalist id="student-datalist"></datalist>
                 </div>
@@ -207,20 +212,22 @@
                 <div class="border border-slate-100 rounded-xl overflow-hidden">
                     <table class="w-full text-left border-collapse">
                         <thead>
-                            <tr class="bg-slate-50/80 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            <tr
+                                class="bg-slate-50/80 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                                 <th class="py-2.5 px-4 w-12 text-center">No</th>
                                 <th class="py-2.5 px-4">Nama Siswa</th>
                                 <th class="py-2.5 px-4">Program / Level</th>
                                 <th class="py-2.5 px-4 text-center">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody id="class-students-table-body" class="text-xs font-semibold text-slate-600 divide-y divide-slate-50">
+                        <tbody id="class-students-table-body"
+                            class="text-xs font-semibold text-slate-600 divide-y divide-slate-50">
                             <!-- Diisi dinamis -->
                         </tbody>
                     </table>
                 </div>
             </div>
-            
+
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
                 <button onclick="closeClassStudentsModal()"
                     class="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">Selesai</button>
@@ -302,7 +309,8 @@
 
     <div class="flex-1 pl-0 lg:pl-64 flex flex-col min-h-screen w-full min-w-0 transition-all duration-300">
 
-        <header class="h-20 bg-[#F8FAFC] flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 border-b border-slate-100">
+        <header
+            class="h-20 bg-[#F8FAFC] flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 border-b border-slate-100">
             <div class="relative w-full max-w-[200px] sm:max-w-xs lg:w-72">
                 <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
                 <input type="text" id="search-data" oninput="filterDataKelas()"
@@ -369,6 +377,12 @@
                             <option value="Tersedia">Tersedia</option>
                             <option value="Penuh">Penuh</option>
                         </select>
+                    </div>
+                    <div class="flex items-center gap-2 ml-auto">
+                        <button onclick="exportClassesCSV()"
+                            class="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2 rounded-xl shadow-xs cursor-pointer">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
+                        </button>
                     </div>
                 </div>
             </div>
@@ -532,23 +546,27 @@
                 const response = await fetch(`${API_BASE}/api/programs`);
                 const programs = await response.json();
                 const select = document.getElementById('form-program');
-                select.innerHTML = '<option value="" disabled selected>Pilih Program Kursus</option>';
-                
+                select.innerHTML = '<option value="" disabled selected>Pilih Unit / Program Kursus</option>';
+
                 const filterSelect = document.getElementById('filter-program');
                 if (filterSelect) {
-                    filterSelect.innerHTML = '<option value="Semua">Semua Program</option>';
+                    filterSelect.innerHTML = '<option value="Semua">Semua Unit / Program</option>';
                 }
 
-                programs.forEach(p => {
+                const baseUnits = ['KBEC', 'TK', 'Bimbel', 'Calistung'];
+                const dbNames = Array.isArray(programs) ? programs.map(p => p.nama).filter(Boolean) : [];
+                const allProgs = [...new Set([...baseUnits, ...dbNames])];
+
+                allProgs.forEach(pName => {
                     const opt = document.createElement('option');
-                    opt.value = p.nama;
-                    opt.innerText = p.nama;
+                    opt.value = pName;
+                    opt.innerText = pName;
                     select.appendChild(opt);
 
                     if (filterSelect) {
                         const filterOpt = document.createElement('option');
-                        filterOpt.value = p.nama;
-                        filterOpt.innerText = p.nama;
+                        filterOpt.value = pName;
+                        filterOpt.innerText = pName;
                         filterSelect.appendChild(filterOpt);
                     }
                 });
@@ -623,6 +641,9 @@
                                 <button onclick="manageClassStudents(${kelas.id}, '${kelas.nama}')" class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Kelola Anggota Siswa">
                                     <i data-lucide="users" class="w-4 h-4"></i>
                                 </button>
+                                <button onclick="editKelas(${kelas.id})" class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Edit Kelas">
+                                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                </button>
                                 <button onclick="deleteKelas(${kelas.id})" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Hapus Kelas">
                                     <i data-lucide="trash-2" class="w-4 h-4"></i>
                                 </button>
@@ -669,9 +690,39 @@
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
+        let editClassId = null;
 
         function openClassModal() {
+            editClassId = null;
             document.getElementById('class-form').reset();
+            const modalTitle = document.querySelector('#class-modal h3');
+            if (modalTitle) modalTitle.innerText = 'Tambah Kelas Baru';
+            const modal = document.getElementById('class-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('div').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function editKelas(id) {
+            const kelas = kelasList.find(k => String(k.id) === String(id));
+            if (!kelas) return;
+            editClassId = id;
+
+            document.getElementById('form-nama').value = kelas.nama || '';
+            document.getElementById('form-program').value = kelas.program || '';
+            document.getElementById('form-pengajar').value = kelas.pengajar || '';
+            document.getElementById('form-kapasitas').value = kelas.kapasitas || 20;
+            document.getElementById('form-hari').value = kelas.hari || '';
+            document.getElementById('form-mulai').value = kelas.mulai || '';
+            document.getElementById('form-selesai').value = kelas.selesai || '';
+            document.getElementById('form-tipe').value = kelas.tipe || '';
+            document.getElementById('form-ruang').value = kelas.ruang || '';
+
+            const modalTitle = document.querySelector('#class-modal h3');
+            if (modalTitle) modalTitle.innerText = 'Edit Data Kelas';
+
             const modal = document.getElementById('class-modal');
             modal.classList.remove('hidden');
             setTimeout(() => {
@@ -702,23 +753,26 @@
             const payload = { nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang };
 
             try {
-                const res = await fetch(`${API_BASE}/api/classes`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                const url = editClassId ? `${API_BASE}/api/classes/${editClassId}` : `${API_BASE}/api/classes`;
+                const method = editClassId ? 'PUT' : 'POST';
+
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     body: JSON.stringify(payload)
                 });
                 if (!res.ok) throw new Error();
-                showToast(`Kelas "${nama}" sukses didaftarkan.`);
+                showToast(editClassId ? `Kelas "${nama}" berhasil diperbarui.` : `Kelas "${nama}" sukses didaftarkan.`);
                 closeClassModal();
                 await fetchClasses();
             } catch (err) {
                 console.error(err);
-                showToast('Gagal mendaftarkan kelas ke database.', 'error');
+                showToast('Gagal menyimpan kelas ke database.', 'error');
             }
         }
 
         async function deleteKelas(id) {
-            const kelas = kelasList.find(k => k.id === id);
+            const kelas = kelasList.find(k => String(k.id) === String(id));
             if (kelas && confirm(`Apakah Anda yakin ingin menghapus kelas ${kelas.nama}?`)) {
                 try {
                     const res = await fetch(`${API_BASE}/api/classes/${id}`, {
@@ -739,7 +793,7 @@
         async function manageClassStudents(classId, className) {
             currentClassId = classId;
             document.getElementById('class-students-title').innerText = 'Kelas: ' + className;
-            
+
             const modal = document.getElementById('class-students-modal');
             modal.classList.remove('hidden');
             setTimeout(() => {
@@ -763,7 +817,7 @@
                 // 1. Ambil siswa terdaftar di kelas
                 const resClassStudents = await fetch(`${API_BASE}/api/classes/${currentClassId}/students`);
                 const registeredStudents = await resClassStudents.json();
-                
+
                 const tbody = document.getElementById('class-students-table-body');
                 tbody.innerHTML = '';
 
@@ -784,18 +838,18 @@
                     });
                 }
 
-            // 2. Ambil semua siswa di db untuk dropdown datalist
+                // 2. Ambil semua siswa di db untuk dropdown datalist
                 const resAllStudents = await fetch(`${API_BASE}/api/students`);
                 const allStudents = await resAllStudents.json();
 
                 const datalist = document.getElementById('student-datalist');
                 datalist.innerHTML = '';
-                
+
                 // Kosongkan input pencarian
                 document.getElementById('class-add-student-input').value = '';
 
                 // Hanya tampilkan siswa yang belum masuk kelas ini
-                availableStudents = allStudents.filter(s => !registeredStudents.some(reg => reg.id === s.id));
+                availableStudents = allStudents.filter(s => !registeredStudents.some(reg => String(reg.id) === String(s.id)));
                 availableStudents.forEach(s => {
                     const opt = document.createElement('option');
                     opt.value = `${s.nama} (${s.id}) - ${s.program || ''} [${s.level || ''}]`;
@@ -817,11 +871,11 @@
                 alert('Pilih siswa terlebih dahulu!');
                 return;
             }
-            
-            // Cari siswa berdasarkan kecocokan string datalist
+
+            // Cari siswa berdasarkan kecocokan string datalist, ID, atau nama
             const student = availableStudents.find(s => {
                 const optVal = `${s.nama} (${s.id}) - ${s.program || ''} [${s.level || ''}]`;
-                return optVal === inputVal;
+                return optVal === inputVal || String(s.id) === inputVal || s.nama.toLowerCase() === inputVal.toLowerCase() || inputVal.includes(`(${s.id})`);
             });
 
             if (!student) {
@@ -832,7 +886,7 @@
             try {
                 const res = await fetch(`${API_BASE}/api/classes/${currentClassId}/students`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     body: JSON.stringify({ student_id: student.id })
                 });
 
@@ -856,7 +910,8 @@
             if (confirm(`Apakah Anda yakin ingin mengeluarkan siswa ${name} dari kelas ini?`)) {
                 try {
                     const res = await fetch(`${API_BASE}/api/classes/${currentClassId}/students/${encodeURIComponent(studentId)}`, {
-                        method: 'DELETE'
+                        method: 'DELETE',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
                     });
                     if (!res.ok) throw new Error();
 
@@ -868,6 +923,40 @@
                     showToast('Gagal mengeluarkan siswa.', 'error');
                 }
             }
+        }
+
+        function exportClassesCSV() {
+            if (!kelasList || kelasList.length === 0) {
+                showToast('Tidak ada data kelas untuk diekspor!', 'error');
+                return;
+            }
+            let csvContent = "\uFEFF";
+            csvContent += "No,ID Kelas,Nama Kelas,Program,Pengajar,Kapasitas,Hari,Waktu,Tipe,Ruang\n";
+
+            kelasList.forEach((c, idx) => {
+                const row = [
+                    idx + 1,
+                    c.id,
+                    `"${(c.nama || '').replace(/"/g, '""')}"`,
+                    `"${(c.program || '').replace(/"/g, '""')}"`,
+                    `"${(c.pengajar || '').replace(/"/g, '""')}"`,
+                    c.kapasitas || 20,
+                    `"${(c.hari || '').replace(/"/g, '""')}"`,
+                    `"${(c.mulai || '')} - ${(c.selesai || '')}"`,
+                    `"${(c.tipe || '').replace(/"/g, '""')}"`,
+                    `"${(c.ruang || '').replace(/"/g, '""')}"`
+                ].join(',');
+                csvContent += row + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', `data_kelas_${new Date().toISOString().slice(0, 10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Sukses mengunduh CSV data kelas!');
         }
     </script>
 </body>

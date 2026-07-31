@@ -1,144 +1,184 @@
 # Product Requirements Document (PRD)
-## Dashboard Khusus Pengajar — KBEC (Kampung Bahasa English Course)
-### Versi: 2.0 | Status: FINAL (Disetujui)
+## Sistem Informasi Manajemen & Administrasi KBEC (Kampung Bahasa English Course)
+### Versi: 3.2 | Status: APPROVED | Pendekatan: Process-Driven Business Architecture & Existing Codebase Integration
 
 ---
 
-### 1. Keputusan Arsitektur Utama: Dashboard Terpisah
+## 1. Visi & Latar Belakang Sistem
 
-> **Dashboard Pengajar adalah aplikasi web yang SEPENUHNYA TERPISAH dari Dashboard Super Admin.**
+Sistem Manajemen KBEC dikembangkan untuk memodernisasi dan mengintegrasikan seluruh operasional institusi pendidikan Kampung Bahasa English Course (KBEC) dan Yayasan. Menggabungkan alur kerja operasional nyata dengan arsitektur sistem terpadu, sistem ini dibangun dengan pendekatan **Proses Bisnis Terpadu** yang mengelola **5 Unit Yayasan Resmi**:
+1. **Unit KBEC** (English Course: Beginner, Elementary, BTP, CTP, Intermediate, Advance)
+2. **Unit Bimbel** (Bimbingan Belajar Akademik Sekolah SD-SMP)
+3. **Unit Calistung** (Baca Tulis Hitung: Level 1A–3B)
+4. **Unit TK** (Preschool / PAUD / Kelompok Bermain / TK A / TK B)
+5. **Unit Arabin** (Program Beasiswa Bantuan Keagamaan & Pendidikan Anak Pemulung / Kurang Mampu)
 
-Kedua dashboard menggunakan **database yang sama** (TiDB Cloud `kbec_db`), namun memiliki:
-- URL / halaman HTML yang berbeda (`teacher-*.html` vs halaman admin yang sudah ada).
-- Halaman login yang berbeda (`teacher-login.html` vs `login.html`).
-- Sidebar dan navigasi yang berbeda (tema Emerald vs tema Biru Super Admin).
-- Hak akses endpoint API yang berbeda (`/api/teacher/*` vs `/api/admin/*`).
-
-**Mengapa dipisahkan?**
-
-| Alasan | Penjelasan |
-|---|---|
-| **Fokus UX** | Pengajar tidak perlu melihat menu konfigurasi sistem, keuangan, atau manajemen user yang tidak relevan. UI pengajar harus bersih, cepat, dan fokus pada tugas mengajar. |
-| **Keamanan** | Pengajar tidak boleh memiliki akses — bahkan tidak sengaja — ke data sensitif seperti pembayaran, gaji, atau konfigurasi database. |
-| **Routing & Middleware** | Backend memisahkan endpoint `/api/teacher/*` dari `/api/admin/*` dengan middleware RBAC yang berbeda. |
-| **Skalabilitas** | Di masa depan, Dashboard Pengajar bisa dikembangkan menjadi Progressive Web App (PWA) yang dapat diinstall di smartphone pengajar, tanpa mempengaruhi Dashboard Super Admin. |
+Dengan pemisahan peran dan hak akses dinamis berbasis **Role + Permission**, sistem ini dirancang fleksibel, aman, efisien, serta dilengkapi fitur analitik pertumbuhan, pencarian global real-time, manajemen agenda/reminder, presensi bulk/bulanan, pengelolaan inventaris, dan monitoring presensi guru berbasis GPS Geofencing.
 
 ---
 
-### 2. Hierarki Role & Hak Akses (RBAC — 3 Tingkatan)
+## 2. Struktur Navigasi & Sidebar Berbasis Role
+
+Struktur antarmuka menyesuaikan peran pengguna (Role) untuk memastikan setiap pengguna fokus pada tugas dan tanggung jawabnya.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     KBEC System RBAC                        │
-│                                                             │
-│  [ Super Admin ]                                            │
-│    Kontrol Penuh Sistem                                     │
-│    ✅ Manajemen User (tambah/hapus Admin & Pengajar)        │
-│    ✅ Konfigurasi Global Platform KBEC                      │
-│    ✅ Seluruh Data Keuangan & Pembayaran                    │
-│    ✅ Monitoring Rekap Kehadiran Semua Pengajar             │
-│    ✅ Seluruh Data Siswa, Kelas, Program                    │
-│           │                                                  │
-│           ▼                                                  │
-│  [ Admin / Staff Akademik ] ← Opsional, Direkomendasikan   │
-│    Operasional Harian                                        │
-│    ✅ Menyetujui izin & dispensasi pengajar                 │
-│    ✅ Mengatur jadwal kelas & penugasan guru                 │
-│    ✅ Memvalidasi rekap jam mengajar untuk payroll          │
-│    ❌ Tidak bisa mengubah konfigurasi sistem inti           │
-│    ❌ Tidak bisa menghapus akun pengguna                    │
-│           │                                                  │
-│           ▼                                                  │
-│  [ Pengajar / Teacher ]                                     │
-│    Fokus Mengajar                                            │
-│    ✅ Lihat jadwal & kelas milik sendiri saja               │
-│    ✅ Input absensi siswa di kelas yang diampu              │
-│    ✅ Input nilai & catatan progress siswa                  │
-│    ✅ Check-in / Check-out kehadiran sendiri + GPS          │
-│    ❌ Tidak bisa melihat data pengajar lain                 │
-│    ❌ Tidak bisa melihat data keuangan/pembayaran           │
-│    ❌ Tidak bisa menghapus kelas, siswa, atau program       │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          STUKTUR SIDEBAR PER ROLE                           │
+├──────────────────────────────┬──────────────────────────────┬───────────────┤
+│ 👑 Super Admin (Full Access) │ 👨💼 Admin (Operasional)      │ 👩🏫 Pengajar │
+├──────────────────────────────┼──────────────────────────────┼───────────────┤
+│ 🔍 Pencarian Global          │ 🔍 Pencarian Global          │ 🏠 Dashboard  │
+│ 🏠 Dashboard                 │ 🏠 Dashboard                 │ 👨🎓 Siswa Saya│
+│ 👨🎓 Data Siswa               │ 👨🎓 Data Siswa               │ 📚 Kelas Saya │
+│    • Semua Siswa             │    • Semua Siswa             │ 📍 Check-in   │
+│    • Data KBEC / TK / Bimbel │    • Data KBEC / TK / Bimbel │    Guru (GPS) │
+│      Calistung / Arabin      │      Calistung / Arabin      │ 📝 Kinerja    │
+│ 📚 Akademik                  │ 📚 Akademik                  │    Siswa      │
+│    • Guru                    │    • Kelas                   │ 📅 Agenda Saya│
+│    • Kelas & Jadwal          │    • Kinerja Siswa           │ 📊 Laporan    │
+│    • Presensi & Check-in     │    • Agenda & Reminders      │    Saya       │
+│    • Kinerja Siswa           │ 💰 Keuangan                  │               │
+│    • Agenda & Reminders      │    • Tagihan SPP             │               │
+│ 💰 Keuangan                  │    • Pembayaran & Kuitansi   │               │
+│    • Tagihan SPP             │    • Setoran Kasir           │               │
+│    • Pembayaran & Kuitansi   │    • Kas Kecil               │               │
+│    • Setoran Kasir           │ 🏫 Pengelolaan Unit & Program│               │
+│    • Kas Kecil               │    • Unit KBEC / Bimbel /    │               │
+│ 🏫 Pengelolaan Unit & Program│      Calistung / TK / Arabin │               │
+│    • Unit KBEC / Bimbel /    │ 📦 Inventaris                │               │
+│      Calistung / TK / Arabin │ 📊 Laporan                   │               │
+│ 📦 Inventaris                │                              │               │
+│ 📊 Laporan                   │                              │               │
+│ 👤 Manajemen User            │                              │               │
+│ ⚙️ Pengaturan                │                              │               │
+└──────────────────────────────┴──────────────────────────────┴───────────────┘
 ```
 
 ---
 
-### 3. Pemetaan Halaman (URL Routing)
+## 3. Spesifikasi Fitur Terperinci per Modul
 
-| Halaman | File | Akses | Deskripsi |
-|---|---|---|---|
-| **Login Pengajar** | `teacher-login.html` | Publik | Portal masuk khusus pengajar |
-| **Dashboard Pengajar** | `teacher-dashboard.html` | Teacher | Statistik, jadwal hari ini, log aktivitas diri sendiri |
-| **Check-in Kehadiran** | `teacher-checkin.html` | Teacher | Absensi kehadiran pengajar + GPS Geofencing |
-| **Kelas Saya** | `teacher-classes.html` | Teacher | Daftar kelas yang diampu |
-| **Absensi Siswa** | `teacher-attendance.html` | Teacher | Input presensi harian siswa per kelas |
-| **Nilai & Progres** | `teacher-grades.html` | Teacher | Input nilai tugas, UTS, UAS, progress note |
-| **Jadwal Mingguan** | `teacher-schedules.html` | Teacher | Jadwal Senin–Sabtu milik pengajar |
-| **Profil Pengajar** | `teacher-profile.html` | Teacher | Update data pribadi & password |
+### 🔍 Fitur Global: Pencarian Cepat Real-Time (Global Search)
+* **Bar Pencarian Header**: Tersedia di seluruh halaman admin untuk mencari data secara serentak dari entitas utama:
+  * **Siswa**: NIS Resmi, Nama, Program, Level, Status.
+  * **Guru**: Nama, Email, Spesialisasi.
+  * **Kelas**: Nama Kelas, Program, Pengajar.
+  * **Pembayaran & Tagihan**: ID Tagihan (`TAG-...`), No Invoice/Kuitansi (`INV-...`), Nama Siswa, Nominal.
 
 ---
 
-### 4. Fitur Utama (Core Features)
+### 🏠 Modul 1: Dashboard
+Halaman utama yang menyajikan ringkasan eksekutif dan operasional sesuai dengan role pengguna yang sedang login.
 
-#### A. Portal Login Pengajar (`teacher-login.html`)
-- Login terpisah menggunakan email & password akun pengajar dari tabel `teachers`.
-- Sesi tersimpan di `localStorage` dengan key berbeda dari Super Admin (`teacherSession` bukan `authToken`).
-- Guard navigasi otomatis: Jika bukan pengajar login, redirect ke `teacher-login.html`.
-
-#### B. Dashboard Ringkasan Pengajar (`teacher-dashboard.html`)
-- Statistik: Total Kelas Diampu, Total Siswa, Jam Mengajar Minggu Ini, % Kehadiran Siswa.
-- Widget Jadwal Hari Ini.
-- Log Aktivitas Diri Sendiri (presensi & check-in yang dilakukan pengajar tersebut).
-
-#### C. Absensi Kehadiran Pengajar + GPS Geofencing (`teacher-checkin.html`)
-- **Check-in Tatap Muka**: Validasi GPS, radius ≤ 100m dari gedung KBEC, timestamp dari server.
-- **Check-in Online**: Geofencing dilewati, timestamp server tetap digunakan.
-- **Check-out**: Merekam waktu selesai & menghitung durasi mengajar.
-- Koordinat, akurasi GPS, jarak dari KBEC, dan status lokasi dicatat di `teacher_checkins`.
-- Rekap kehadiran pengajar ini **dapat dilihat oleh Super Admin** di halaman Pengajar yang sudah ada.
-
-#### D. Kelas Saya (`teacher-classes.html`)
-- Hanya menampilkan kelas yang `classes.pengajar = [Nama Pengajar Login]`.
-
-#### E. Absensi Siswa (`teacher-attendance.html`)
-- One-click attendance (H/S/I/A), tombol "Tandai Semua Hadir".
-- Data tersimpan di tabel `attendance` yang sama dengan Super Admin.
-
-#### F. Nilai & Progres Siswa (`teacher-grades.html`)
-- Input nilai tugas, UTS, UAS (0–100). Auto-konversi ke grade letter (A/B/C/D/E).
-- Catatan Progress Note kualitatif.
-
-#### G. Jadwal Mingguan (`teacher-schedules.html`)
-- Tabel kalender Senin–Sabtu.
-
-#### H. Profil Pengajar (`teacher-profile.html`)
-- Update nama, email, kontak, spesialisasi, foto avatar, dan password.
+* **Widget Ringkasan Metrik**:
+  * **Total Siswa Aktif**: Jumlah akumulasi siswa terdaftar berstatus aktif di 5 Unit Yayasan.
+  * **Pembayaran Hari Ini**: Nominal transaksi pembayaran SPP/pendaftaran yang diterima hari ini.
+  * **Pendapatan Bulan Ini & Total Revenue**: Total akumulasi pemasukan keuangan per periode.
+  * **Tagihan Belum Lunas**: Jumlah siswa / total akumulasi nominal tunggakan pembayaran.
+  * **Tingkat Presensi Kehadiran Hari Ini**: Persentase & perbandingan siswa/guru yang hadir hari ini.
+* **Widget Visualisasi Analitik & Log**:
+  * **Grafik Pertumbuhan Siswa (Growth Analytics)**: Visualisasi kurva pertumbuhan pendaftaran siswa dengan filter periode (`Semua Bulan`, `6 Bulan`, `3 Bulan`, atau `Filter Per Bulan`).
+  * **Grafik Pendapatan per Program**: Pie chart/Bar chart distribusi pendapatan berdasarkan program studi.
+  * **Widget Agenda & Reminders Mingguan**: List jadwal agenda penting terdekat.
+  * **Log Aktivitas Terbaru**: Log real-time dari transaksi, presensi, pendaftaran, dan pembaruan kinerja siswa.
 
 ---
 
-### 5. Integrasi Data (Bukan UI) dengan Super Admin
+### 👨🎓 Modul 2: Data Siswa (5 Unit Yayasan)
+Pusat manajemen data induk siswa yang mengelompokkan siswa berdasarkan Unit Yayasan.
 
-Meskipun UI terpisah, **data yang diinput pengajar langsung tersimpan ke database bersama** sehingga Super Admin tetap dapat memantaunya:
-
-| Data yang Diinput Pengajar | Terlihat oleh Super Admin di |
-|---|---|
-| Presensi siswa | Halaman Absensi Super Admin |
-| Nilai & Progress Note | Detail Siswa → Tab Nilai |
-| Check-in/out + GPS | Halaman Pengajar → Tab Rekam Kehadiran |
-| Log Aktivitas | Dashboard → Widget Log Aktivitas Terbaru |
-
----
-
-### 6. Non-Functional Requirements
-- **Performa**: Load halaman < 1 detik, respons validasi GPS < 3 detik.
-- **Keamanan**: Server-side timestamp (tidak bisa dimanipulasi), RBAC ketat per endpoint.
-- **Responsivitas**: Mobile-first. Check-in card dioptimalkan untuk penggunaan dengan satu tangan di smartphone.
+* **Sub-menu & Filter Unit Yayasan**:
+  * **Semua Siswa**: Katalog master seluruh siswa terdaftar.
+  * **Data KBEC**: Siswa program reguler Kampung Bahasa English Course.
+  * **Data TK**: Siswa kelompok belajar Taman Kanak-Kanak / Preschool / PAUD / KB.
+  * **Data Bimbel**: Siswa bimbingan belajar akademik sekolah SD-SMP.
+  * **Data Calistung**: Siswa program Baca Tulis Hitung (1A–3B).
+  * **Data Arabin**: Siswa program Beasiswa Bantuan Keagamaan & Pendidikan Anak Pemulung / Kurang Mampu.
+* **Format NIS Resmi**: `[YY][MM][000001][SUFFIX]` (`-C` untuk Calistung, `-B` untuk Bimbel, `-TK` untuk TK, `-A` untuk Arabin, tanpa suffix untuk KBEC).
+* **Auto-Filter Dynamic Dropdown**: Dropdown Level Kursus pada form modal dan filter tabel secara otomatis menyaring level spesifik sesuai Unit Yayasan yang dipilih.
 
 ---
 
-### 7. Kriteria Keberhasilan (Success Metrics)
-- 100% data absensi siswa terisi secara digital.
-- 100% kehadiran pengajar tercatat dengan timestamp + GPS terverifikasi.
-- Zero akses pengajar ke data keuangan atau konfigurasi sistem.
-- Zero manipulasi timestamp kehadiran (server-side enforcement).
-- CSAT pengajar terhadap kemudahan penggunaan > 90%.
+### 📚 Modul 3: Akademik & Presensi
+Modul pengelolaan operasional pengajaran, penjadwalan, presensi, dan penilaian kinerja akademik siswa.
+
+* **Guru**: Data Pengajar, NIP, kontak, spesialisasi, dan Check-in GPS Geofencing (radius ≤ 100m).
+* **Kelas & Jadwal**: Daftar kelas, serial, kapasitas, jam, dan ruang.
+* **Presensi Harian & Bulanan**: Input presensi bulk harian dan matriks bulanan.
+* **Kinerja Siswa**: Evaluasi 7 Komponen (Presensi, Lesson, Speaking, WB, SB, Material Tambahan, Catatan Guru).
+* **Agenda & Reminders**: Kalender pengingat kegiatan lembaga.
+
+---
+
+### 💰 Modul 4: Keuangan
+Modul akuntansi dan pengelolaan arus kas operasional KBEC & Yayasan.
+
+* **Tagihan SPP (`pembayaran.html#bills`)**:
+  * Penerbitan lembar pernyataan kewajiban pembayaran SPP (`TAG-[YYYYMM]-[RAND4/SEQ]`).
+  * Dukungan filter per Periode Bulan, Unit Yayasan (5 Unit), Status, dan Pencarian Siswa.
+  * Opsi **Auto-Generate SPP Bulanan** untuk seluruh siswa aktif.
+* **Pembayaran & Kuitansi (`pembayaran.html#payments`)**:
+  * Pencatatan bukti penerimaan uang dan penerbitan Kuitansi / Invoice resmi (`INV-[YYMM]-[RAND4]`).
+  * Pelunasan tagihan SPP secara langsung dengan pembaharuan status tagihan real-time.
+* **Setoran Kasir (`pembayaran.html#deposits`)**:
+  * Penyerahan kas harian kasir ke bendahara/manajemen.
+* **Kas Kecil / Petty Cash (`pembayaran.html#petty`)**:
+  * Pencatatan pengeluaran & pemasukan operasional harian (ATK, konsumsi, kebersihan, dll).
+
+---
+
+### 🏫 Modul 5: Pengelolaan Unit & Program (`program.html`)
+Modul manajemen master program kursus dan tarif per Unit Yayasan.
+
+* **Tab Navigasi 5 Unit**: `Semua Unit`, `Unit KBEC`, `Unit Bimbel`, `Unit Calistung`, `Unit TK`, `Unit Arabin (Beasiswa)`.
+* **Sinkronisasi Dua Arah**: Terhubung langsung dengan tree sub-menu sidebar global.
+* **Manajemen Level & Tarif**: Penambahan, pengeditan, dan penghapusan level program, deskripsi, biaya SPP, durasi, dan jumlah sesi.
+
+---
+
+### 📦 Modul 6: Inventaris (`inventaris.html`)
+Pengelolaan stok barang operasional, modul ajar, dan atribut siswa.
+
+* **Katalog Barang Inventaris**:
+  * Modul Cetak (KBEC, Calistung, Bimbel, TK, Arabin)
+  * Merchandise & Atribut (PIN, Kaos/Seragam, Vocabulary Book)
+  * Alat Tulis Kantor (ATK) & Perlengkapan Operasional Gedung
+* **Spesifikasi Atribut Barang**: `kode_barang`, `nama_barang`, `kategori`, `stok`, `stok_min`, `satuan`, `harga_beli`, `harga_jual`, `lokasi`, `keterangan`.
+* **Mutasi Stok (Stock In / Stock Out)**: Pencatatan otomatis riwayat penambahan stok (pembelian) dan pendistribusian stok keluar ke siswa/kelas.
+* **Alert Stok Minimum**: Peringatan visual otomatis jika sisa stok berada di bawah ambang minimum (`stok <= stok_min`).
+
+---
+
+### 📊 Modul 7: Laporan
+Pusat rekapitulasi data dan analitik pelaporan manajemen:
+* Laporan Tagihan & Pembayaran SPP (5 Unit)
+* Laporan Kas Kecil & Setoran Kasir
+* Laporan Kehadiran Siswa & GPS Check-in Guru
+* Laporan Mutasi & Value Nilai Inventaris
+
+---
+
+### 👤 Modul 8: Manajemen User & ⚙️ Pengaturan (Super Admin)
+* Manajemen Akun Admin, Kasir, Pengajar dengan NIS resmi user (`-SA`, `-ADM`, `-TCH`).
+* Matriks Role & Permissions granular.
+* Backup Database MySQL & Audit Log Activity System.
+
+---
+
+## 4. Matriks Peran & Hak Akses (RBAC)
+
+```
+┌─────────────────────────┬─────────────┬─────────────┬─────────────┐
+│ Modul / Menu            │ Super Admin │    Admin    │  Pengajar   │
+├─────────────────────────┼─────────────┼─────────────┼─────────────┤
+│ Global Search           │ Full (R/W)  │ Full (R/W)  │ Full (R/W)  │
+│ Dashboard               │ Full (R/W)  │ Full (R/W)  │ Ringkasan   │
+│ Data Siswa (5 Unit)     │ Full (CRUD) │ Full (CRUD) │ Siswa Saya  │
+│ Akademik                │ Full (CRUD) │ Full (CRUD) │ Kelas Saya  │
+│ Keuangan (Tagihan/Inv)  │ Full (CRUD) │ Full (CRUD) │ No Access   │
+│ Pengelolaan Unit/Program│ Full (CRUD) │ Full (CRUD) │ No Access   │
+│ Inventaris              │ Full (CRUD) │ Full (CRUD) │ View Stok   │
+│ Laporan                 │ Full (CRUD) │ Full (CRUD) │ Read (Own)  │
+│ Manajemen User & Setting│ Full (CRUD) │ No Access   │ No Access   │
+└─────────────────────────┴─────────────┴─────────────┴─────────────┘
+```

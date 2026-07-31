@@ -113,7 +113,8 @@
     <div class="flex-1 pl-0 lg:pl-64 flex flex-col min-h-screen w-full min-w-0 transition-all duration-300">
 
         <!-- HEADER -->
-        <header class="h-20 bg-[#F8FAFC] flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 border-b border-slate-100">
+        <header
+            class="h-20 bg-[#F8FAFC] flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 border-b border-slate-100">
             <div class="relative w-full max-w-[200px] sm:max-w-xs lg:w-72">
                 <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
                 <input type="text" placeholder="Pencarian umum..." disabled
@@ -140,7 +141,8 @@
                 <!-- Welcome Section -->
                 <div class="flex flex-col gap-4 mt-6 mb-6">
                     <div>
-                        <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Pengaturan Profil Pengguna</h2>
+                        <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Pengaturan Profil Pengguna
+                        </h2>
                         <div class="flex items-center gap-1.5 text-xs text-slate-400 font-medium mt-1">
                             <i data-lucide="home" class="w-3.5 h-3.5"></i>
                             <a href="dashboard.html" class="hover:text-[#0A58CA] transition-colors">Dashboard</a>
@@ -155,7 +157,8 @@
                     <!-- Form 1: Informasi Personal -->
                     <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm space-y-4">
                         <div class="flex items-center gap-3 text-blue-600 border-b border-slate-100 pb-3">
-                            <div class="bg-blue-50 p-2 rounded-xl"><i data-lucide="user-check" class="w-5 h-5"></i></div>
+                            <div class="bg-blue-50 p-2 rounded-xl"><i data-lucide="user-check" class="w-5 h-5"></i>
+                            </div>
                             <div>
                                 <h3 class="text-sm font-bold text-slate-900">Informasi Pribadi</h3>
                                 <p class="text-[10px] text-slate-400">Ubah detail nama profil dan alamat email Anda</p>
@@ -164,12 +167,14 @@
 
                         <form id="profile-info-form" onsubmit="updateProfileInfo(event)" class="space-y-4">
                             <div class="space-y-1.5">
-                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nama Lengkap</label>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nama
+                                    Lengkap</label>
                                 <input type="text" id="profile-name" required placeholder="Ahmad Syarif"
                                     class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
                             </div>
                             <div class="space-y-1.5">
-                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Alamat Email</label>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Alamat
+                                    Email</label>
                                 <input type="email" id="profile-email" required placeholder="admin@kbec.com"
                                     class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
                             </div>
@@ -185,30 +190,38 @@
                     <!-- Form 2: Ganti Password -->
                     <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm space-y-4">
                         <div class="flex items-center gap-3 text-amber-600 border-b border-slate-100 pb-3">
-                            <div class="bg-amber-50 p-2 rounded-xl"><i data-lucide="key-round" class="w-5 h-5"></i></div>
+                            <div class="bg-amber-50 p-2 rounded-xl"><i data-lucide="key-round" class="w-5 h-5"></i>
+                            </div>
                             <div>
                                 <h3 class="text-sm font-bold text-slate-900">Ubah Kata Sandi</h3>
-                                <p class="text-[10px] text-slate-400">Perbarui kata sandi lama Anda demi keamanan akun</p>
+                                <p class="text-[10px] text-slate-400">Perbarui kata sandi lama Anda demi keamanan akun
+                                </p>
                             </div>
                         </div>
 
                         <form id="profile-password-form" onsubmit="updateProfilePassword(event)" class="space-y-4">
                             <div class="space-y-1.5">
-                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Password Baru</label>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Password
+                                    Baru</label>
                                 <div class="relative">
-                                    <input type="password" id="profile-password" required placeholder="Minimal 6 karakter"
+                                    <input type="password" id="profile-password" required
+                                        placeholder="Minimal 6 karakter"
                                         class="w-full px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
-                                    <button type="button" onclick="togglePasswordVisibility('profile-password', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+                                    <button type="button" onclick="togglePasswordVisibility('profile-password', this)"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
                                         <i data-lucide="eye" class="w-4 h-4"></i>
                                     </button>
                                 </div>
                             </div>
                             <div class="space-y-1.5">
-                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Konfirmasi Password Baru</label>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Konfirmasi
+                                    Password Baru</label>
                                 <div class="relative">
-                                    <input type="password" id="profile-confirm" required placeholder="Ulangi password baru"
+                                    <input type="password" id="profile-confirm" required
+                                        placeholder="Ulangi password baru"
                                         class="w-full px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
-                                    <button type="button" onclick="togglePasswordVisibility('profile-confirm', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+                                    <button type="button" onclick="togglePasswordVisibility('profile-confirm', this)"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
                                         <i data-lucide="eye" class="w-4 h-4"></i>
                                     </button>
                                 </div>
@@ -221,6 +234,99 @@
                             </div>
                         </form>
                     </div>
+                </div>
+
+                <!-- Section 3: Manajemen Data User System (Super Admin) -->
+                <div class="mt-8 bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                        <div class="flex items-center gap-3 text-[#0A58CA]">
+                            <div class="bg-blue-50 p-2.5 rounded-xl"><i data-lucide="users" class="w-5 h-5"></i></div>
+                            <div>
+                                <h3 class="text-sm font-bold text-slate-900">Manajemen Data User System</h3>
+                                <p class="text-[10px] text-slate-400">Kelola akun, role hak akses, dan NIS/ID pengguna sistem</p>
+                            </div>
+                        </div>
+                        <button onclick="openAddUserModal()"
+                            class="bg-[#0A58CA] hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/10">
+                            <i data-lucide="user-plus" class="w-4 h-4"></i> Tambah User Baru
+                        </button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-600 border-collapse">
+                            <thead>
+                                <tr class="text-[10px] text-slate-400 font-bold tracking-wider uppercase border-b border-slate-100 bg-slate-50/50">
+                                    <th class="py-3 px-4">NIS / ID User</th>
+                                    <th class="py-3 px-4">Nama User</th>
+                                    <th class="py-3 px-4">Email</th>
+                                    <th class="py-3 px-4">Role Hak Akses</th>
+                                    <th class="py-3 px-4 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="user-table-body" class="divide-y divide-slate-50">
+                                <tr><td colspan="5" class="text-center py-6 text-slate-400">Memuat data user...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Tambah / Edit User -->
+            <div id="user-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4">
+                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform scale-95 transition-transform duration-300 p-6 space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h3 id="user-modal-title" class="text-base font-bold text-slate-900">Tambah User Baru</h3>
+                        <button onclick="closeUserModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                            <i data-lucide="x" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <form id="user-modal-form" onsubmit="handleUserSubmit(event)" class="space-y-3">
+                        <input type="hidden" id="user-idx">
+                        <input type="hidden" id="user-db-id">
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">NIS / ID User *</label>
+                                <button type="button" onclick="generateAndSetUserNis()" class="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
+                                    <i data-lucide="refresh-cw" class="w-3 h-3"></i> Auto Generate
+                                </button>
+                            </div>
+                            <input type="text" id="user-modal-nis" required placeholder="Contoh: 2607000001-ADM"
+                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-700 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors">
+                            <p class="text-[9px] text-slate-400 mt-1">Format: <code>[YY][MM][000001][SUFFIX]</code> (-SA: Super Admin, -ADM: Admin, -TCH: Pengajar). Bebas diedit manual.</p>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Nama Lengkap *</label>
+                            <input type="text" id="user-modal-name" required placeholder="Contoh: Budi Santoso"
+                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Email *</label>
+                            <input type="email" id="user-modal-email" required placeholder="budi@kbec.com"
+                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Role / Akses *</label>
+                                <select id="user-modal-role" onchange="generateAndSetUserNis()"
+                                    class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none cursor-pointer">
+                                    <option value="Admin">Admin</option>
+                                    <option value="Super Admin">Super Admin</option>
+                                    <option value="Pengajar">Pengajar</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Password</label>
+                                <input type="password" id="user-modal-password" placeholder="Kosongkan jika tak diubah"
+                                    class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none">
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                            <button type="button" onclick="closeUserModal()"
+                                class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Batal</button>
+                            <button type="submit"
+                                class="px-4 py-2 text-xs font-bold text-white bg-[#0A58CA] hover:bg-blue-700 rounded-xl transition-colors">Simpan User</button>
+                        </div>
+                    </form>
                 </div>
             </div>
 
@@ -239,6 +345,7 @@
     <script>
         const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
         let currentUser = null;
+        let usersData = [];
 
         function togglePasswordVisibility(inputId, btn) {
             const input = document.getElementById(inputId);
@@ -252,8 +359,7 @@
             }
         }
 
-        window.onload = function() {
-            // Muat data user dari localStorage
+        window.onload = function () {
             const userStr = localStorage.getItem('currentUser');
             if (!userStr) {
                 alert('Sesi masuk telah berakhir. Silakan masuk kembali.');
@@ -262,16 +368,180 @@
             }
 
             currentUser = JSON.parse(userStr);
-            
-            // Tampilkan di Header
+
             document.getElementById('header-user-name').innerText = currentUser.name;
             document.getElementById('header-user-badge').innerText = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 
-            // Isi nilai default formulir
             document.getElementById('profile-name').value = currentUser.name;
             document.getElementById('profile-email').value = currentUser.email;
 
+            fetchUsers();
             lucide.createIcons();
+        }
+
+        async function fetchUsers() {
+            try {
+                const res = await fetch(`${API_BASE}/api/users`);
+                if (!res.ok) return;
+                usersData = await res.json();
+                renderUserTable();
+            } catch (err) {
+                console.error('Gagal memuat data user:', err);
+            }
+        }
+
+        function renderUserTable() {
+            const tbody = document.getElementById('user-table-body');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            if (usersData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400">Belum ada user terdaftar.</td></tr>`;
+                return;
+            }
+
+            usersData.forEach((u, idx) => {
+                const userNis = u.nis || u.id || `2607000001-ADM`;
+                const roleBadge = (u.role || 'Admin').toLowerCase().includes('super')
+                    ? 'text-purple-600 bg-purple-50'
+                    : (u.role || '').toLowerCase().includes('pengajar')
+                    ? 'text-cyan-600 bg-cyan-50'
+                    : 'text-blue-600 bg-blue-50';
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-50/60 transition-colors">
+                        <td class="py-3 px-4 font-mono font-bold text-[#0A58CA]">${userNis}</td>
+                        <td class="py-3 px-4 font-bold text-slate-900">${u.name}</td>
+                        <td class="py-3 px-4 text-slate-500">${u.email}</td>
+                        <td class="py-3 px-4"><span class="font-bold text-[10px] px-2 py-0.5 rounded-full ${roleBadge}">${u.role || 'Admin'}</span></td>
+                        <td class="py-3 px-4 text-center">
+                            <div class="flex items-center justify-center gap-1.5">
+                                <button onclick="openEditUserModal(${idx})" class="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Ubah User / NIS"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                                <button onclick="deleteUser('${u.id}', '${u.name}')" class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Hapus User"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            if (window.lucide) lucide.createIcons();
+        }
+
+        async function generateAndSetUserNis() {
+            const role = document.getElementById('user-modal-role')?.value || 'Admin';
+            const nisInput = document.getElementById('user-modal-nis');
+            if (!nisInput) return;
+            try {
+                const res = await fetch(`${API_BASE}/api/users/next-id?role=${encodeURIComponent(role)}`);
+                const data = await res.json();
+                if (data && data.nextId) {
+                    nisInput.value = data.nextId;
+                }
+            } catch (e) {
+                console.error('Gagal generate NIS user:', e);
+            }
+        }
+
+        async function openAddUserModal() {
+            document.getElementById('user-modal-form').reset();
+            document.getElementById('user-idx').value = '';
+            document.getElementById('user-db-id').value = '';
+            document.getElementById('user-modal-title').innerText = "Tambah User Baru";
+            await generateAndSetUserNis();
+            openModal('user-modal');
+        }
+
+        function openEditUserModal(idx) {
+            const user = usersData[idx];
+            if (!user) return;
+            document.getElementById('user-idx').value = idx;
+            document.getElementById('user-db-id').value = user.id;
+            document.getElementById('user-modal-nis').value = user.nis || user.id || '';
+            document.getElementById('user-modal-name').value = user.name || '';
+            document.getElementById('user-modal-email').value = user.email || '';
+            document.getElementById('user-modal-role').value = user.role || 'Admin';
+            document.getElementById('user-modal-password').value = '';
+            document.getElementById('user-modal-title').innerText = "Edit User & NIS";
+            openModal('user-modal');
+        }
+
+        function closeUserModal() {
+            closeModal('user-modal');
+        }
+
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                const box = modal.querySelector('div');
+                if (box) box.classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            if (!modal) return;
+            modal.classList.add('opacity-0');
+            const box = modal.querySelector('div');
+            if (box) box.classList.add('scale-95');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        async function handleUserSubmit(e) {
+            e.preventDefault();
+            const dbId = document.getElementById('user-db-id').value;
+            const nis = document.getElementById('user-modal-nis').value.trim();
+            const name = document.getElementById('user-modal-name').value.trim();
+            const email = document.getElementById('user-modal-email').value.trim();
+            const role = document.getElementById('user-modal-role').value;
+            const password = document.getElementById('user-modal-password').value;
+
+            const payload = { id: nis, nis, name, email, role };
+            if (password) payload.password = password;
+
+            try {
+                if (dbId === '') {
+                    const res = await fetch(`${API_BASE}/api/users`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!res.ok) {
+                        const data = await res.json();
+                        throw new Error(data.message || 'Gagal membuat user.');
+                    }
+                    showToast(`User "${name}" (NIS: ${nis}) berhasil dibuat!`);
+                } else {
+                    const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(dbId)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!res.ok) throw new Error();
+                    showToast(`Data user "${name}" berhasil diperbarui!`);
+                }
+                closeUserModal();
+                await fetchUsers();
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Gagal menyimpan data user ke database.', 'error');
+            }
+        }
+
+        async function deleteUser(id, name) {
+            if (confirm(`Apakah Anda yakin ingin menghapus user "${name}"?`)) {
+                try {
+                    const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
+                    if (!res.ok) throw new Error();
+                    showToast(`User "${name}" berhasil dihapus.`);
+                    await fetchUsers();
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal menghapus user.', 'error');
+                }
+            }
         }
 
         async function updateProfileInfo(e) {
@@ -305,7 +575,7 @@
                 const data = await res.json();
                 currentUser = data.user;
                 localStorage.setItem('currentUser', JSON.stringify(currentUser));
-                
+
                 // Update header
                 document.getElementById('header-user-name').innerText = currentUser.name;
                 document.getElementById('header-user-badge').innerText = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
@@ -386,4 +656,3 @@
 </body>
 
 </html>
-

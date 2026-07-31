@@ -1,202 +1,77 @@
-# Database Schema Specifications (Schema.md)
-## Ekstensi Skema Database & Relasi — Dashboard Pengajar KBEC
+# DB Schema Documentation - KBEC Admin System
+
+Dokumentasi resmi struktur tabel dan skema database MySQL (`kbec_db`) untuk KBEC Admin Management System.
 
 ---
 
-### 1. Overview Struktur Database (Shared dengan Super Admin)
+## 📋 Ringkasan Tabel Utama
 
-Dashboard Pengajar dan Super Admin menggunakan **satu database TiDB Cloud yang sama** (`kbec_db`). Ekstensi untuk fitur pengajar adalah menambahkan 2 tabel baru (`teacher_checkins`, `student_grades`) dan mengubah 1 tabel yang sudah ada (`teachers`).
-
-```
-                         [ kbec_db — TiDB Cloud ]
-
-┌───────────┐   ┌────────────────┐   ┌──────────────────┐
-│  teachers │──►│    classes     │──►│  class_students  │
-│ [+password│   │ (pengajar=name)│   │(class_id,student)│
-│  +role]   │   └───────┬────────┘   └────────┬─────────┘
-└─────┬─────┘           │                     │
-      │                 ▼                     ▼
-      │          ┌────────────┐         ┌──────────┐
-      │          │ attendance │         │ students │
-      │          └────────────┘         └────┬─────┘
-      │                                      │
-      ▼                                      ▼
-┌─────────────────┐                ┌─────────────────┐
-│ teacher_checkins│                │ student_grades  │
-│ [NEW — GPS Log] │                │ [NEW — Penilaian│
-└─────────────────┘                └─────────────────┘
-
- Semua tabel juga terhubung ke:
- ┌────────────────┐  ┌───────────────┐  ┌──────────┐
- │ activity_logs  │  │   reminders   │  │ payments │
- │ (dibaca Super  │  │ (agenda)      │  │ (Admin)  │
- │  Admin & Guru) │  └───────────────┘  └──────────┘
- └────────────────┘
-```
+| Nama Tabel | Primary Key | Deskripsi & Format ID / NIS |
+| :--- | :--- | :--- |
+| `users` | `id` (VARCHAR) | Akun Pengguna System / Admin / Pengajar (NIS: `[YY][MM][SEQ][SUFFIX]` misal `2607000001-SA`, `2607000001-ADM`, `2607000001-TCH`) |
+| `students` | `id` (VARCHAR) | Data Siswa Terdaftar (NIS: `[YY][MM][SEQ][SUFFIX]` misal `2607000001`, `2607000001-C`, `2607000001-B`, `2607000001-A`, `2607000001-TK`) |
+| `teachers` | `id` (VARCHAR) | Data Pengajar & Guru (Format: `KBEC-T001`) |
+| `programs` | `id` (INT AUTO) | Program Kursus & Unit Yayasan (KBEC, TK, Bimbel, Calistung, Arabin) |
+| `classes` | `id` (INT AUTO) | Data Kelas & Jadwal Belajar |
+| `class_students` | `(class_id, student_id)` | Relasi Mapping Siswa dalam Kelas |
+| `payments` | `id` (VARCHAR) | Transaksi Pembayaran / Invoice (`INV-26011`) |
+| `attendance` | `id` (INT AUTO) | Catatan Presensi Siswa Harian/Bulanan |
+| `activity_logs` | `id` (INT AUTO) | Audit Log Aktivitas Sistem |
+| `reminders` | `id` (INT AUTO) | Agenda & Pengingat Kegiatan |
 
 ---
 
-### 2. Tabel Baru 1: `teacher_checkins` — Rekam Kehadiran Pengajar
+## 📐 Spesifikasi Detail Format NIS (Nomor Induk Siswa & User)
 
-Tabel ini menyimpan setiap event check-in dan check-out pengajar beserta data GPS dan timestamp server.
-
-```sql
-CREATE TABLE IF NOT EXISTS `teacher_checkins` (
-  `id`               INT NOT NULL,
-  `teacher_id`       VARCHAR(50)  COLLATE utf8mb4_general_ci NOT NULL,
-  `teacher_nama`     VARCHAR(150) COLLATE utf8mb4_general_ci NOT NULL,
-  `class_id`         INT DEFAULT NULL,
-  `class_nama`       VARCHAR(100) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `tipe_kelas`       ENUM('tatap_muka', 'online') DEFAULT 'tatap_muka',
-  -- GPS Check-in Data
-  `checkin_time`     DATETIME NOT NULL DEFAULT (NOW()),
-  `checkin_lat`      DECIMAL(10, 8) DEFAULT NULL,
-  `checkin_lng`      DECIMAL(11, 8) DEFAULT NULL,
-  `checkin_accuracy` FLOAT DEFAULT NULL,            -- Akurasi GPS dalam meter
-  `jarak_dari_kbec`  FLOAT DEFAULT NULL,            -- Jarak dari koordinat KBEC dalam meter
-  `status_lokasi`    ENUM(
-                        'VALID_IN_RANGE',            -- Dalam radius ≤100m KBEC
-                        'OUT_OF_RANGE_BYPASS',       -- Di luar radius (ada izin admin)
-                        'ONLINE_MODE'                -- Kelas online, geofencing tidak berlaku
-                     ) NOT NULL DEFAULT 'VALID_IN_RANGE',
-  -- GPS Check-out Data
-  `checkout_time`    DATETIME DEFAULT NULL,
-  `checkout_lat`     DECIMAL(10, 8) DEFAULT NULL,
-  `checkout_lng`     DECIMAL(11, 8) DEFAULT NULL,
-  `durasi_menit`     INT DEFAULT NULL,              -- Durasi mengajar (checkout - checkin)
-  -- Metadata
-  `tanggal`          DATE NOT NULL,
-  `catatan`          TEXT COLLATE utf8mb4_general_ci DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_teacher_class_date` (`teacher_id`, `class_id`, `tanggal`),
-  KEY `idx_teacher_id` (`teacher_id`),
-  KEY `idx_tanggal` (`tanggal`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-```
+1. **Struktur Kode NIS**: `[YY][MM][6DIGIT_SEQ][SUFFIX]`
+   - `[YY]`: 2 Digit Tahun Pendaftaran (contoh: `26` untuk 2026)
+   - `[MM]`: 2 Digit Bulan Pendaftaran (contoh: `07` untuk Juli)
+   - `[6DIGIT_SEQ]`: 6 Digit Nomor Urut Terdaftar (contoh: `000001`)
+   - `[SUFFIX]`:
+     - **Siswa**:
+       - `KBEC`: Tanpa Suffix (contoh: `2607000001`)
+       - `Calistung`: `-C` (contoh: `2607000001-C`)
+       - `Bimbel`: `-B` (contoh: `2607000001-B`)
+       - `Arabin` (Beasiswa Kurang Mampu): `-A` (contoh: `2607000001-A`)
+       - `TK`: `-TK` (contoh: `2607000001-TK`)
+     - **User System**:
+       - `Super Admin`: `-SA` (contoh: `2607000001-SA`)
+       - `Admin`: `-ADM` (contoh: `2607000001-ADM`)
+       - `Pengajar`: `-TCH` (contoh: `2607000001-TCH`)
+       - `User`: `-USR` (contoh: `2607000001-USR`)
 
 ---
 
-### 3. Tabel Baru 2: `student_grades` — Nilai & Progress Note Siswa
+## 🗄️ DDL (Data Definition Language) SQL
 
 ```sql
-CREATE TABLE IF NOT EXISTS `student_grades` (
-  `id`               INT NOT NULL,
-  `student_id`       VARCHAR(50)  COLLATE utf8mb4_general_ci NOT NULL,
-  `class_id`         INT NOT NULL,
-  `teacher_id`       VARCHAR(50)  COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `nilai_tugas`      TINYINT UNSIGNED DEFAULT 0,   -- 0–100
-  `nilai_uts`        TINYINT UNSIGNED DEFAULT 0,   -- 0–100
-  `nilai_uas`        TINYINT UNSIGNED DEFAULT 0,   -- 0–100
-  `nilai_akhir`      TINYINT UNSIGNED DEFAULT 0,   -- rata-rata tertimbang
-  `grade_letter`     CHAR(2) COLLATE utf8mb4_general_ci DEFAULT 'E',  -- A/B/C/D/E
-  `catatan_progress` TEXT COLLATE utf8mb4_general_ci DEFAULT NULL,
-  `updated_at`       DATETIME DEFAULT (NOW()) ON UPDATE (NOW()),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uniq_student_class` (`student_id`, `class_id`),
-  KEY `idx_class` (`class_id`),
-  KEY `idx_teacher` (`teacher_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-```
+CREATE DATABASE IF NOT EXISTS kbec_db;
+USE kbec_db;
 
----
+-- 1. Tabel Users
+CREATE TABLE IF NOT EXISTS users (
+    id VARCHAR(50) PRIMARY KEY,
+    nis VARCHAR(50) UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(50) DEFAULT 'Admin',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
-### 4. Modifikasi Tabel Existing: `teachers`
-
-Tambahkan kolom untuk mendukung login mandiri pengajar dan konfigurasi tipe kelas.
-
-```sql
--- Jalankan di TiDB Cloud Query Editor atau via server.js seedDB():
-ALTER TABLE `teachers`
-  ADD COLUMN IF NOT EXISTS `password`     VARCHAR(255) COLLATE utf8mb4_general_ci DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS `role`         VARCHAR(30)  COLLATE utf8mb4_general_ci DEFAULT 'teacher',
-  ADD COLUMN IF NOT EXISTS `tipe_kelas`   VARCHAR(30)  COLLATE utf8mb4_general_ci DEFAULT 'tatap_muka';
-  -- tipe_kelas: 'tatap_muka' | 'online' | 'hybrid'
-```
-
----
-
-### 5. Query SQL Utama Fitur Pengajar
-
-#### A. Check-in Pengajar (INSERT dari API Server):
-```sql
-INSERT INTO teacher_checkins
-  (id, teacher_id, teacher_nama, class_id, class_nama, tipe_kelas,
-   checkin_time, checkin_lat, checkin_lng, checkin_accuracy,
-   jarak_dari_kbec, status_lokasi, tanggal)
-VALUES
-  (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, CURDATE())
-ON DUPLICATE KEY UPDATE
-  catatan = VALUES(catatan);
--- checkin_time = NOW() — WAJIB dari server, bukan klien!
-```
-
-#### B. Check-out Pengajar:
-```sql
-UPDATE teacher_checkins
-SET checkout_time = NOW(),
-    checkout_lat  = ?,
-    checkout_lng  = ?,
-    durasi_menit  = TIMESTAMPDIFF(MINUTE, checkin_time, NOW())
-WHERE teacher_id = ? AND tanggal = CURDATE();
-```
-
-#### C. Rekap Kehadiran Pengajar (Dibaca oleh Super Admin):
-```sql
-SELECT tc.*, t.foto, t.keahlian
-FROM teacher_checkins tc
-JOIN teachers t ON tc.teacher_id = t.id
-WHERE tc.tanggal BETWEEN ? AND ?
-ORDER BY tc.tanggal DESC, tc.checkin_time DESC;
-```
-
-#### D. Kelas yang Diampu Pengajar Login:
-```sql
-SELECT c.*, COALESCE(cs.total_siswa, 0) AS total_siswa
-FROM classes c
-LEFT JOIN (
-    SELECT class_id, COUNT(*) AS total_siswa
-    FROM class_students GROUP BY class_id
-) cs ON c.id = cs.class_id
-WHERE c.pengajar = ?;
-```
-
-#### E. Upsert Nilai Siswa:
-```sql
-INSERT INTO student_grades
-  (id, student_id, class_id, teacher_id,
-   nilai_tugas, nilai_uts, nilai_uas, nilai_akhir, grade_letter, catatan_progress)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON DUPLICATE KEY UPDATE
-  nilai_tugas      = VALUES(nilai_tugas),
-  nilai_uts        = VALUES(nilai_uts),
-  nilai_uas        = VALUES(nilai_uas),
-  nilai_akhir      = VALUES(nilai_akhir),
-  grade_letter     = VALUES(grade_letter),
-  catatan_progress = VALUES(catatan_progress);
-```
-
----
-
-### 6. Logika Konversi Nilai Akhir ke Grade Letter
-
-```javascript
-// Dijalankan di server sebelum INSERT ke student_grades
-function toGradeLetter(nilaiAkhir) {
-    if (nilaiAkhir >= 85) return 'A';
-    if (nilaiAkhir >= 70) return 'B';
-    if (nilaiAkhir >= 55) return 'C';
-    if (nilaiAkhir >= 40) return 'D';
-    return 'E';
-}
-```
-
----
-
-### 7. Variabel ENV Wajib Ditambahkan ke `.env`
-
-```env
-# Koordinat Resmi Lokasi KBEC (sesuaikan dengan lokasi gedung sesungguhnya)
-KBEC_LATITUDE=-7.9666
-KBEC_LONGITUDE=112.6326
-KBEC_RADIUS_METERS=100
+-- 2. Tabel Students
+CREATE TABLE IF NOT EXISTS students (
+    id VARCHAR(50) PRIMARY KEY,
+    nama VARCHAR(100) UNIQUE NOT NULL,
+    alamat TEXT,
+    kontak VARCHAR(30),
+    program VARCHAR(100),
+    level VARCHAR(50),
+    status VARCHAR(30),
+    initial VARCHAR(10),
+    color VARCHAR(50),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    notes TEXT,
+    FOREIGN KEY (program) REFERENCES programs(nama) ON UPDATE CASCADE ON DELETE SET NULL
+);
 ```

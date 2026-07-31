@@ -370,7 +370,7 @@
                         </div>
                         <div>
                             <p class="text-[11px] text-slate-400 font-bold tracking-wide uppercase">Status Aktif</p>
-                            <h3 class="text-2xl font-extrabold text-slate-900 mt-0.5">3</h3>
+                            <h3 id="card-total-aktif-count" class="text-2xl font-extrabold text-slate-900 mt-0.5">0</h3>
                         </div>
                     </div>
                     <div
@@ -558,7 +558,10 @@
 
             // Menghitung statistik berdasarkan data terkini
             const totalCuti = teachersData.filter(t => t.status === 'Cuti').length;
+            const totalAktif = teachersData.filter(t => t.status === 'Aktif').length;
             document.getElementById('card-total-pengajar').innerText = teachersData.length;
+            document.getElementById('card-total-aktif').innerText = `${totalAktif} Aktif`;
+            document.getElementById('card-total-aktif-count').innerText = totalAktif;
             document.getElementById('card-total-cuti').innerText = `${totalCuti} Pengajar`;
 
             // Proses Penyaringan Kombinasi (Search + Filter Keahlian + Filter Status)

@@ -2,628 +2,141 @@ const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const os = require('os');
-require('dotenv').config();
-const db = require('./db');
-
-// Fungsi sederhana rate limiting manual (tanpa library tambahan)
-const loginAttempts = new Map();
-function loginRateLimiter(req, res, next) {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    const key = `login_${ip}`;
-    const now = Date.now();
-    const windowMs = 15 * 60 * 1000; // 15 menit
-    const maxAttempts = 15;
-
-    if (!loginAttempts.has(key)) {
-        loginAttempts.set(key, { count: 1, startTime: now });
-        return next();
-    }
-
-    const record = loginAttempts.get(key);
-    if (now - record.startTime > windowMs) {
-        loginAttempts.set(key, { count: 1, startTime: now });
-        return next();
-    }
-
-    if (record.count >= maxAttempts) {
-        const remainingMs = windowMs - (now - record.startTime);
-        const remainingMin = Math.ceil(remainingMs / 60000);
-        return res.status(429).json({
-            success: false,
-            message: `Terlalu banyak percobaan login. Coba lagi dalam ${remainingMin} menit.`
-        });
-    }
-
-    record.count++;
-    next();
-}
-
-// Token Management & Middleware Proteksi API
-const activeTokens = new Set(['kbec_admin_session_token_2026']);
-
-function generateToken() {
-    const token = crypto.randomBytes(32).toString('hex');
-    activeTokens.add(token);
-    return token;
-}
-
-function requireAuth(req, res, next) {
-    const authHeader = req.headers['authorization'] || req.headers['x-auth-token'];
-    let token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
-    if (token) {
-        return next();
-    }
-    const referer = req.headers['referer'] || '';
-    const origin = req.headers['origin'] || '';
-    const host = req.headers['host'] || '';
-    if (!referer || referer.includes('localhost') || referer.includes('127.0.0.1') || (host && referer.includes(host)) || origin.includes('localhost') || origin.includes('127.0.0.1') || (host && origin.includes(host)) || referer.includes('vercel.app') || referer.includes('onrender.com')) {
-        return next();
-    }
-    return res.status(401).json({ success: false, message: 'Akses ditolak. Token autentikasi tidak valid atau belum login.' });
-}
-
-
 const path = require('path');
-const fs = require('fs');
+require('dotenv').config();
+
+const db = require('./src/config/db');
+const helmet = require('helmet');
+const errorHandler = require('./src/middlewares/error.middleware');
+const { globalRateLimiter, authRateLimiter } = require('./src/middlewares/rateLimiter.middleware');
+const { requireAuth, requireRole, requireCsrf, generateToken } = require('./src/middlewares/auth.middleware');
+const { hashPassword, verifyPassword } = require('./src/controllers/auth.controller');
+const { generateUniqueUserId } = require('./src/utils/helpers');
+
+// Import modular routes
+const authRoutes = require('./src/routes/auth.routes');
+const studentRoutes = require('./src/routes/student.routes');
+const teacherRoutes = require('./src/routes/teacher.routes');
+const classRoutes = require('./src/routes/class.routes');
+const programRoutes = require('./src/routes/program.routes');
+const financeRoutes = require('./src/routes/finance.routes');
+const attendanceRoutes = require('./src/routes/attendance.routes');
+const inventoryRoutes = require('./src/routes/inventory.routes');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Essential Middlewares
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(globalRateLimiter);
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Private-Network', 'true');
     next();
 });
-app.use(cors());
+app.use(cors({
+    origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
+    credentials: true
+}));
 app.use(express.json());
 
-// Normalizer URL agar rute /api/... di Vercel selalu cocok 100%
+// CSRF Protection
+app.use('/api', requireCsrf);
+
+// URL Normalizer for Vercel
 app.use((req, res, next) => {
     if (req.path.startsWith('/api/') || req.path === '/api') {
         return next();
     }
-    // Jika Vercel memotong prefix /api pada API request
-    if (!req.path.includes('.') && req.path !== '/') {
+    if (!req.path.includes('.') && req.path !== '/' && req.headers.accept && req.headers.accept.includes('application/json')) {
         req.url = '/api' + (req.url.startsWith('/') ? req.url : '/' + req.url);
     }
     next();
 });
 
-app.use(express.static(path.join(__dirname)));
+// Serve Static Files
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Root Route
 app.get('/', (req, res) => {
-    const indexPath = fs.existsSync(path.join(__dirname, 'public', 'index.html')) 
-        ? path.join(__dirname, 'public', 'index.html') 
-        : path.join(__dirname, 'index.html');
-    res.sendFile(indexPath);
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Penanganan file statis dinamis
-app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api/')) return next();
-    
-    let relPath = req.path.startsWith('/') ? req.path.slice(1) : req.path;
-    if (!relPath) relPath = 'index.html';
-    
-    const publicPath = path.join(__dirname, 'public', relPath);
-    if (fs.existsSync(publicPath) && fs.statSync(publicPath).isFile()) {
-        return res.sendFile(publicPath);
-    }
-    const rootPath = path.join(__dirname, relPath);
-    if (fs.existsSync(rootPath) && fs.statSync(rootPath).isFile()) {
-        return res.sendFile(rootPath);
-    }
-    next();
+// Health check endpoint
+app.get(['/api/health', '/health'], (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Helper untuk hash password menggunakan SHA-256 + Salt
-function hashPassword(password) {
-    const salt = process.env.PASSWORD_SALT || 'kbec_secure_app_salt_2026';
-    return crypto.createHmac('sha256', salt).update(password).digest('hex');
-}
+// Mount Modular API Routes
+app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
 
-// Helper untuk menjamin keunikan ID Siswa baru
-async function generateUniqueStudentId() {
-    let unique = false;
-    let studentId = '';
-    let attempts = 0;
-    while (!unique && attempts < 10) {
-        const num = Math.floor(100 + Math.random() * 900);
-        studentId = `#KB-2026-${num}`;
-        const [rows] = await db.query('SELECT id FROM students WHERE id = ?', [studentId]);
-        if (rows.length === 0) {
-            unique = true;
-        }
-        attempts++;
+app.use('/api/students', studentRoutes);
+app.use('/students', studentRoutes);
+
+app.use('/api/teachers', teacherRoutes);
+app.use('/teachers', teacherRoutes);
+
+app.use('/api/classes', classRoutes);
+app.use('/classes', classRoutes);
+
+app.use('/api/programs', programRoutes);
+app.use('/programs', programRoutes);
+
+const { getStudentBillsSummary } = require('./src/controllers/finance.controller');
+app.get(['/api/finance/bills/per-student', '/finance/bills/per-student', '/api/bills/per-student', '/bills/per-student'], requireAuth, getStudentBillsSummary);
+
+app.use('/api/finance', financeRoutes);
+app.use('/finance', financeRoutes);
+app.use('/api/bills', (req, res, next) => { req.url = '/bills' + req.url; financeRoutes(req, res, next); });
+app.use('/bills', (req, res, next) => { req.url = '/bills' + req.url; financeRoutes(req, res, next); });
+app.use('/api/payments', (req, res, next) => { req.url = '/payments' + req.url; financeRoutes(req, res, next); });
+app.use('/payments', (req, res, next) => { req.url = '/payments' + req.url; financeRoutes(req, res, next); });
+
+app.use('/api/attendance', attendanceRoutes);
+app.use('/attendance', attendanceRoutes);
+
+app.use('/api/inventory', inventoryRoutes);
+app.use('/inventory', inventoryRoutes);
+
+// --- AUTH & USER MANAGEMENT EXTRA ENDPOINTS ---
+
+// Register User Endpoint (Secure Default Role)
+app.post('/api/auth/register', authRateLimiter, async (req, res, next) => {
+    const { name, email, password, nis } = req.body;
+    if (!name || !email || !password) {
+        return res.status(400).json({ success: false, message: 'Nama, email, dan password wajib diisi.' });
     }
-    if (!unique) {
-        studentId = `#KB-2026-${Date.now().toString().slice(-4)}`;
-    }
-    return studentId;
-}
-
-// Helper untuk log aktivitas sistem
-async function logActivity(siswa, aktivitas, program, status, statusColor) {
-    try {
-        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM activity_logs');
-        const nextId = (maxId || 0) + 1;
-        await db.query(
-            'INSERT INTO activity_logs (id, siswa, aktivitas, program, status, status_color) VALUES (?, ?, ?, ?, ?, ?)',
-            [nextId, siswa || 'Siswa', aktivitas || 'Aktivitas Sistem', program || '-', status || 'Berhasil', statusColor || 'text-blue-600 bg-blue-50']
-        );
-    } catch (err) {
-        console.error('❌ Error logging activity:', err);
-    }
-}
-
-// ==========================================
-// 1. SEED DATA AWAL (JIKA KOSONG)
-// ==========================================
-async function seedDatabase() {
-    try {
-        // 1. Buat tabel users (untuk Login & Register Admin)
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(100) NOT NULL,
-                email VARCHAR(100) UNIQUE NOT NULL,
-                password VARCHAR(255) NOT NULL
-            )
-        `);
-
-        // 2. Buat tabel programs
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS programs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                nama VARCHAR(100) UNIQUE NOT NULL,
-                cat VARCHAR(50),
-                level VARCHAR(50),
-                deskripsi TEXT,
-                biaya INT NOT NULL,
-                durasi VARCHAR(50),
-                sesi VARCHAR(50)
-            )
-        `);
-
-        // 3. Buat tabel teachers
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS teachers (
-                id VARCHAR(50) PRIMARY KEY,
-                nama VARCHAR(100) UNIQUE NOT NULL,
-                joined VARCHAR(50),
-                expertise TEXT,
-                email VARCHAR(100) UNIQUE,
-                kontak VARCHAR(30),
-                status VARCHAR(30),
-                avatar VARCHAR(255)
-            )
-        `);
-
-        // 4. Buat tabel students
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS students (
-                id VARCHAR(50) PRIMARY KEY,
-                nama VARCHAR(100) UNIQUE NOT NULL,
-                alamat TEXT,
-                kontak VARCHAR(30),
-                program VARCHAR(100),
-                level VARCHAR(50),
-                status VARCHAR(30),
-                initial VARCHAR(10),
-                color VARCHAR(50),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                notes TEXT,
-                FOREIGN KEY (program) REFERENCES programs(nama) ON UPDATE CASCADE ON DELETE SET NULL
-            )
-        `);
-
-        // 5. Buat tabel classes
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS classes (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                nama VARCHAR(100) UNIQUE NOT NULL,
-                program VARCHAR(100),
-                pengajar VARCHAR(100),
-                kapasitas INT DEFAULT 20,
-                hari VARCHAR(50),
-                mulai VARCHAR(10) DEFAULT '08:00',
-                selesai VARCHAR(10) DEFAULT '09:30',
-                tipe VARCHAR(50) DEFAULT 'Tatap Muka',
-                ruang VARCHAR(100) DEFAULT 'Belum Diatur',
-                FOREIGN KEY (program) REFERENCES programs(nama) ON UPDATE CASCADE ON DELETE SET NULL,
-                FOREIGN KEY (pengajar) REFERENCES teachers(nama) ON UPDATE CASCADE ON DELETE SET NULL
-            )
-        `);
-
-        // 6. Buat tabel class_students
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS class_students (
-                class_id INT,
-                student_id VARCHAR(50),
-                PRIMARY KEY (class_id, student_id),
-                FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE,
-                FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
-            )
-        `);
-
-        // 7. Buat tabel payments
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS payments (
-                id VARCHAR(50) PRIMARY KEY,
-                nama VARCHAR(100),
-                program VARCHAR(100),
-                jumlah INT NOT NULL,
-                metode VARCHAR(50),
-                status VARCHAR(30),
-                tanggal DATE DEFAULT (CURRENT_DATE),
-                FOREIGN KEY (nama) REFERENCES students(nama) ON UPDATE CASCADE ON DELETE CASCADE,
-                FOREIGN KEY (program) REFERENCES programs(nama) ON UPDATE CASCADE ON DELETE SET NULL
-            )
-        `);
-
-        // 8. Buat tabel attendance
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS attendance (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                student_id VARCHAR(50) NOT NULL,
-                nama VARCHAR(100),
-                program VARCHAR(100),
-                kelas VARCHAR(100),
-                status VARCHAR(30),
-                inisial VARCHAR(10),
-                tanggal DATE NOT NULL,
-                FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
-                FOREIGN KEY (nama) REFERENCES students(nama) ON UPDATE CASCADE ON DELETE CASCADE,
-                FOREIGN KEY (program) REFERENCES programs(nama) ON UPDATE CASCADE ON DELETE SET NULL,
-                FOREIGN KEY (kelas) REFERENCES classes(nama) ON UPDATE CASCADE ON DELETE CASCADE
-            )
-        `);
-
-        // 9. Buat tabel activity_logs jika belum ada
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS activity_logs (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                siswa VARCHAR(100),
-                aktivitas VARCHAR(255),
-                program VARCHAR(100),
-                status VARCHAR(50),
-                status_color VARCHAR(50),
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-
-        // 10. Buat tabel reminders jika belum ada
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS reminders (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                title VARCHAR(255) NOT NULL,
-                date DATE NOT NULL,
-                time VARCHAR(100),
-                location VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        `);
-
-        // Seed data awal reminders jika kosong
-        const [existingReminders] = await db.query('SELECT * FROM reminders');
-        if (existingReminders.length === 0) {
-            await db.query(`
-                INSERT INTO reminders (title, date, time, location) VALUES 
-                ('Ujian Simulasi IELTS Speaking', '2026-07-28', '09:00 - 11:00', 'Ruangan 102'),
-                ('Rapat Koordinasi Tutor Pengajar', '2026-07-28', '13:00 - 14:30', 'Aula Utama'),
-                ('Orientasi Siswa Baru', '2026-07-29', '08:00 - 12:00', 'Auditorium Utama')
-            `);
-        }
-
-        // Tambah kolom created_at & notes pada tabel students jika belum ada
-        try {
-            await db.query("ALTER TABLE students ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP");
-        } catch (e) {}
-        try {
-            await db.query("ALTER TABLE students ADD COLUMN notes TEXT");
-        } catch (e) {}
-
-        // A. Seed User Admin
-        const [users] = await db.query('SELECT * FROM users');
-        if (users.length === 0) {
-            const passwordHashed = hashPassword('admin');
-            await db.query(
-                'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
-                ['Admin Utama', 'admin@kbec.com', passwordHashed]
-            );
-            console.log('✔ Admin user seeded successfully.');
-        }
-
-        // B. Seed Programs (Program Kursus)
-        const [programs] = await db.query('SELECT * FROM programs');
-        if (programs.length === 0 || !programs.some(p => p.nama.includes('1'))) {
-            await db.query('DELETE FROM programs');
-            const defaultPrograms = [
-                { nama: "Beginner 1", cat: "basic", level: "Dasar 1", deskripsi: "Pondasi awal bahasa Inggris tingkat pertama dari nol.", biaya: 1250000, durasi: "3 Bulan", sesi: "24 Sesi" },
-                { nama: "Beginner 2", cat: "basic", level: "Dasar 2", deskripsi: "Pondasi bahasa Inggris tingkat lanjutan dasar harian.", biaya: 1250000, durasi: "3 Bulan", sesi: "24 Sesi" },
-                { nama: "Beginner 3", cat: "basic", level: "Dasar 3", deskripsi: "Pemantapan kosakata dan kalimat dasar tingkat ketiga.", biaya: 1250000, durasi: "3 Bulan", sesi: "24 Sesi" },
-                { nama: "Elementary 1", cat: "basic", level: "Dasar Atas 1", deskripsi: "Membangun kosakata dan tata bahasa tingkat dasar atas pertama.", biaya: 1350000, durasi: "3 Bulan", sesi: "24 Sesi" },
-                { nama: "Elementary 2", cat: "basic", level: "Dasar Atas 2", deskripsi: "Membentuk kalimat kompleks tingkat dasar atas kedua.", biaya: 1350000, durasi: "3 Bulan", sesi: "24 Sesi" },
-                { nama: "Elementary 3", cat: "basic", level: "Dasar Atas 3", deskripsi: "Pemantapan komunikasi percakapan harian tingkat dasar atas.", biaya: 1350000, durasi: "3 Bulan", sesi: "24 Sesi" },
-                { nama: "Intermediate 1", cat: "intermediate", level: "Menengah 1", deskripsi: "Meningkatkan kefasihan berbicara tingkat menengah pertama.", biaya: 1500000, durasi: "3 Bulan", sesi: "24 Sesi" },
-                { nama: "Intermediate 2", cat: "intermediate", level: "Menengah 2", deskripsi: "Pengembangan tulisan dan percakapan terstruktur tingkat menengah.", biaya: 1500000, durasi: "3 Bulan", sesi: "24 Sesi" },
-                { nama: "Intermediate 3", cat: "intermediate", level: "Menengah 3", deskripsi: "Pemantapan diskusi mandiri dan debat tingkat menengah.", biaya: 1500000, durasi: "3 Bulan", sesi: "24 Sesi" },
-                { nama: "TOEFL Prep", cat: "advanced", level: "Persiapan Ujian", deskripsi: "Program persiapan ujian TOEFL untuk syarat kelulusan akademis atau kerja.", biaya: 1800000, durasi: "2 Bulan", sesi: "16 Sesi" }
-            ];
-            for (let prog of defaultPrograms) {
-                await db.query(
-                    'INSERT INTO programs (nama, cat, level, deskripsi, biaya, durasi, sesi) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                    [prog.nama, prog.cat, prog.level, prog.deskripsi, prog.biaya, prog.durasi, prog.sesi]
-                );
-            }
-            console.log('✔ Programs seeded successfully.');
-        }
-
-        // C. Seed Students
-        const [students] = await db.query('SELECT * FROM students');
-        if (students.length === 0) {
-            const defaultStudents = [
-                { id: "#KB-2024-001", nama: "Ahmad Syarif", alamat: "Jl. Mawar No. 12, Kediri", kontak: "0812-3456-7890", program: "TOEFL Prep", level: "Advanced", status: "Aktif", initial: "AS", color: "bg-blue-50 text-blue-600" },
-                { id: "#KB-2024-002", nama: "Budi Mansur", alamat: "Jl. Anggrek No. 45, Tulungagung", kontak: "0821-4433-2211", program: "Beginner 1", level: "Intermediate", status: "Aktif", initial: "BM", color: "bg-emerald-50 text-emerald-600" },
-                { id: "#KB-2023-456", nama: "Citra Sari", alamat: "Perum Citra Indah Blok A-1, Nganjuk", kontak: "0857-9900-1122", program: "Intermediate 1", level: "Beginner", status: "Alumni", initial: "CS", color: "bg-orange-50 text-orange-600" }
-            ];
-
-            for (let i = 4; i <= 104; i++) {
-                defaultStudents.push({
-                    id: `#KB-2026-${String(100 + i)}`,
-                    nama: `Siswa Contoh ${i}`,
-                    alamat: `Alamat Dummy No. ${i}, Kota Baru`,
-                    kontak: `0812-9900-${String(1000 + i).slice(-4)}`,
-                    program: i % 2 === 0 ? "TOEFL Prep" : "Beginner 1",
-                    level: i % 3 === 0 ? "Advanced" : "Intermediate",
-                    status: i % 5 === 0 ? "Alumni" : "Aktif",
-                    initial: "SC",
-                    color: "bg-slate-50 text-slate-600"
-                });
-            }
-
-            for (let std of defaultStudents) {
-                await db.query(
-                    'INSERT INTO students (id, nama, alamat, kontak, program, level, status, initial, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [std.id, std.nama, std.alamat, std.kontak, std.program, std.level, std.status, std.initial, std.color]
-                );
-            }
-            console.log('✔ Students seeded successfully.');
-        }
-
-        // Distribusi tanggal pendaftaran siswa yang realistis untuk grafik pertumbuhan jika semua siswa berada di 1 bulan saja
-        const [monthDistribution] = await db.query('SELECT COUNT(DISTINCT MONTH(created_at)) AS month_count FROM students');
-        if (monthDistribution.length > 0 && monthDistribution[0].month_count <= 1) {
-            const [allStds] = await db.query('SELECT id FROM students ORDER BY id ASC');
-            const total = allStds.length;
-            for (let idx = 0; idx < total; idx++) {
-                let month = 1 + Math.floor((idx / total) * 7); // Jan (1) s/d Jul (7)
-                let day = 1 + (idx % 25);
-                let monthStr = String(month).padStart(2, '0');
-                let dayStr = String(day).padStart(2, '0');
-                let dateStr = `2026-${monthStr}-${dayStr} 09:00:00`;
-                await db.query('UPDATE students SET created_at = ? WHERE id = ?', [dateStr, allStds[idx].id]);
-            }
-            console.log('✔ Student registration dates successfully distributed across Jan-Jul 2026.');
-        }
-
-        // D. Seed Activity Logs (Jika Kosong)
-        const [activityLogs] = await db.query('SELECT * FROM activity_logs');
-        if (activityLogs.length === 0) {
-            const defaultLogs = [
-                { siswa: 'Ahmad Syarif', aktivitas: 'Pembayaran Tagihan (INV-26011)', program: 'TOEFL Prep', status: 'Berhasil', status_color: 'text-emerald-600 bg-emerald-50' },
-                { siswa: 'Budi Mansur', aktivitas: 'Pembayaran Tagihan (INV-26012)', program: 'Beginner 1', status: 'Berhasil', status_color: 'text-emerald-600 bg-emerald-50' },
-                { siswa: 'Citra Sari', aktivitas: 'Pembayaran Tagihan (INV-26013)', program: 'Intermediate 1', status: 'Tertunda', status_color: 'text-amber-700 bg-amber-50' },
-                { siswa: 'Ahmad Syarif', aktivitas: 'Presensi Kelas TOEFL Prep Intensive', program: 'TOEFL Prep', status: 'Hadir', status_color: 'text-emerald-600 bg-emerald-50' },
-                { siswa: 'Rina Kusuma', aktivitas: 'Pendaftaran Siswa Baru', program: 'General English', status: 'Terverifikasi', status_color: 'text-blue-600 bg-blue-50' }
-            ];
-            for (let l of defaultLogs) {
-                await db.query(
-                    'INSERT INTO activity_logs (siswa, aktivitas, program, status, status_color) VALUES (?, ?, ?, ?, ?)',
-                    [l.siswa, l.aktivitas, l.program, l.status, l.status_color]
-                );
-            }
-            console.log('✔ Activity logs seeded successfully.');
-        }
-
-        // D. Seed Teachers (Pengajar)
-        const [teachers] = await db.query('SELECT * FROM teachers');
-        if (teachers.length === 0) {
-            const defaultTeachers = [
-                { id: "KBEC-T001", nama: "Ms. Sarah Johnson", joined: "Jan 2022", expertise: JSON.stringify(["IELTS Prep", "Business English"]), email: "sarah.j@kbec.id", kontak: "+62 812-3456-7890", status: "Aktif", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150" },
-                { id: "KBEC-T004", nama: "Mr. David Chen", joined: "Mar 2021", expertise: JSON.stringify(["TOEFL iBT", "Grammar"]), email: "d.chen@kbec.id", kontak: "+62 813-9876-5432", status: "Aktif", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150" },
-                { id: "KBEC-T012", nama: "Ms. Amanda Putri", joined: "Nov 2023", expertise: JSON.stringify(["Conversation", "Kids English"]), email: "amanda.p@kbec.id", kontak: "+62 878-1122-3344", status: "Cuti", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150" },
-                { id: "KBEC-T008", nama: "Mr. Rizky Pratama", joined: "Jun 2022", expertise: JSON.stringify(["General English", "Public Speaking"]), email: "rizky.p@kbec.id", kontak: "+62 821-5544-3322", status: "Aktif", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150" }
-            ];
-            for (let tch of defaultTeachers) {
-                await db.query(
-                    'INSERT INTO teachers (id, nama, joined, expertise, email, kontak, status, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-                    [tch.id, tch.nama, tch.joined, tch.expertise, tch.email, tch.kontak, tch.status, tch.avatar]
-                );
-            }
-            console.log('✔ Teachers seeded successfully.');
-        }
-
-        // E. Seed Classes (Kelas & Jadwal Terpadu)
-        const [classes] = await db.query('SELECT * FROM classes');
-        if (classes.length === 0) {
-            const defaultClasses = [
-                { nama: "Beginner 1-A", program: "Beginner 1", pengajar: "Ms. Sarah Johnson", kapasitas: 20, hari: "Serial 1", mulai: "08:00", selesai: "09:30", tipe: "Tatap Muka", ruang: "Ruang Teori 1" },
-                { nama: "Intermediate 1-A", program: "Intermediate 1", pengajar: "Mr. David Chen", kapasitas: 15, hari: "Serial 2", mulai: "10:00", selesai: "11:30", tipe: "Daring (Online)", ruang: "Zoom Meeting Room A" },
-                { nama: "TOEFL Prep Intensive", program: "TOEFL Prep", pengajar: "Ms. Sarah Johnson", kapasitas: 12, hari: "Serial 1", mulai: "13:00", selesai: "15:00", tipe: "Tatap Muka", ruang: "Lab Bahasa Utama" },
-                { nama: "Elementary 1-A", program: "Elementary 1", pengajar: "Mr. Rizky Pratama", kapasitas: 20, hari: "Serial 2", mulai: "08:00", selesai: "09:30", tipe: "Tatap Muka", ruang: "Ruang Teori 2" }
-            ];
-            for (let cls of defaultClasses) {
-                await db.query(
-                    'INSERT INTO classes (nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [cls.nama, cls.program, cls.pengajar, cls.kapasitas, cls.hari, cls.mulai, cls.selesai, cls.tipe, cls.ruang]
-                );
-            }
-            console.log('✔ Classes (Unified) seeded successfully.');
-        }
-
-        // F. Seed Class Students (Relasi Siswa & Kelas)
-        const [classStudents] = await db.query('SELECT * FROM class_students');
-        if (classStudents.length === 0) {
-            const [dbClasses] = await db.query('SELECT id, nama FROM classes');
-            const beginnerClass = dbClasses.find(c => c.nama === "Beginner 1-A");
-            const toeflClass = dbClasses.find(c => c.nama === "TOEFL Prep Intensive");
-            const intermediateClass = dbClasses.find(c => c.nama === "Intermediate 1-A");
-            const elementaryClass = dbClasses.find(c => c.nama === "Elementary 1-A");
-
-            const [dbStudents] = await db.query('SELECT id, nama, program FROM students');
-
-            for (let std of dbStudents) {
-                let targetClassId = null;
-                if (std.id === "#KB-2024-001" || std.program === "TOEFL Prep") {
-                    targetClassId = toeflClass ? toeflClass.id : null;
-                } else if (std.id === "#KB-2024-002" || std.program === "Beginner 1") {
-                    targetClassId = beginnerClass ? beginnerClass.id : null;
-                } else if (std.id === "#KB-2023-456" || std.program === "Intermediate 1") {
-                    targetClassId = intermediateClass ? intermediateClass.id : null;
-                } else {
-                    targetClassId = elementaryClass ? elementaryClass.id : null;
-                }
-                
-                if (targetClassId) {
-                    await db.query(
-                        'INSERT IGNORE INTO class_students (class_id, student_id) VALUES (?, ?)',
-                        [targetClassId, std.id]
-                    );
-                }
-            }
-            console.log('✔ Class Students seeded successfully.');
-        }
-
-        // G. Seed Payments (Pembayaran)
-        const [payments] = await db.query('SELECT * FROM payments');
-        if (payments.length === 0) {
-            const defaultPayments = [
-                { id: "INV-26011", nama: "Ahmad Syarif", program: "TOEFL Prep", jumlah: 1800000, metode: "Transfer Bank", status: "Lunas", tanggal: "2026-07-03" },
-                { id: "INV-26012", nama: "Budi Mansur", program: "Beginner 1", jumlah: 1250000, metode: "E-Wallet", status: "Lunas", tanggal: "2026-07-10" },
-                { id: "INV-26013", nama: "Citra Sari", program: "Intermediate 1", jumlah: 1500000, metode: "Transfer Bank", status: "Pending", tanggal: "2026-07-15" },
-                { id: "INV-26014", nama: "Siswa Contoh 4", program: "TOEFL Prep", jumlah: 1800000, metode: "Tunai", status: "Lunas", tanggal: "2026-07-18" },
-                { id: "INV-26015", nama: "Siswa Contoh 5", program: "Beginner 1", jumlah: 1250000, metode: "E-Wallet", status: "Pending", tanggal: "2026-07-24" }
-            ];
-            for (let pay of defaultPayments) {
-                await db.query(
-                    'INSERT INTO payments (id, nama, program, jumlah, metode, status, tanggal) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                    [pay.id, pay.nama, pay.program, pay.jumlah, pay.metode, pay.status, pay.tanggal]
-                );
-            }
-            console.log('✔ Payments seeded successfully.');
-        }
-
-    } catch (err) {
-        console.error('❌ Error seeding database:', err);
-    }
-}
-
-
-// Endpoint diagnosa database TiDB untuk Vercel
-app.get(['/api/test-db', '/test-db'], async (req, res) => {
-    try {
-        const [rows] = await db.query('SELECT COUNT(*) AS total_users FROM users');
-        res.json({
-            status: 'success',
-            message: 'Terhubung ke TiDB Cloud!',
-            db_host: (process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com').replace(/[\s\t\r\n]+/g, '').trim(),
-            total_users: rows[0].total_users
-        });
-    } catch (err) {
-        console.error('Test DB Error:', err);
-        res.json({
-            status: 'error',
-            message: err.message,
-            db_host: (process.env.DB_HOST || 'gateway01.ap-southeast-1.prod.aws.tidbcloud.com').replace(/[\s\t\r\n]+/g, '').trim()
-        });
-    }
-});
-
-// ==========================================
-// 2. ENDPOINTS UTAMA (REST API)
-// ==========================================
-
-// --- AUTH / LOGIN (dengan Rate Limiting & Strict Password Verification) ---
-app.post(['/api/auth/login', '/auth/login'], loginRateLimiter, async (req, res) => {
-    const { email, password } = req.body;
-    if (!email || !password) {
-        return res.status(400).json({ success: false, message: 'Email dan password wajib diisi.' });
-    }
-
     try {
         const cleanEmail = email.trim();
-        const passwordHashed = hashPassword(password);
-        
-        // Cari user berdasarkan email di database TiDB
-        const [users] = await db.query('SELECT * FROM users WHERE email = ?', [cleanEmail]);
-        
-        if (users.length === 0) {
-            return res.status(401).json({ success: false, message: 'Email atau password yang Anda masukkan salah.' });
-        }
-        
-        const user = users[0];
-        
-        // Strict Password Check (cocokkan hash password atau plain text lama)
-        const isPasswordMatch = (user.password === passwordHashed) || (user.password === password);
-        
-        if (!isPasswordMatch) {
-            return res.status(401).json({ success: false, message: 'Email atau password yang Anda masukkan salah.' });
-        }
-
-        // Migrasikan ke hash jika password di database masih plain text
-        if (user.password === password && user.password !== passwordHashed) {
-            try {
-                await db.query('UPDATE users SET password = ? WHERE id = ?', [passwordHashed, user.id]);
-            } catch (e) {}
-        }
-        
-        const token = generateToken();
-        await logActivity(user.name, 'Masuk ke Sistem (Login)', '-', 'Berhasil', 'text-emerald-600 bg-emerald-50');
-        return res.json({ success: true, token, user: { name: user.name, email: user.email } });
-    } catch (err) {
-        console.error('Error during login:', err);
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
-
-// --- AUTH / VALIDATE TOKEN ---
-app.get(['/api/auth/validate', '/auth/validate'], (req, res) => {
-    return res.json({ valid: true, success: true });
-});
-
-// --- AUTH / REGISTER ---
-app.post('/api/auth/register', async (req, res) => {
-    const { name, email, password } = req.body;
-    try {
-        // Cek jika email sudah terdaftar
-        const [existing] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+        const [existing] = await db.query('SELECT * FROM users WHERE email = ?', [cleanEmail]);
         if (existing.length > 0) {
             return res.status(400).json({ success: false, message: 'Email sudah terdaftar.' });
         }
-        
-        const passwordHashed = hashPassword(password);
+
+        const selectedRole = 'Admin';
+        const finalNis = (nis && nis.trim()) ? nis.trim() : await generateUniqueUserId(db, selectedRole);
+        const passwordHashed = await hashPassword(password);
         await db.query(
-            'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
-            [name, email, passwordHashed]
+            'INSERT INTO users (id, nis, name, email, password, role) VALUES (?, ?, ?, ?, ?, ?)',
+            [finalNis, finalNis, name.trim(), cleanEmail, passwordHashed, selectedRole]
         );
-        res.json({ success: true, message: 'Registrasi berhasil!' });
+        res.status(201).json({ success: true, message: 'Registrasi berhasil!', nis: finalNis });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-// --- AUTH / PROFILE UPDATE ---
-app.put(['/api/auth/profile', '/auth/profile'], async (req, res) => {
-    const { name, email, password, oldEmail } = req.body;
+// Profile Update Endpoint (Authenticated & Isolated)
+app.put(['/api/auth/profile', '/auth/profile'], requireAuth, async (req, res, next) => {
+    const { name, email, password } = req.body;
+    const targetEmail = req.user.email;
     try {
-        const targetEmail = oldEmail || email;
         if (!targetEmail) {
-            return res.status(400).json({ success: false, message: 'Email target tidak valid.' });
+            return res.status(400).json({ success: false, message: 'Pengguna tidak terautentikasi.' });
         }
 
         const newEmail = (email && email.trim()) ? email.trim() : targetEmail;
 
-        // Cek jika email baru berbeda dan sudah digunakan oleh akun lain
         if (newEmail !== targetEmail) {
             const [existing] = await db.query('SELECT * FROM users WHERE email = ?', [newEmail]);
             if (existing.length > 0) {
@@ -631,478 +144,142 @@ app.put(['/api/auth/profile', '/auth/profile'], async (req, res) => {
             }
         }
 
-        if (password) {
-            const passwordHashed = hashPassword(password);
-            if (newEmail !== targetEmail) {
-                await db.query(
-                    'UPDATE users SET name = ?, email = ?, password = ? WHERE email = ?',
-                    [name || 'User KBEC', newEmail, passwordHashed, targetEmail]
-                );
-            } else {
-                await db.query(
-                    'UPDATE users SET name = ?, password = ? WHERE email = ?',
-                    [name || 'User KBEC', passwordHashed, targetEmail]
-                );
-            }
+        if (password && password.trim()) {
+            const passwordHashed = await hashPassword(password.trim());
+            await db.query(
+                'UPDATE users SET name = ?, email = ?, password = ? WHERE email = ?',
+                [name ? name.trim() : 'User KBEC', newEmail, passwordHashed, targetEmail]
+            );
         } else {
-            if (newEmail !== targetEmail) {
-                await db.query(
-                    'UPDATE users SET name = ?, email = ? WHERE email = ?',
-                    [name || 'User KBEC', newEmail, targetEmail]
-                );
-            } else {
-                await db.query(
-                    'UPDATE users SET name = ? WHERE email = ?',
-                    [name || 'User KBEC', targetEmail]
-                );
-            }
+            await db.query(
+                'UPDATE users SET name = ?, email = ? WHERE email = ?',
+                [name ? name.trim() : 'User KBEC', newEmail, targetEmail]
+            );
         }
-        await logActivity(name || 'User KBEC', 'Pembaruan Profil & Kata Sandi', '-', 'Berhasil', 'text-emerald-600 bg-emerald-50');
         res.json({ success: true, user: { name: name || 'User KBEC', email: newEmail } });
     } catch (err) {
-        console.error('Error updating profile:', err);
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-// --- SISWA (STUDENTS) ---
-app.get('/api/students', async (req, res) => {
+// Users Management (Super Admin)
+app.get(['/api/users/next-id', '/users/next-id'], requireAuth, requireRole('Super Admin'), async (req, res, next) => {
     try {
-        const { page, limit, search, program, status } = req.query;
-        if (page && limit) {
-            const pageNum = parseInt(page, 10) || 1;
-            const limitNum = parseInt(limit, 10) || 50;
-            const offset = (pageNum - 1) * limitNum;
-
-            let whereClauses = [];
-            let params = [];
-
-            if (search && search.trim()) {
-                whereClauses.push('(nama LIKE ? OR id LIKE ? OR kontak LIKE ? OR alamat LIKE ?)');
-                const term = `%${search.trim()}%`;
-                params.push(term, term, term, term);
-            }
-            if (program && program !== 'Semua Program') {
-                whereClauses.push('program = ?');
-                params.push(program);
-            }
-            if (status && status !== 'Semua Status') {
-                whereClauses.push('status = ?');
-                params.push(status);
-            }
-
-            const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-            const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM students ${whereSql}`, params);
-            
-            const queryParams = [...params, limitNum, offset];
-            const [rows] = await db.query(`SELECT * FROM students ${whereSql} ORDER BY id ASC LIMIT ? OFFSET ?`, queryParams);
-            
-            return res.json({
-                data: rows,
-                total,
-                page: pageNum,
-                limit: limitNum,
-                totalPages: Math.ceil(total / limitNum)
-            });
-        }
-
-        // Default: kembalikan seluruh array (backward compatible untuk frontend yang belum pakai pagination)
-        const [rows] = await db.query('SELECT * FROM students');
-        res.json(rows);
+        const { role } = req.query;
+        const nextId = await generateUniqueUserId(db, role || 'Admin');
+        res.json({ success: true, nextId });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-app.post('/api/students', async (req, res) => {
-    const { nama, alamat, kontak, program, level, status, initial, color } = req.body;
-    if (!nama || !nama.trim()) {
-        return res.status(400).json({ success: false, message: 'Nama siswa wajib diisi.' });
-    }
-    const finalId = await generateUniqueStudentId();
-    const finalColor = color || 'bg-blue-50 text-blue-600';
+app.get(['/api/users', '/users'], requireAuth, requireRole('Super Admin'), async (req, res, next) => {
     try {
-        let validProgram = null;
-        if (program) {
-            const [pRows] = await db.query('SELECT nama FROM programs WHERE nama = ?', [program]);
-            if (pRows.length > 0) validProgram = pRows[0].nama;
-        }
-
-        const finalNama = nama.trim();
-
-        await db.query(
-            'INSERT INTO students (id, nama, alamat, kontak, program, level, status, initial, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [finalId, finalNama, alamat || '', kontak || '', validProgram, level || null, status || 'Aktif', initial || 'S', finalColor]
-        );
-        await logActivity(finalNama, 'Pendaftaran Siswa Baru', validProgram || '-', 'Terverifikasi', 'text-blue-600 bg-blue-50');
-        res.status(201).json({ id: finalId, nama: finalNama, alamat, kontak, program: validProgram, level, status, initial, color: finalColor });
-    } catch (err) {
-        console.error('Error adding student:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.put('/api/students/:id', async (req, res) => {
-    const { id } = req.params;
-    const { nama, alamat, kontak, program, level, status, initial, notes } = req.body;
-    try {
-        let validProgram = null;
-        if (program) {
-            const [pRows] = await db.query('SELECT nama FROM programs WHERE nama = ?', [program]);
-            if (pRows.length > 0) validProgram = pRows[0].nama;
-        }
-
-        if (notes !== undefined) {
-            await db.query(
-                'UPDATE students SET nama = ?, alamat = ?, kontak = ?, program = ?, level = ?, status = ?, notes = ? WHERE id = ?',
-                [nama, alamat, kontak, validProgram, level, status, notes, id]
-            );
-        } else {
-            await db.query(
-                'UPDATE students SET nama = ?, alamat = ?, kontak = ?, program = ?, level = ?, status = ?, initial = ? WHERE id = ?',
-                [nama, alamat, kontak, validProgram, level, status, initial, id]
-            );
-        }
-        await logActivity(nama, 'Pembaruan Data Siswa', program || '-', 'Berhasil', 'text-emerald-600 bg-emerald-50');
-        res.json({ success: true });
-    } catch (err) {
-        console.error('Error updating student:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.delete('/api/students/:id', async (req, res) => {
-    const { id } = req.params;
-    try {
-        await db.query('DELETE FROM students WHERE id = ?', [id]);
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/students/bulk', async (req, res) => {
-    const { list } = req.body;
-    if (!list || !Array.isArray(list)) {
-        return res.status(400).json({ success: false, message: 'Data list siswa wajib disertakan.' });
-    }
-    try {
-        for (let item of list) {
-            const studentId = item.id || `#KB-2026-${Math.floor(100 + Math.random() * 900)}`;
-            const name = item.nama;
-            if (!name) continue;
-            const address = item.alamat || '';
-            const contact = item.kontak || '';
-            const program = item.program || null;
-            const level = item.level || null;
-            const status = item.status || 'Aktif';
-            const initial = item.initial || name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-            const color = item.color || 'bg-blue-50 text-blue-600';
-
-            const [existing] = await db.query('SELECT * FROM students WHERE id = ? OR nama = ?', [studentId, name]);
-            if (existing.length === 0) {
-                await db.query(
-                    'INSERT INTO students (id, nama, alamat, kontak, program, level, status, initial, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [studentId, name, address, contact, program, level, status, initial, color]
-                );
-            }
-        }
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// --- PENGAJAR (TEACHERS) ---
-app.get('/api/teachers', async (req, res) => {
-    try {
-        const [rows] = await db.query('SELECT * FROM teachers');
+        const [rows] = await db.query('SELECT id, nis, name, email, role, created_at FROM users ORDER BY id ASC');
         const formatted = rows.map(r => ({
             ...r,
-            expertise: JSON.parse(r.expertise || '[]')
+            nis: r.nis || r.id
         }));
         res.json(formatted);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-app.post('/api/teachers', async (req, res) => {
-    const { nama, joined, expertise, email, kontak, status, avatar } = req.body;
-    const randomId = `KBEC-T0${Math.floor(10 + Math.random() * 90)}`;
-    const finalAvatar = avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150';
-    try {
-        const expertiseStr = JSON.stringify(expertise || []);
-        await db.query(
-            'INSERT INTO teachers (id, nama, joined, expertise, email, kontak, status, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [randomId, nama, joined, expertiseStr, email, kontak, status, finalAvatar]
-        );
-        res.status(201).json({ id: randomId, nama, joined, expertise, email, kontak, status, avatar: finalAvatar });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+app.post(['/api/users', '/users'], requireAuth, requireRole('Super Admin'), async (req, res, next) => {
+    const { id, nis, name, email, password, role } = req.body;
+    if (!name || !name.trim() || !email || !email.trim()) {
+        return res.status(400).json({ success: false, message: 'Nama dan email wajib diisi.' });
     }
-});
+    const selectedRole = role || 'Admin';
+    const finalNis = (nis && nis.trim()) ? nis.trim() : ((id && id.trim()) ? id.trim() : await generateUniqueUserId(db, selectedRole));
+    const finalId = finalNis;
+    const cleanEmail = email.trim();
+    const passwordHashed = await hashPassword(password || '123456');
 
-app.put('/api/teachers/:id', async (req, res) => {
-    const { id } = req.params;
-    const { nama, email, kontak, expertise, joined, status } = req.body;
     try {
-        const expertiseStr = JSON.stringify(expertise || []);
-        await db.query(
-            'UPDATE teachers SET nama = ?, email = ?, kontak = ?, expertise = ?, joined = ?, status = ? WHERE id = ?',
-            [nama, email, kontak, expertiseStr, joined, status, id]
-        );
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.delete('/api/teachers/:id', async (req, res) => {
-    const { id } = req.params;
-    try {
-        await db.query('DELETE FROM teachers WHERE id = ?', [id]);
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// --- PROGRAM STUDI (PROGRAMS) ---
-app.get(['/api/programs', '/programs'], async (req, res) => {
-    try {
-        const [rows] = await db.query('SELECT * FROM programs ORDER BY id ASC');
-        res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post(['/api/programs', '/programs'], async (req, res) => {
-    const { nama, cat, level, deskripsi, biaya, durasi, sesi } = req.body;
-    if (!nama || !nama.trim()) {
-        return res.status(400).json({ success: false, message: 'Nama program wajib diisi.' });
-    }
-    try {
-        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM programs');
-        const nextId = (maxId || 0) + 1;
-        const cleanBiaya = parseInt(String(biaya || 0).replace(/[^0-9]/g, ''), 10) || 0;
-        await db.query(
-            'INSERT INTO programs (id, nama, cat, level, deskripsi, biaya, durasi, sesi) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [nextId, nama.trim(), cat || 'beginner', level || 'Dasar 1', deskripsi || '', cleanBiaya, durasi || '3 Bulan', sesi || '12 Sesi']
-        );
-        await logActivity('Admin Utama', `Tambah Program Kursus (${nama})`, nama, 'Berhasil', 'text-blue-600 bg-blue-50');
-        res.status(201).json({ success: true, id: nextId, nama });
-    } catch (err) {
-        console.error('Error adding program:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.put(['/api/programs/:id', '/programs/:id'], async (req, res) => {
-    const { id } = req.params;
-    const { nama, cat, level, deskripsi, biaya, durasi, sesi } = req.body;
-    try {
-        const cleanBiaya = parseInt(String(biaya || 0).replace(/[^0-9]/g, ''), 10) || 0;
-        await db.query(
-            'UPDATE programs SET nama = ?, cat = ?, level = ?, deskripsi = ?, biaya = ?, durasi = ?, sesi = ? WHERE id = ?',
-            [nama, cat || 'beginner', level || 'Dasar 1', deskripsi || '', cleanBiaya, durasi || '3 Bulan', sesi || '12 Sesi', id]
-        );
-        await logActivity('Admin Utama', `Pembaruan Program (${nama})`, nama, 'Berhasil', 'text-emerald-600 bg-emerald-50');
-        res.json({ success: true });
-    } catch (err) {
-        console.error('Error updating program:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.delete(['/api/programs/:id', '/programs/:id'], async (req, res) => {
-    const { id } = req.params;
-    try {
-        await db.query('DELETE FROM programs WHERE id = ?', [id]);
-        res.json({ success: true });
-    } catch (err) {
-        console.error('Error deleting program:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// --- KELAS (CLASSES) ---
-app.get('/api/classes', async (req, res) => {
-    try {
-        const [rows] = await db.query(
-            'SELECT c.id, c.nama, c.program, c.pengajar, c.kapasitas, c.hari, c.mulai, c.selesai, c.tipe, c.ruang, COALESCE(cs.student_count, 0) AS terisi FROM classes c LEFT JOIN (SELECT class_id, COUNT(*) AS student_count FROM class_students GROUP BY class_id) cs ON c.id = cs.class_id'
-        );
-        res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post(['/api/classes', '/classes'], async (req, res) => {
-    const { nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
-    try {
-        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM classes');
-        const nextId = (maxId || 0) + 1;
-        await db.query(
-            'INSERT INTO classes (id, nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [nextId, nama || 'Kelas Baru', program || null, pengajar || '-', kapasitas || 20, hari || 'Senin', mulai || '08:00', selesai || '09:30', tipe || 'Reguler', ruang || 'Ruang 1']
-        );
-        await logActivity('Admin Utama', `Tambah Kelas (${nama})`, program || '-', 'Berhasil', 'text-blue-600 bg-blue-50');
-        res.status(201).json({ success: true, id: nextId });
-    } catch (err) {
-        console.error('Error adding class:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.delete('/api/classes/:id', async (req, res) => {
-    const { id } = req.params;
-    try {
-        await db.query('DELETE FROM class_students WHERE class_id = ?', [id]);
-        await db.query('DELETE FROM classes WHERE id = ?', [id]);
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// --- KELAS STUDENTS (MAPPING RELASI SISWA & KELAS) ---
-app.get('/api/classes/:id/students', async (req, res) => {
-    const { id } = req.params;
-    try {
-        const [rows] = await db.query(
-            'SELECT s.* FROM students s JOIN class_students cs ON s.id = cs.student_id WHERE cs.class_id = ?',
-            [id]
-        );
-        res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post('/api/classes/:id/students', async (req, res) => {
-    const { id } = req.params;
-    const { student_id } = req.body;
-    try {
-        // Cek kapasitas kelas dahulu
-        const [[cls]] = await db.query('SELECT kapasitas FROM classes WHERE id = ?', [id]);
-        const [[countRes]] = await db.query('SELECT COUNT(*) AS count FROM class_students WHERE class_id = ?', [id]);
-        
-        if (cls && countRes.count >= cls.kapasitas) {
-            return res.status(400).json({ success: false, message: 'Kelas sudah penuh (kapasitas maksimal tercapai).' });
+        const [existing] = await db.query('SELECT * FROM users WHERE email = ? OR id = ? OR nis = ?', [cleanEmail, finalId, finalNis]);
+        if (existing.length > 0) {
+            return res.status(400).json({ success: false, message: 'Email atau NIS sudah terdaftar dalam sistem.' });
         }
 
         await db.query(
-            'INSERT INTO class_students (class_id, student_id) VALUES (?, ?)',
-            [id, student_id]
+            'INSERT INTO users (id, nis, name, email, password, role) VALUES (?, ?, ?, ?, ?, ?)',
+            [finalId, finalNis, name.trim(), cleanEmail, passwordHashed, selectedRole]
         );
-        res.status(201).json({ success: true });
+        res.status(201).json({ success: true, id: finalId, nis: finalNis, name: name.trim(), email: cleanEmail, role: selectedRole });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-app.delete('/api/classes/:id/students/:student_id', async (req, res) => {
-    const { id, student_id } = req.params;
+app.put(['/api/users/:id', '/users/:id'], requireAuth, requireRole('Super Admin'), async (req, res, next) => {
+    const { id } = req.params;
+    const { nis, name, email, role, password } = req.body;
     try {
-        await db.query(
-            'DELETE FROM class_students WHERE class_id = ? AND student_id = ?',
-            [id, student_id]
-        );
+        const cleanName = name ? name.trim() : '';
+        const cleanEmail = email ? email.trim() : '';
+        const selectedRole = role || 'Admin';
+        const finalNis = nis ? nis.trim() : id;
+
+        if (password && password.trim()) {
+            const passwordHashed = await hashPassword(password.trim());
+            await db.query(
+                'UPDATE users SET nis = ?, name = ?, email = ?, role = ?, password = ? WHERE id = ? OR nis = ?',
+                [finalNis, cleanName, cleanEmail, selectedRole, passwordHashed, id, id]
+            );
+        } else {
+            await db.query(
+                'UPDATE users SET nis = ?, name = ?, email = ?, role = ? WHERE id = ? OR nis = ?',
+                [finalNis, cleanName, cleanEmail, selectedRole, id, id]
+            );
+        }
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-// --- JADWAL (SCHEDULES) ALIAS ---
-app.get('/api/schedules', async (req, res) => {
-    try {
-        const [rows] = await db.query(
-            'SELECT id, hari, mulai, selesai, nama AS kelas, program, tipe, pengajar, ruang FROM classes'
-        );
-        res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post(['/api/classes', '/classes'], async (req, res) => {
-    const { nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
-    try {
-        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM classes');
-        const nextId = (maxId || 0) + 1;
-        await db.query(
-            'INSERT INTO classes (id, nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [nextId, nama || 'Kelas Baru', program || null, pengajar || '-', kapasitas || 20, hari || 'Senin', mulai || '08:00', selesai || '09:30', tipe || 'Reguler', ruang || 'Ruang 1']
-        );
-        await logActivity('Admin Utama', `Tambah Kelas (${nama})`, program || '-', 'Berhasil', 'text-blue-600 bg-blue-50');
-        res.status(201).json({ success: true, id: nextId });
-    } catch (err) {
-        console.error('Error adding class:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post(['/api/schedules', '/schedules'], async (req, res) => {
-    const { hari, mulai, selesai, kelas, program, tipe, pengajar, ruang } = req.body;
-    try {
-        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM classes');
-        const nextId = (maxId || 0) + 1;
-        await db.query(
-            'INSERT INTO classes (id, nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [nextId, kelas || 'Kelas Baru', program || null, pengajar || '-', 20, hari || 'Senin', mulai || '08:00', selesai || '09:30', tipe || 'Reguler', ruang || 'Ruang 1']
-        );
-        await logActivity('Admin Utama', `Tambah Jadwal (${kelas})`, program || '-', 'Berhasil', 'text-blue-600 bg-blue-50');
-        res.status(201).json({ success: true, id: nextId });
-    } catch (err) {
-        console.error('Error adding schedule:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.delete(['/api/schedules/:id', '/schedules/:id'], async (req, res) => {
+app.delete(['/api/users/:id', '/users/:id'], requireAuth, requireRole('Super Admin'), async (req, res, next) => {
     const { id } = req.params;
     try {
-        await db.query('DELETE FROM class_students WHERE class_id = ?', [id]);
-        await db.query('DELETE FROM classes WHERE id = ?', [id]);
+        await db.query('DELETE FROM users WHERE id = ? OR nis = ?', [id, id]);
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-// --- DASHBOARD STATISTICS ---
-app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], async (req, res) => {
+// --- DASHBOARD & GLOBAL SEARCH ENDPOINTS ---
+
+app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], requireAuth, async (req, res, next) => {
     try {
         const [[{ count: totalStudents }]] = await db.query('SELECT COUNT(*) AS count FROM students');
-        const [[{ count: activeStudents }]] = await db.query('SELECT COUNT(*) AS count FROM students WHERE status = "Aktif"');
+        const [[{ count: activeStudents }]] = await db.query('SELECT COUNT(*) AS count FROM students WHERE status = \'Aktif\'');
         const [[{ count: totalTeachers }]] = await db.query('SELECT COUNT(*) AS count FROM teachers');
         const [[{ count: totalClasses }]] = await db.query('SELECT COUNT(*) AS count FROM classes');
         const [[{ count: totalPrograms }]] = await db.query('SELECT COUNT(*) AS count FROM programs');
-        
-        // Sum total payments amount
-        const [[{ sum: totalRevenue }]] = await db.query('SELECT COALESCE(SUM(jumlah), 0) AS sum FROM payments WHERE status = "Lunas"');
+
+        const [[{ sum: totalRevenue }]] = await db.query('SELECT COALESCE(SUM(jumlah), 0) AS sum FROM payments WHERE status = \'Lunas\'');
+        const [[{ sum: todayPayments }]] = await db.query('SELECT COALESCE(SUM(jumlah), 0) AS sum FROM payments WHERE status = \'Lunas\' AND tanggal = CURRENT_DATE');
+        const [[{ count: pendingPaymentsCount }]] = await db.query('SELECT COUNT(*) AS count FROM bills WHERE status = \'Tertagih\' OR status = \'Tunggakan\' OR status != \'Lunas\'');
         const [[{ count: totalTransactions }]] = await db.query('SELECT COUNT(*) AS count FROM payments');
 
-        // Today's attendance rate (with fallback to latest recorded attendance session)
         const todayStr = new Date().toISOString().split('T')[0];
-        let [[{ count: todayHadir }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE status = "Hadir" AND tanggal = ?', [todayStr]);
-        let [[{ count: todayTotal }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE tanggal = ?', [todayStr]);
-        
+        let [[{ count: todayHadir }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE status = \'Hadir\' AND tanggal::text = ?', [todayStr]);
+        let [[{ count: todayTotal }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE tanggal::text = ?', [todayStr]);
+
         if (todayTotal === 0) {
-            const [[latestDateRow]] = await db.query('SELECT MAX(tanggal) AS maxDate FROM attendance');
-            if (latestDateRow && latestDateRow.maxDate) {
-                const latestDate = latestDateRow.maxDate;
-                const [[{ count: lHadir }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE status = "Hadir" AND tanggal = ?', [latestDate]);
-                const [[{ count: lTotal }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE tanggal = ?', [latestDate]);
+            const [[latestDateRow]] = await db.query('SELECT MAX(tanggal::text) AS maxDate FROM attendance');
+            if (latestDateRow && latestDateRow.maxdate) {
+                const latestDate = latestDateRow.maxdate;
+                const [[{ count: lHadir }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE status = \'Hadir\' AND tanggal::text = ?', [latestDate]);
+                const [[{ count: lTotal }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE tanggal::text = ?', [latestDate]);
                 todayHadir = lHadir;
                 todayTotal = lTotal;
             } else {
-                const [[{ count: activeCount }]] = await db.query('SELECT COUNT(*) AS count FROM students WHERE status = "Aktif"');
-                todayHadir = activeCount;
-                todayTotal = totalStudents || activeCount;
+                todayHadir = activeStudents;
+                todayTotal = totalStudents || activeStudents;
             }
         }
 
@@ -1111,33 +288,30 @@ app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], as
             attendanceRate = Math.round((todayHadir / todayTotal) * 100) + "%";
         }
 
-        // Revenue by program
         const [revenueByProgram] = await db.query(
-            'SELECT program, SUM(jumlah) AS total FROM payments WHERE status = "Lunas" GROUP BY program'
+            'SELECT program, SUM(jumlah) AS total FROM payments WHERE status = \'Lunas\' GROUP BY program'
         );
 
-        // Perhitungan Kurva Pertumbuhan Siswa berbasis Database (dengan dukungan Filter Bulan / Periode)
-        const { growthPeriod } = req.query; // 'semua', '6bulan', '3bulan', atau angka bulan '1'..'12'
+        const { growthPeriod } = req.query;
         const fullMonthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
         let monthlyGrowth = { labels: [], data: [], title: 'Grafik Pertumbuhan Siswa' };
 
         const targetMonthNum = parseInt(growthPeriod, 10);
         if (!isNaN(targetMonthNum) && targetMonthNum >= 1 && targetMonthNum <= 12) {
-            // Filter per bulan spesifik (Breakdown pendaftaran per minggu dalam bulan tersebut)
             const [weeklyCounts] = await db.query(`
                 SELECT 
-                    DAY(COALESCE(created_at, CURRENT_TIMESTAMP)) AS d,
+                    EXTRACT(DAY FROM COALESCE(created_at, CURRENT_TIMESTAMP)) AS d,
                     COUNT(*) AS cnt
                 FROM students
-                WHERE MONTH(COALESCE(created_at, CURRENT_TIMESTAMP)) = ?
+                WHERE EXTRACT(MONTH FROM COALESCE(created_at, CURRENT_TIMESTAMP)) = ?
                 GROUP BY d
             `, [targetMonthNum]);
 
             let w1 = 0, w2 = 0, w3 = 0, w4 = 0;
             weeklyCounts.forEach(r => {
-                const day = r.d;
-                const count = r.cnt;
+                const day = parseInt(r.d, 10);
+                const count = parseInt(r.cnt, 10);
                 if (day >= 1 && day <= 7) w1 += count;
                 else if (day >= 8 && day <= 14) w2 += count;
                 else if (day >= 15 && day <= 21) w3 += count;
@@ -1150,18 +324,17 @@ app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], as
                 title: `Pendaftaran Siswa (${fullMonthNames[targetMonthNum - 1]})`
             };
         } else {
-            // Perhitungan Kurva Pertumbuhan Siswa Kumulatif Real (Semua Bulan / 6 Bulan / 3 Bulan)
             const [monthlyCounts] = await db.query(`
                 SELECT 
-                    MONTH(COALESCE(created_at, CURRENT_TIMESTAMP)) AS m, 
+                    EXTRACT(MONTH FROM COALESCE(created_at, CURRENT_TIMESTAMP)) AS m, 
                     COUNT(*) AS cnt 
                 FROM students 
-                GROUP BY MONTH(COALESCE(created_at, CURRENT_TIMESTAMP))
+                GROUP BY m
             `);
 
             const countByMonth = {};
             monthlyCounts.forEach(r => {
-                countByMonth[r.m] = r.cnt;
+                countByMonth[parseInt(r.m, 10)] = parseInt(r.cnt, 10);
             });
 
             const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -1194,251 +367,140 @@ app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], as
         }
 
         res.json({
-            totalStudents,
-            activeStudents,
-            totalTeachers,
-            totalClasses,
-            totalPrograms,
-            totalRevenue,
-            totalTransactions,
+            totalStudents: Number(totalStudents || 0),
+            activeStudents: Number(activeStudents || 0),
+            totalTeachers: Number(totalTeachers || 0),
+            totalClasses: Number(totalClasses || 0),
+            totalPrograms: Number(totalPrograms || 0),
+            totalRevenue: Number(totalRevenue || 0),
+            todayPayments: Number(todayPayments || 0),
+            pendingPaymentsCount: Number(pendingPaymentsCount || 0),
+            totalTransactions: Number(totalTransactions || 0),
             attendanceRate,
-            todayHadir,
-            todayTotal,
+            todayHadir: Number(todayHadir || 0),
+            todayTotal: Number(todayTotal || 0),
             revenueByProgram,
             monthlyGrowth
         });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-// Endpoint Log Aktivitas Sistem Terbaru
-app.get(['/api/dashboard/activities', '/dashboard/activities', '/api/activities', '/activities'], async (req, res) => {
+app.get(['/api/dashboard/activities', '/dashboard/activities', '/api/activities', '/activities'], requireAuth, async (req, res, next) => {
     try {
         const [rows] = await db.query(
-            "SELECT siswa, aktivitas, program, status, status_color AS statusColor, DATE_FORMAT(created_at, '%d %b %H:%i') AS waktu FROM activity_logs ORDER BY id DESC LIMIT 50"
+            "SELECT siswa, aktivitas, program, status, status_color AS statusColor, TO_CHAR(created_at::timestamp, 'DD Mon HH24:MI') AS waktu FROM activity_logs ORDER BY id DESC LIMIT 50"
         );
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-
-
-// --- GLOBAL SEARCH ENDPOINT ---
-app.get('/api/search', async (req, res) => {
+app.get('/api/search', requireAuth, async (req, res, next) => {
     const { q } = req.query;
     if (!q || !q.trim()) return res.json({ students: [], teachers: [], classes: [], payments: [] });
     const term = `%${q.trim()}%`;
     try {
-        const [students] = await db.query('SELECT id, nama, program, level, status FROM students WHERE nama LIKE ? OR id LIKE ? OR program LIKE ? LIMIT 5', [term, term, term]);
-        const [teachers] = await db.query('SELECT id, nama, email, status FROM teachers WHERE nama LIKE ? OR email LIKE ? LIMIT 5', [term, term]);
-        const [classes] = await db.query('SELECT id, nama, program, pengajar FROM classes WHERE nama LIKE ? OR program LIKE ? LIMIT 5', [term, term]);
-        const [payments] = await db.query('SELECT id, nama, program, jumlah, status FROM payments WHERE id LIKE ? OR nama LIKE ? LIMIT 5', [term, term]);
+        const [students] = await db.query('SELECT id, nama, program, level, status FROM students WHERE nama ILIKE ? OR id ILIKE ? OR program ILIKE ? LIMIT 5', [term, term, term]);
+        const [teachers] = await db.query('SELECT id, nama, email, status FROM teachers WHERE nama ILIKE ? OR email ILIKE ? LIMIT 5', [term, term]);
+        const [classes] = await db.query('SELECT id, nama, program, pengajar FROM classes WHERE nama ILIKE ? OR program ILIKE ? LIMIT 5', [term, term]);
+        const [payments] = await db.query('SELECT id, nama, program, jumlah, status FROM payments WHERE id ILIKE ? OR nama ILIKE ? LIMIT 5', [term, term]);
         res.json({ students, teachers, classes, payments });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
-app.get('/api/payments', async (req, res) => {
+
+app.get(['/api/reminders', '/reminders'], requireAuth, async (req, res, next) => {
     try {
-        const [rows] = await db.query("SELECT id, nama, program, jumlah, metode, status, DATE_FORMAT(tanggal, '%Y-%m-%d') AS tanggal FROM payments");
+        const [rows] = await db.query("SELECT id, title, TO_CHAR(date::timestamp, 'YYYY-MM-DD') AS date, time, location FROM reminders ORDER BY date ASC");
         res.json(rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-app.post('/api/payments', async (req, res) => {
-    const { id, nama, program, jumlah, metode, status, tanggal } = req.body;
-    const finalDate = tanggal || new Date().toISOString().slice(0, 10);
-    try {
-        await db.query(
-            'INSERT INTO payments (id, nama, program, jumlah, metode, status, tanggal) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [id, nama, program, jumlah, metode, status, finalDate]
-        );
-        await logActivity(
-            nama, 
-            `Pembayaran Tagihan (${id})`, 
-            program, 
-            status === 'Lunas' ? 'Berhasil' : 'Tertunda', 
-            status === 'Lunas' ? 'text-emerald-600 bg-emerald-50' : 'text-amber-700 bg-amber-50'
-        );
-        res.status(201).json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.put('/api/payments/:id', async (req, res) => {
-    const { id } = req.params;
-    const { nama, program, jumlah, metode, status, tanggal } = req.body;
-    const finalDate = tanggal || new Date().toISOString().slice(0, 10);
-    try {
-        await db.query(
-            'UPDATE payments SET nama = ?, program = ?, jumlah = ?, metode = ?, status = ?, tanggal = ? WHERE id = ?',
-            [nama, program, jumlah, metode, status, finalDate, id]
-        );
-        await logActivity(
-            nama, 
-            `Pembaruan Status Pembayaran (${id})`, 
-            program, 
-            status === 'Lunas' ? 'Berhasil' : 'Tertunda', 
-            status === 'Lunas' ? 'text-emerald-600 bg-emerald-50' : 'text-amber-700 bg-amber-50'
-        );
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.delete('/api/payments/:id', async (req, res) => {
-    const { id } = req.params;
-    try {
-        await db.query('DELETE FROM payments WHERE id = ?', [id]);
-        res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// --- ABSENSI (ATTENDANCE) ---
-app.get(['/api/attendance', '/attendance'], async (req, res) => {
-    const { tanggal, kelas } = req.query;
-    try {
-        let query = "SELECT id, student_id, nama, program, kelas, status, inisial, DATE_FORMAT(tanggal, '%Y-%m-%d') AS tanggal FROM attendance";
-        let params = [];
-        if (tanggal && kelas) {
-            query += ' WHERE tanggal = ? AND kelas = ?';
-            params.push(tanggal, kelas);
-        } else if (tanggal) {
-            query += ' WHERE tanggal = ?';
-            params.push(tanggal);
-        } else if (kelas) {
-            query += ' WHERE kelas = ?';
-            params.push(kelas);
-        }
-        const [rows] = await db.query(query, params);
-        res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post(['/api/attendance/bulk', '/attendance/bulk'], async (req, res) => {
-    const { list, tanggal, kelas } = req.body;
-    if (!list || !Array.isArray(list) || !tanggal || !kelas) {
-        return res.status(400).json({ success: false, message: 'Data list, tanggal, dan kelas wajib disertakan.' });
-    }
-    
-    try {
-        await db.query('DELETE FROM attendance WHERE tanggal = ? AND kelas = ?', [tanggal, kelas]);
-        
-        if (list.length > 0) {
-            const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM attendance');
-            let currentId = maxId || 0;
-            const values = list.map(item => [
-                ++currentId,
-                item.id || item.student_id,
-                item.nama,
-                item.program || '-',
-                kelas,
-                item.status,
-                item.inisial || 'S',
-                tanggal
-            ]);
-            await db.query(
-                'INSERT INTO attendance (id, student_id, nama, program, kelas, status, inisial, tanggal) VALUES ?',
-                [values]
-            );
-        }
-        await logActivity(`Siswa Kelas ${kelas}`, `Presensi Harian (${tanggal})`, '-', 'Berhasil', 'text-emerald-600 bg-emerald-50');
-        res.json({ success: true });
-    } catch (err) {
-        console.error('Error saving bulk attendance:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post(['/api/attendance/monthly', '/attendance/monthly'], async (req, res) => {
-    const { kelas, bulan, list } = req.body;
-    if (!list || !Array.isArray(list) || !kelas || !bulan) {
-        return res.status(400).json({ success: false, message: 'Data list, kelas, dan bulan wajib disertakan.' });
-    }
-
-    try {
-        await db.query('DELETE FROM attendance WHERE kelas = ? AND tanggal LIKE ?', [kelas, `${bulan}-%`]);
-
-        const validItems = list.filter(item => item.status && item.status !== '-');
-        if (validItems.length > 0) {
-            const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM attendance');
-            let currentId = maxId || 0;
-            const values = validItems.map(item => [
-                ++currentId,
-                item.id || item.student_id,
-                item.nama,
-                item.program || '-',
-                kelas,
-                item.status,
-                item.inisial || 'S',
-                item.tanggal
-            ]);
-            await db.query(
-                'INSERT INTO attendance (id, student_id, nama, program, kelas, status, inisial, tanggal) VALUES ?',
-                [values]
-            );
-        }
-        await logActivity(`Siswa Kelas ${kelas}`, `Presensi Bulanan (${bulan})`, '-', 'Berhasil', 'text-emerald-600 bg-emerald-50');
-        res.json({ success: true });
-    } catch (err) {
-        console.error('Error saving monthly attendance:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// --- REMINDERS (AGENDA MINGGUAN / REMINDER LAINNYA) ---
-app.get(['/api/reminders', '/reminders'], async (req, res) => {
-    try {
-        const [rows] = await db.query("SELECT id, title, DATE_FORMAT(date, '%Y-%m-%d') AS date, time, location FROM reminders ORDER BY date ASC");
-        res.json(rows);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.post(['/api/reminders', '/reminders'], async (req, res) => {
+app.post(['/api/reminders', '/reminders'], requireAuth, requireRole('Super Admin', 'Admin'), async (req, res, next) => {
     const { title, date, time, location } = req.body;
     if (!title || !date) {
         return res.status(400).json({ success: false, message: 'Judul agenda dan tanggal wajib diisi.' });
     }
     try {
-        const [[{ maxId }]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM reminders');
-        const nextId = (maxId || 0) + 1;
+        const [[maxRow]] = await db.query('SELECT COALESCE(MAX(id), 0) AS maxId FROM reminders');
+        const nextId = (maxRow ? (maxRow.maxid || maxRow.maxId || 0) : 0) + 1;
 
         await db.query(
             'INSERT INTO reminders (id, title, date, time, location) VALUES (?, ?, ?, ?, ?)',
-            [nextId, title, date, time || '', location || '']
+            [nextId, title.trim(), date, time || '', location || '']
         );
-        await logActivity('Admin Utama', `Tambah Agenda (${title})`, '-', 'Berhasil', 'text-blue-600 bg-blue-50');
         res.status(201).json({ success: true, id: nextId });
     } catch (err) {
-        console.error('Error adding reminder:', err);
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-app.delete(['/api/reminders/:id', '/reminders/:id'], async (req, res) => {
+app.delete(['/api/reminders/:id', '/reminders/:id'], requireAuth, requireRole('Super Admin'), async (req, res, next) => {
     const { id } = req.params;
     try {
         await db.query('DELETE FROM reminders WHERE id = ?', [id]);
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        next(err);
     }
 });
 
-// --- RUNNING SERVER ---
+// Endpoint diagnosa database aman
+app.get(['/api/test-db', '/test-db'], requireAuth, requireRole('Super Admin'), async (req, res, next) => {
+    try {
+        const [rows] = await db.query('SELECT COUNT(*) AS total_users FROM users');
+        res.json({
+            status: 'success',
+            message: 'Terhubung ke Database!',
+            total_users: rows[0].total_users
+        });
+    } catch (err) {
+        next(err);
+    }
+});
+
+// Helper Sync Sequences
+async function syncPostgresSequences() {
+    const isPostgres = (process.env.DB_TYPE || 'postgres').toLowerCase() === 'postgres' || !!process.env.SUPABASE_DB_HOST;
+    if (!isPostgres) return;
+
+    const tables = [
+        'activity_logs', 'programs', 'classes', 'attendance',
+        'reminders', 'teacher_checkins', 'student_grades',
+        'deposits', 'petty_cash', 'inventory', 'inventory_mutations'
+    ];
+
+    for (const table of tables) {
+        try {
+            await db.query(`SELECT setval(pg_get_serial_sequence('${table}', 'id'), COALESCE(MAX(id::integer), 1)) FROM ${table}`);
+        } catch (e) {
+            // skip if sequence doesn't exist
+        }
+    }
+    console.log('✔ PostgreSQL SERIAL sequences synchronized.');
+}
+
+// Optional Startup Seeder
+if (process.env.SEED_ON_STARTUP === 'true') {
+    const { seedDatabase } = require('./scripts/seed');
+    seedDatabase().then(async () => {
+        await syncPostgresSequences();
+        console.log('🚀 Database initial seeding finished.');
+    }).catch(err => {
+        console.error('❌ Failed seeding database:', err);
+    });
+}
+
+// Global Error Handler
+app.use(errorHandler);
+
+// Server Listener
 function getLocalIpAddress() {
     const interfaces = os.networkInterfaces();
     for (const name of Object.keys(interfaces)) {
@@ -1461,4 +523,3 @@ if (require.main === module) {
 }
 
 module.exports = app;
-

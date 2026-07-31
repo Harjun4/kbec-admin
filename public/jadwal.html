@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 
 <head>
@@ -382,7 +382,10 @@
                                 </select>
                             </div>
 
-                            <div>
+                            <div class="flex items-center gap-3">
+                                <button onclick="exportSchedulesCSV()" class="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 px-3.5 py-2.5 rounded-xl shadow-xs cursor-pointer">
+                                    <i data-lucide="download" class="w-3.5 h-3.5"></i> Export CSV
+                                </button>
                                 <p class="text-xs text-slate-400 font-medium">Ditemukan <span id="showing-counter"
                                         class="text-slate-700 font-semibold">0</span> jadwal aktif</p>
                             </div>
@@ -575,6 +578,9 @@
                             <td class="py-4 px-6 text-xs text-slate-500 font-medium max-w-[150px] truncate" title="${item.ruang}">${item.ruang}</td>
                             <td class="py-4 px-6">
                                 <div class="flex items-center justify-center gap-1">
+                                    <button onclick="editScheduleDirect(${item.id})" class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Edit Jadwal">
+                                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                    </button>
                                     <button onclick="deleteScheduleDirect(${item.id}, '${item.kelas}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Hapus Jadwal">
                                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                                     </button>
@@ -673,7 +679,10 @@
                                 <div class="flex items-center gap-1.5"><i data-lucide="user" class="w-3.5 h-3.5 text-slate-400"></i> ${item.pengajar}</div>
                                 <div class="flex items-center gap-1.5"><i data-lucide="map-pin" class="w-3.5 h-3.5 text-slate-400"></i> <span class="truncate block max-w-[150px]" title="${item.ruang}">${item.ruang}</span></div>
                             </div>
-                            <div class="absolute top-2 right-2 hidden group-hover:block bg-white/95 p-0.5 rounded-lg shadow-sm border border-slate-100 z-10">
+                            <div class="absolute top-2 right-2 hidden group-hover:flex items-center gap-1 bg-white/95 p-0.5 rounded-lg shadow-sm border border-slate-100 z-10">
+                                <button onclick="editScheduleDirect(${item.id})" class="text-amber-600 hover:bg-amber-50 p-1 rounded-lg transition-all" title="Edit Jadwal">
+                                    <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                                </button>
                                 <button onclick="deleteScheduleDirect(${item.id}, '${item.kelas}')" class="text-rose-600 hover:bg-rose-50 p-1 rounded-lg transition-all" title="Hapus Jadwal">
                                     <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                                 </button>
@@ -756,13 +765,16 @@
             const payload = { hari, mulai, selesai, kelas, program, tipe, pengajar, ruang };
 
             try {
-                const res = await fetch(`${API_BASE}/api/schedules`, {
-                    method: 'POST',
+                const url = editScheduleId ? `${API_BASE}/api/schedules/${editScheduleId}` : `${API_BASE}/api/schedules`;
+                const method = editScheduleId ? 'PUT' : 'POST';
+
+                const res = await fetch(url, {
+                    method: method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
                 if (!res.ok) throw new Error();
-                showToast(`Jadwal kelas "${kelas}" berhasil dialokasikan harian!`);
+                showToast(editScheduleId ? `Jadwal kelas "${kelas}" berhasil diperbarui!` : `Jadwal kelas "${kelas}" berhasil dialokasikan harian!`);
                 closeScheduleModal();
                 await fetchSchedules();
             } catch (err) {
@@ -847,6 +859,40 @@
             fetchTeachers();
             fetchPrograms();
         };
+
+        function exportSchedulesCSV() {
+            if (!schedulesData || schedulesData.length === 0) {
+                showToast('Tidak ada data jadwal untuk diekspor!', 'error');
+                return;
+            }
+            let csvContent = "\uFEFF";
+            csvContent += "No,ID,Nama Kelas,Program,Pengajar,Hari / Serial,Jam Mulai,Jam Selesai,Tipe Kelas,Ruang\n";
+
+            schedulesData.forEach((s, idx) => {
+                const row = [
+                    idx + 1,
+                    s.id,
+                    `"${(s.kelas || '').replace(/"/g, '""')}"`,
+                    `"${(s.program || '').replace(/"/g, '""')}"`,
+                    `"${(s.pengajar || '').replace(/"/g, '""')}"`,
+                    `"${(s.hari || '').replace(/"/g, '""')}"`,
+                    `"${s.mulai || ''}"`,
+                    `"${s.selesai || ''}"`,
+                    `"${(s.tipe || '').replace(/"/g, '""')}"`,
+                    `"${(s.ruang || '').replace(/"/g, '""')}"`
+                ].join(',');
+                csvContent += row + "\n";
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', `jadwal_kelas_${new Date().toISOString().slice(0, 10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Sukses mengunduh CSV jadwal kelas!');
+        }
     </script>
 </body>
 

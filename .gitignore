@@ -4,15 +4,18 @@ node_modules/
 
 # Environment Variables & Secrets
 .env
-.env copy
-.env.*
+.2env
+.env*
+!.env.example
 *.env
+*.pem
 
 # Logs & Debug
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+scratch/
 
 # OS & IDE Files
 .DS_Store
