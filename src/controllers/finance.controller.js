@@ -325,18 +325,6 @@ async function getStudentBillsSummary(req, res, next) {
             if (!matchedProg && std.level) matchedProg = programs.find(p => p.nama.toLowerCase() === std.level.trim().toLowerCase());
             if (!matchedProg && std.program) matchedProg = programs.find(p => p.nama.toLowerCase() === std.program.trim().toLowerCase());
 
-            const stdIdClean = String(std.id).toLowerCase();
-            const stdNamaClean = String(std.nama).toLowerCase().trim();
-
-            // Match student's bills reliably
-            const stdBills = allBills.filter(b => {
-                const bIdClean = String(b.student_id || '').toLowerCase();
-                const bNamaClean = String(b.nama || '').toLowerCase().trim();
-                return bIdClean === stdIdClean || bNamaClean === stdNamaClean || (bIdClean && bIdClean.split('-')[0] === stdIdClean.split('-')[0]);
-            });
-
-            const monthBill = stdBills.find(b => b.bulan_tagihan === targetBulan);
-
             // Total unpaid arrears across all months for this student
             let totalTunggakanStudent = 0;
             stdBills.forEach(b => {
