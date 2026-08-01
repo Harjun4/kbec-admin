@@ -393,11 +393,153 @@ async function getPerformanceReport(req, res, next) {
     }
 }
 
+async function getAttendanceReport(req, res, next) {
+    try {
+        const { startDate, endDate, search, status } = req.query;
+
+        // Filter status: By default active students only, or filtered by query status
+        let studentSql = `
+            SELECT s.id, s.nama, s.program, s.level, s.unit, s.status, s.initial 
+            FROM students s 
+        `;
+        let studentWhere = [];
+        let studentParams = [];
+
+        if (status && status !== 'Semua') {
+            studentWhere.push(`s.status ILIKE ?`);
+            studentParams.push(status.trim());
+        } else {
+            studentWhere.push(`(s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')`);
+        }
+
+        if (search && search.trim()) {
+            studentWhere.push(`(s.id ILIKE ? OR s.nama ILIKE ? OR s.program ILIKE ? OR s.level ILIKE ?)`);
+            const sTerm = `%${search.trim()}%`;
+            studentParams.push(sTerm, sTerm, sTerm, sTerm);
+        }
+
+        if (studentWhere.length > 0) {
+            studentSql += ` WHERE ${studentWhere.join(' AND ')}`;
+        }
+
+        studentSql += ` ORDER BY s.nama ASC`;
+
+        const [students] = await db.query(studentSql, studentParams);
+
+        // Fetch attendance records within date filter range
+        let attSql = `SELECT student_id, LOWER(TRIM(status)) AS status, TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') AS tgl, kelas FROM attendance`;
+        let attParams = [];
+        let attWhere = [];
+
+        if (startDate) {
+            attWhere.push(`TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') >= ?`);
+            attParams.push(startDate);
+        }
+        if (endDate) {
+            attWhere.push(`TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') <= ?`);
+            attParams.push(endDate);
+        }
+
+        if (attWhere.length > 0) {
+            attSql += ` WHERE ${attWhere.join(' AND ')}`;
+        }
+
+        const [attRows] = await db.query(attSql, attParams);
+
+        // Map attendance per student
+        const attByStudent = {};
+        attRows.forEach(r => {
+            const sid = String(r.student_id || '').toLowerCase();
+            if (!attByStudent[sid]) attByStudent[sid] = [];
+            attByStudent[sid].push(r);
+        });
+
+        // Also check student_grades table
+        let gradeSql = `SELECT student_id, LOWER(TRIM(presensi)) AS status, TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') AS tgl, class_name FROM student_grades`;
+        let gradeParams = [];
+        let gradeWhere = [];
+        if (startDate) {
+            gradeWhere.push(`TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') >= ?`);
+            gradeParams.push(startDate);
+        }
+        if (endDate) {
+            gradeWhere.push(`TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') <= ?`);
+            gradeParams.push(endDate);
+        }
+        if (gradeWhere.length > 0) {
+            gradeSql += ` WHERE ${gradeWhere.join(' AND ')}`;
+        }
+        const [gradeRows] = await db.query(gradeSql, gradeParams);
+
+        gradeRows.forEach(r => {
+            const sid = String(r.student_id || '').toLowerCase();
+            if (!attByStudent[sid]) attByStudent[sid] = [];
+            attByStudent[sid].push({
+                student_id: r.student_id,
+                status: r.status,
+                tgl: r.tgl,
+                kelas: r.class_name
+            });
+        });
+
+        // Calculate attendance ratio per student
+        const report = students.map(s => {
+            const sid = String(s.id).toLowerCase();
+            const records = attByStudent[sid] || [];
+
+            // Deduplicate by date
+            const dateMap = {};
+            records.forEach(rec => {
+                if (rec.tgl && !dateMap[rec.tgl]) {
+                    dateMap[rec.tgl] = rec.status;
+                }
+            });
+
+            const uniqueDates = Object.keys(dateMap);
+            const totalRecordedSessions = uniqueDates.length;
+            let hadirCount = 0;
+
+            uniqueDates.forEach(d => {
+                const st = dateMap[d] || '';
+                if (st.includes('hadir') || st === 'h') {
+                    hadirCount++;
+                }
+            });
+
+            let ratioPercentStr = '-';
+            let ratioPercentVal = 0;
+
+            if (totalRecordedSessions > 0) {
+                ratioPercentVal = Math.round((hadirCount / totalRecordedSessions) * 100);
+                ratioPercentStr = `${ratioPercentVal}%`;
+            }
+
+            return {
+                id: s.id,
+                nama: s.nama,
+                unit: s.unit || resolveStudentUnit(s.id, s.program, s.level),
+                program: s.program || s.level || 'KBEC',
+                level: s.level || s.program || '-',
+                status: s.status || 'Aktif',
+                total_sesi: totalRecordedSessions,
+                total_hadir: hadirCount,
+                rasio_presensi: ratioPercentStr,
+                rasio_val: ratioPercentVal
+            };
+        });
+
+        res.json({ success: true, report });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     getAttendance,
     getMonthlyAttendance,
     saveAttendance,
     getStudentGrades,
     saveStudentGrade,
-    getPerformanceReport
+    getPerformanceReport,
+    getAttendanceReport
 };

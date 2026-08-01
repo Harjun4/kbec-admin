@@ -118,12 +118,35 @@
                         <p class="text-xs text-slate-400 mt-0.5">Ringkasan statistik eksekutif, keuangan, akademik, dan
                             aktivitas operasional KBEC.</p>
                     </div>
-                    <div class="flex items-center gap-2.5">
+                    <div class="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
                         <button id="btn-today-date"
                             class="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-white border border-slate-200 text-slate-700 px-3.5 py-2 rounded-xl text-xs font-semibold shadow-xs hover:bg-slate-50 transition-colors">
                             <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i>
                             <span id="today-date-text">...</span>
                         </button>
+                        <div class="relative flex-1 sm:flex-none min-w-[130px]">
+                            <select id="dash-month-filter" onchange="onDashboardMonthChange()"
+                                class="w-full bg-white border border-slate-200 text-slate-700 pl-3 pr-8 py-2 rounded-xl text-xs font-semibold shadow-xs hover:bg-slate-50 focus:outline-none focus:border-blue-500 cursor-pointer appearance-none">
+                                <option value="current">Bulan Ini</option>
+                                <option value="semua">Semua Bulan</option>
+                                <option value="1">Januari</option>
+                                <option value="2">Februari</option>
+                                <option value="3">Maret</option>
+                                <option value="4">April</option>
+                                <option value="5">Mei</option>
+                                <option value="6">Juni</option>
+                                <option value="7">Juli</option>
+                                <option value="8">Agustus</option>
+                                <option value="9">September</option>
+                                <option value="10">Oktober</option>
+                                <option value="11">November</option>
+                                <option value="12">Desember</option>
+                            </select>
+                            <div
+                                class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2.5 text-slate-400">
+                                <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                            </div>
+                        </div>
                         <button onclick="window.location.href='siswa.html'"
                             class="flex-1 sm:flex-none flex items-center justify-center gap-1.5 bg-[#0A58CA] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-blue-500/10 transition-all">
                             <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Tambah Siswa Baru
@@ -178,7 +201,9 @@
                                 Ini</span>
                         </div>
                         <div>
-                            <p class="text-[10px] text-slate-400 font-bold tracking-wide uppercase">Pendapatan Bulan Ini
+                            <p id="dash-total-revenue-title"
+                                class="text-[10px] text-slate-400 font-bold tracking-wide uppercase">Pendapatan Bulan
+                                Ini
                             </p>
                             <h3 id="dash-monthly-revenue" class="text-2xl font-extrabold text-slate-900 mt-0.5">Rp 0
                             </h3>
@@ -247,26 +272,6 @@
                                 <h4 class="text-sm font-bold text-slate-900">Grafik Kehadiran & Pertumbuhan Siswa</h4>
                                 <p class="text-xs text-slate-400">Analitik tren pendaftaran & presensi siswa</p>
                             </div>
-                            <select id="filter-growth-period" onchange="updateGrowthChartFilter()"
-                                class="bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-600 px-3 py-1.5 rounded-xl outline-none cursor-pointer hover:border-blue-400 transition-colors">
-                                <option value="semua">Semua Bulan (Tahun Ini)</option>
-                                <option value="6bulan">6 Bulan Terakhir</option>
-                                <option value="3bulan">3 Bulan Terakhir</option>
-                                <optgroup label="Breakdown Mingguan Bulan Spesifik">
-                                    <option value="1">Januari</option>
-                                    <option value="2">Februari</option>
-                                    <option value="3">Maret</option>
-                                    <option value="4">April</option>
-                                    <option value="5">Mei</option>
-                                    <option value="6">Juni</option>
-                                    <option value="7">Juli</option>
-                                    <option value="8">Agustus</option>
-                                    <option value="9">September</option>
-                                    <option value="10">Oktober</option>
-                                    <option value="11">November</option>
-                                    <option value="12">Desember</option>
-                                </optgroup>
-                            </select>
                         </div>
                         <div class="relative flex-1 h-60 mt-4">
                             <canvas id="studentGrowthChart"></canvas>
@@ -454,9 +459,9 @@
             }
         }
 
-        async function getDashboardStats(growthPeriod = 'semua') {
+        async function getDashboardStats(monthFilter = 'current', growthPeriod = 'semua') {
             try {
-                const res = await fetch(`${API_BASE}/api/dashboard/stats?growthPeriod=${encodeURIComponent(growthPeriod)}`);
+                const res = await fetch(`${API_BASE}/api/dashboard/stats?month=${encodeURIComponent(monthFilter)}&growthPeriod=${encodeURIComponent(growthPeriod)}`);
                 if (!res.ok) throw new Error('Network response failed');
                 return await res.json();
             } catch (err) {
@@ -545,91 +550,153 @@
             }
         }
 
-        async function loadDashboardStats() {
-            const stats = await getDashboardStats();
-            if (stats) {
-                // 1. Total Siswa Aktif
-                document.getElementById('dash-active-students').innerText = (stats.activeStudents !== undefined ? stats.activeStudents : stats.totalStudents || 0).toLocaleString();
+        async function onDashboardMonthChange() {
+            const monthSelect = document.getElementById('dash-month-filter');
+            const selectedVal = monthSelect ? monthSelect.value : 'current';
+            await loadDashboardStats(selectedVal);
+        }
 
-                // 2. Pembayaran Hari Ini & Total Revenue
-                const totalRev = stats.totalRevenue || 0;
-                document.getElementById('dash-monthly-revenue').innerText = totalRev >= 1000000
-                    ? `Rp ${(totalRev / 1000000).toFixed(1)} Jt`
-                    : `Rp ${totalRev.toLocaleString('id-ID')}`;
+        async function loadDashboardStats(monthFilter) {
+            const monthSelect = document.getElementById('dash-month-filter');
+            if (!monthFilter && monthSelect) {
+                monthFilter = monthSelect.value;
+            }
+            if (!monthFilter) {
+                monthFilter = 'current';
+            }
 
-                document.getElementById('dash-today-payments').innerText = stats.todayPayments
-                    ? `Rp ${stats.todayPayments.toLocaleString('id-ID')}`
-                    : `Rp ${(totalRev > 0 ? (totalRev * 0.1).toFixed(0) : 0).toLocaleString('id-ID')}`;
+            try {
+                const stats = await getDashboardStats(monthFilter);
+                if (stats) {
+                    // 1. Total Siswa Aktif
+                    const elActive = document.getElementById('dash-active-students');
+                    if (elActive) {
+                        elActive.innerText = (stats.activeStudents !== undefined ? stats.activeStudents : stats.totalStudents || 0).toLocaleString();
+                    }
 
-                // 4. Tagihan Belum Lunas (Jumlah transaksi/tagihan ber-status Tertagih)
-                const pendingCount = stats.pendingPaymentsCount !== undefined ? stats.pendingPaymentsCount : 0;
-                document.getElementById('dash-pending-payments').innerText = `${pendingCount} Transaksi Tertagih`;
+                    // 2. Pembayaran Hari Ini
+                    const elToday = document.getElementById('dash-today-payments');
+                    if (elToday) {
+                        elToday.innerText = `Rp ${(stats.todayPayments || 0).toLocaleString('id-ID')}`;
+                    }
 
-                // 5. Kehadiran Hari Ini
-                const hadirCount = stats.todayHadir !== undefined ? stats.todayHadir : 0;
-                const totalCount = stats.todayTotal !== undefined ? stats.todayTotal : 0;
-                document.getElementById('dash-attendance-rate').innerText = `${hadirCount} / ${totalCount} Hadir`;
-                document.getElementById('dash-attendance-percent').innerText = stats.attendanceRate || '100%';
+                    // 3. Pendapatan (Bulan Ini / Filtered Month)
+                    const totalRev = stats.totalRevenue || 0;
+                    const elRev = document.getElementById('dash-monthly-revenue');
+                    if (elRev) {
+                        elRev.innerText = totalRev >= 1000000
+                            ? `Rp ${(totalRev / 1000000).toFixed(1)} Jt`
+                            : `Rp ${totalRev.toLocaleString('id-ID')}`;
+                    }
 
-                // 6. Render Line Chart: Grafik Pertumbuhan & Kehadiran Siswa
-                if (stats.monthlyGrowth) {
-                    renderGrowthChart(stats.monthlyGrowth);
-                }
+                    // Update Card 3 Badge and Title dynamically
+                    const revBadge = document.getElementById('dash-total-revenue-badge');
+                    const revTitle = document.getElementById('dash-total-revenue-title');
 
-                // 7. Render Bar Chart: Pendapatan per Program
-                let programLabels = [];
-                let programData = [];
-                if (stats.revenueByProgram && stats.revenueByProgram.length > 0) {
-                    programLabels = stats.revenueByProgram.map(r => r.program);
-                    programData = stats.revenueByProgram.map(r => r.total);
-                } else {
-                    programLabels = ['Beginner 1', 'Intermediate 1', 'TOEFL Prep', 'Elementary 1'];
-                    programData = [0, 0, 0, 0];
-                }
+                    const fullMonths = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
-                const distCtx = document.getElementById('revenueDistributionChart').getContext('2d');
-                if (distributionChartInstance) {
-                    distributionChartInstance.destroy();
-                }
-                distributionChartInstance = new Chart(distCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: programLabels,
-                        datasets: [{
-                            label: 'Kas Masuk Lunas (Rp)',
-                            data: programData,
-                            backgroundColor: ['#0EA5E9', '#334155', '#0A58CA', '#CBD5E1', '#E2E8F0'],
-                            borderRadius: 6,
-                            borderSkipped: false,
-                            barThickness: 24
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
-                        scales: {
-                            x: { grid: { display: false }, ticks: { font: { family: 'Plus Jakarta Sans', size: 9, weight: '600' }, color: '#94A3B8' } },
-                            y: {
-                                grid: { color: '#F1F5F9' },
-                                ticks: {
-                                    font: { family: 'Plus Jakarta Sans', size: 9 }, color: '#94A3B8',
-                                    callback: function (val) {
-                                        if (val >= 1000000) return 'Rp ' + (val / 1000000) + 'jt';
-                                        return 'Rp ' + val.toLocaleString('id-ID');
+                    let displayBadge = 'Bulan Ini';
+                    let displayTitle = 'Pendapatan Bulan Ini';
+
+                    if (monthFilter === 'current') {
+                        displayBadge = 'Bulan Ini';
+                        displayTitle = 'Pendapatan Bulan Ini';
+                    } else if (monthFilter === 'semua') {
+                        displayBadge = 'Semua';
+                        displayTitle = 'Total Pendapatan';
+                    } else {
+                        const mNum = parseInt(monthFilter, 10);
+                        if (!isNaN(mNum) && fullMonths[mNum]) {
+                            displayBadge = fullMonths[mNum];
+                            displayTitle = `Pendapatan ${fullMonths[mNum]}`;
+                        }
+                    }
+
+                    if (revBadge) revBadge.innerText = displayBadge;
+                    if (revTitle) revTitle.innerText = displayTitle;
+
+                    // 4. Tagihan Belum Lunas (Jumlah transaksi/tagihan ber-status Tertagih)
+                    const pendingCount = stats.pendingPaymentsCount !== undefined ? stats.pendingPaymentsCount : 0;
+                    const elPending = document.getElementById('dash-pending-payments');
+                    if (elPending) {
+                        elPending.innerText = `${pendingCount} Transaksi Tertagih`;
+                    }
+
+                    // 5. Kehadiran Hari Ini
+                    const hadirCount = stats.todayHadir !== undefined ? stats.todayHadir : 0;
+                    const totalCount = stats.todayTotal !== undefined ? stats.todayTotal : 0;
+                    const elAttRate = document.getElementById('dash-attendance-rate');
+                    const elAttPct = document.getElementById('dash-attendance-percent');
+                    if (elAttRate) elAttRate.innerText = `${hadirCount} / ${totalCount} Hadir`;
+                    if (elAttPct) elAttPct.innerText = stats.attendanceRate || '100%';
+
+                    // 6. Render Line Chart: Grafik Pertumbuhan Siswa
+                    if (stats.monthlyGrowth) {
+                        renderGrowthChart(stats.monthlyGrowth);
+                    }
+
+                    // 7. Render Bar Chart: Pendapatan per Program
+                    let programLabels = [];
+                    let programData = [];
+                    if (stats.revenueByProgram && stats.revenueByProgram.length > 0) {
+                        programLabels = stats.revenueByProgram.map(r => r.program);
+                        programData = stats.revenueByProgram.map(r => r.total);
+                    } else {
+                        programLabels = ['Beginner 1', 'Intermediate 1', 'TOEFL Prep', 'Elementary 1'];
+                        programData = [0, 0, 0, 0];
+                    }
+
+                    const distCanvas = document.getElementById('revenueDistributionChart');
+                    if (distCanvas) {
+                        const distCtx = distCanvas.getContext('2d');
+                        if (distributionChartInstance) {
+                            distributionChartInstance.destroy();
+                        }
+                        distributionChartInstance = new Chart(distCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: programLabels,
+                                datasets: [{
+                                    label: 'Kas Masuk Lunas (Rp)',
+                                    data: programData,
+                                    backgroundColor: ['#0EA5E9', '#334155', '#0A58CA', '#CBD5E1', '#E2E8F0'],
+                                    borderRadius: 6,
+                                    borderSkipped: false,
+                                    barThickness: 24
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { display: false } },
+                                scales: {
+                                    x: { grid: { display: false }, ticks: { font: { family: 'Plus Jakarta Sans', size: 9, weight: '600' }, color: '#94A3B8' } },
+                                    y: {
+                                        grid: { color: '#F1F5F9' },
+                                        ticks: {
+                                            font: { family: 'Plus Jakarta Sans', size: 9 }, color: '#94A3B8',
+                                            callback: function (val) {
+                                                if (val >= 1000000) return 'Rp ' + (val / 1000000) + 'jt';
+                                                return 'Rp ' + val.toLocaleString('id-ID');
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
+                        });
                     }
-                });
+                }
+            } catch (err) {
+                console.error('Error loading dashboard stats:', err);
             }
         }
 
         async function updateGrowthChartFilter() {
+            const monthSelect = document.getElementById('dash-month-filter');
+            const monthVal = monthSelect ? monthSelect.value : 'current';
             const periodSelect = document.getElementById('filter-growth-period');
             const selectedVal = periodSelect ? periodSelect.value : 'semua';
-            const stats = await getDashboardStats(selectedVal);
+            const stats = await getDashboardStats(monthVal, selectedVal);
             if (stats && stats.monthlyGrowth) {
                 renderGrowthChart(stats.monthlyGrowth);
             }
@@ -789,21 +856,26 @@
         }
 
         window.onload = async function () {
-            if (window.lucide) lucide.createIcons();
+            try {
+                if (window.lucide) lucide.createIcons();
 
-            const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-            const nameEl = document.getElementById('user-display-name');
-            if (nameEl && currentUser.name) {
-                nameEl.innerText = currentUser.name;
+                const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                const nameEl = document.getElementById('user-display-name');
+                if (nameEl && currentUser.name) {
+                    nameEl.innerText = currentUser.name;
+                }
+
+                const todayText = document.getElementById('today-date-text');
+                if (todayText) {
+                    todayText.innerText = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+                }
+            } catch (e) {
+                console.error('Header setup error:', e);
             }
 
-            const todayText = document.getElementById('today-date-text');
-            if (todayText) {
-                todayText.innerText = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-            }
-            await loadDashboardStats();
-            await renderActivityLogs();
-            await renderReminders();
+            try { await loadDashboardStats(); } catch (e) { console.error(e); }
+            try { await renderActivityLogs(); } catch (e) { console.error(e); }
+            try { await renderReminders(); } catch (e) { console.error(e); }
         };
     </script>
 </body>

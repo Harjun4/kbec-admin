@@ -254,51 +254,171 @@ app.delete(['/api/users/:id', '/users/:id'], requireAuth, requireRole('Super Adm
 
 app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], requireAuth, async (req, res, next) => {
     try {
+        const { growthPeriod, month, year } = req.query;
+
         const [[{ count: totalStudents }]] = await db.query('SELECT COUNT(*) AS count FROM students');
         const [[{ count: activeStudents }]] = await db.query('SELECT COUNT(*) AS count FROM students WHERE status = \'Aktif\'');
         const [[{ count: totalTeachers }]] = await db.query('SELECT COUNT(*) AS count FROM teachers');
         const [[{ count: totalClasses }]] = await db.query('SELECT COUNT(*) AS count FROM classes');
         const [[{ count: totalPrograms }]] = await db.query('SELECT COUNT(*) AS count FROM programs');
 
-        const [[{ sum: totalRevenue }]] = await db.query('SELECT COALESCE(SUM(jumlah), 0) AS sum FROM payments WHERE status = \'Lunas\'');
-        const [[{ sum: todayPayments }]] = await db.query('SELECT COALESCE(SUM(jumlah), 0) AS sum FROM payments WHERE status = \'Lunas\' AND tanggal = CURRENT_DATE');
-        const [[{ count: pendingPaymentsCount }]] = await db.query('SELECT COUNT(*) AS count FROM bills WHERE status = \'Tertagih\' OR status = \'Tunggakan\' OR status != \'Lunas\'');
-        const [[{ count: totalTransactions }]] = await db.query('SELECT COUNT(*) AS count FROM payments');
+        const reqMonth = req.query.month || req.query.bulan || req.query.filterMonth;
+        const reqYear = req.query.year || req.query.tahun || new Date().getFullYear();
 
-        const todayStr = new Date().toISOString().split('T')[0];
-        let [[{ count: todayHadir }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE status = \'Hadir\' AND tanggal::text = ?', [todayStr]);
-        let [[{ count: todayTotal }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE tanggal::text = ?', [todayStr]);
+        const now = new Date();
+        const currentYear = parseInt(reqYear, 10) || now.getFullYear();
+        const fullMonthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
-        if (todayTotal === 0) {
-            const [[latestDateRow]] = await db.query('SELECT MAX(tanggal::text) AS maxDate FROM attendance');
-            if (latestDateRow && latestDateRow.maxdate) {
-                const latestDate = latestDateRow.maxdate;
-                const [[{ count: lHadir }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE status = \'Hadir\' AND tanggal::text = ?', [latestDate]);
-                const [[{ count: lTotal }]] = await db.query('SELECT COUNT(*) AS count FROM attendance WHERE tanggal::text = ?', [latestDate]);
-                todayHadir = lHadir;
-                todayTotal = lTotal;
-            } else {
-                todayHadir = activeStudents;
-                todayTotal = totalStudents || activeStudents;
+        let filterMonth = null; // null means 'semua'
+        if (reqMonth === 'current' || (!reqMonth && growthPeriod !== 'semua' && growthPeriod !== '3bulan' && growthPeriod !== '6bulan')) {
+            filterMonth = now.getMonth() + 1;
+        } else if (reqMonth && reqMonth !== 'semua' && reqMonth !== 'all' && reqMonth !== 'null' && reqMonth !== 'undefined') {
+            const parsedM = parseInt(reqMonth, 10);
+            if (!isNaN(parsedM) && parsedM >= 1 && parsedM <= 12) {
+                filterMonth = parsedM;
             }
         }
+
+        let totalRevenue = 0;
+        let todayPayments = 0;
+        let pendingPaymentsCount = 0;
+        let revenueByProgram = [];
+
+        const todayStr = now.toISOString().split('T')[0];
+
+        if (filterMonth !== null) {
+            const mStr = String(filterMonth).padStart(2, '0');
+            const mName = fullMonthNames[filterMonth - 1];
+            const targetYM = `${currentYear}-${mStr}`;
+
+            // 1. Revenue for selected month & year
+            const [[{ sum: revSum }]] = await db.query(
+                `SELECT COALESCE(SUM(jumlah), 0) AS sum FROM payments 
+                 WHERE status = 'Lunas' 
+                   AND TO_CHAR(COALESCE(tanggal::timestamp, created_at::timestamp), 'YYYY-MM') = ?`,
+                [targetYM]
+            );
+            totalRevenue = revSum;
+
+            // 2. Pembayaran Hari Ini
+            const [[{ sum: todaySum }]] = await db.query(
+                `SELECT COALESCE(SUM(jumlah), 0) AS sum FROM payments 
+                 WHERE status = 'Lunas' 
+                   AND TO_CHAR(COALESCE(tanggal::timestamp, created_at::timestamp), 'YYYY-MM-DD') = ?`,
+                [todayStr]
+            );
+            todayPayments = todaySum;
+
+            // 4. Revenue by Program for selected month
+            const [revProg] = await db.query(
+                `SELECT program, SUM(jumlah) AS total FROM payments 
+                 WHERE status = 'Lunas' 
+                   AND TO_CHAR(COALESCE(tanggal::timestamp, created_at::timestamp), 'YYYY-MM') = ?
+                 GROUP BY program`,
+                [targetYM]
+            );
+            revenueByProgram = revProg;
+        } else {
+            // All-time aggregation
+            const [[{ sum: revSum }]] = await db.query('SELECT COALESCE(SUM(jumlah), 0) AS sum FROM payments WHERE status = \'Lunas\'');
+            totalRevenue = revSum;
+
+            const [[{ sum: todaySum }]] = await db.query(
+                `SELECT COALESCE(SUM(jumlah), 0) AS sum FROM payments 
+                 WHERE status = 'Lunas' 
+                   AND TO_CHAR(COALESCE(tanggal::timestamp, created_at::timestamp), 'YYYY-MM-DD') = ?`,
+                [todayStr]
+            );
+            todayPayments = todaySum;
+
+            const [revProg] = await db.query('SELECT program, SUM(jumlah) AS total FROM payments WHERE status = \'Lunas\' GROUP BY program');
+            revenueByProgram = revProg;
+        }
+
+        // 3. Tagihan Belum Lunas / Transaksi Tertagih
+        if (filterMonth === null) {
+            // Filter 'Semua Bulan': Hitung Total Lembar Dokumen Invoice Tertagih di Database (COUNT(*))
+            const [[{ count: pendingCount }]] = await db.query(`
+                SELECT COUNT(*) AS count 
+                FROM bills b
+                WHERE (b.status = 'Tertagih' OR b.status = 'Tunggakan' OR b.status = 'Partial' OR b.status = 'Ada Tunggakan' OR b.status != 'Lunas')
+                  AND (b.nominal - COALESCE(b.terbayar, 0)) > 0
+            `);
+            pendingPaymentsCount = parseInt(pendingCount || 0, 10);
+        } else {
+            // Filter 'Bulan Spesifik': Hitung Jumlah Siswa Unik yang Menunggak s/d Periode Tersebut (COUNT(DISTINCT))
+            const mStr = String(filterMonth).padStart(2, '0');
+            const targetYM = `${currentYear}-${mStr}`;
+            const [[{ count: pendingCount }]] = await db.query(`
+                SELECT COUNT(DISTINCT COALESCE(s.id, b.student_id, b.nama)) AS count 
+                FROM students s
+                JOIN bills b ON (b.student_id = s.id OR (b.nama IS NOT NULL AND LOWER(TRIM(b.nama)) = LOWER(TRIM(s.nama))))
+                WHERE (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')
+                  AND (b.status = 'Tertagih' OR b.status = 'Tunggakan' OR b.status = 'Partial' OR b.status = 'Ada Tunggakan' OR b.status != 'Lunas')
+                  AND (b.nominal - COALESCE(b.terbayar, 0)) > 0
+                  AND (
+                      b.bulan_tagihan <= ? 
+                      OR (
+                          (b.bulan_tagihan IS NULL OR b.bulan_tagihan = '') 
+                          AND TO_CHAR(COALESCE(b.created_at::timestamp, b.jatuh_tempo::timestamp), 'YYYY-MM') <= ?
+                      )
+                  )
+            `, [targetYM, targetYM]);
+            pendingPaymentsCount = parseInt(pendingCount || 0, 10);
+        }
+
+        // 5. Kehadiran Hari Ini (Sinkron dengan siswa yang terdaftar di kelas & data presensi)
+        const [[{ count: classStudentsCount }]] = await db.query('SELECT COUNT(*) AS count FROM class_students');
+        const enrolledStudentsCount = parseInt(classStudentsCount, 10) || parseInt(activeStudents, 10) || parseInt(totalStudents, 10) || 1;
+
+        let [[{ count: todayHadir }]] = await db.query(
+            `SELECT COUNT(*) AS count FROM attendance 
+             WHERE (status ILIKE '%Hadir%' OR status = 'Hadir') 
+               AND TO_CHAR(COALESCE(tanggal::timestamp, created_at::timestamp), 'YYYY-MM-DD') = ?`,
+            [todayStr]
+        );
+        let [[{ count: recordedTotal }]] = await db.query(
+            `SELECT COUNT(*) AS count FROM attendance 
+             WHERE TO_CHAR(COALESCE(tanggal::timestamp, created_at::timestamp), 'YYYY-MM-DD') = ?`,
+            [todayStr]
+        );
+
+        if (recordedTotal === 0) {
+            const [[latestDateRow]] = await db.query(
+                `SELECT MAX(TO_CHAR(COALESCE(tanggal::timestamp, created_at::timestamp), 'YYYY-MM-DD')) AS maxdate 
+                 FROM attendance`
+            );
+            if (latestDateRow && latestDateRow.maxdate) {
+                const latestDate = latestDateRow.maxdate;
+                const [[{ count: lHadir }]] = await db.query(
+                    `SELECT COUNT(*) AS count FROM attendance 
+                     WHERE (status ILIKE '%Hadir%' OR status = 'Hadir') 
+                       AND TO_CHAR(COALESCE(tanggal::timestamp, created_at::timestamp), 'YYYY-MM-DD') = ?`,
+                    [latestDate]
+                );
+                const [[{ count: lTotal }]] = await db.query(
+                    `SELECT COUNT(*) AS count FROM attendance 
+                     WHERE TO_CHAR(COALESCE(tanggal::timestamp, created_at::timestamp), 'YYYY-MM-DD') = ?`,
+                    [latestDate]
+                );
+                todayHadir = lHadir;
+                recordedTotal = lTotal;
+            }
+        }
+
+        let todayTotal = Math.max(recordedTotal, enrolledStudentsCount);
+        if (todayHadir > todayTotal) todayHadir = todayTotal;
 
         let attendanceRate = "100%";
         if (todayTotal > 0) {
             attendanceRate = Math.round((todayHadir / todayTotal) * 100) + "%";
         }
 
-        const [revenueByProgram] = await db.query(
-            'SELECT program, SUM(jumlah) AS total FROM payments WHERE status = \'Lunas\' GROUP BY program'
-        );
-
-        const { growthPeriod } = req.query;
-        const fullMonthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-
+        // Determine growth graph target month (either growthPeriod or filterMonth)
+        const effectiveGrowthMonth = filterMonth !== null ? filterMonth : parseInt(growthPeriod, 10);
         let monthlyGrowth = { labels: [], data: [], title: 'Grafik Pertumbuhan Siswa' };
 
-        const targetMonthNum = parseInt(growthPeriod, 10);
-        if (!isNaN(targetMonthNum) && targetMonthNum >= 1 && targetMonthNum <= 12) {
+        if (!isNaN(effectiveGrowthMonth) && effectiveGrowthMonth >= 1 && effectiveGrowthMonth <= 12) {
             const [weeklyCounts] = await db.query(`
                 SELECT 
                     EXTRACT(DAY FROM COALESCE(created_at, CURRENT_TIMESTAMP)) AS d,
@@ -306,7 +426,7 @@ app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], re
                 FROM students
                 WHERE EXTRACT(MONTH FROM COALESCE(created_at, CURRENT_TIMESTAMP)) = ?
                 GROUP BY d
-            `, [targetMonthNum]);
+            `, [effectiveGrowthMonth]);
 
             let w1 = 0, w2 = 0, w3 = 0, w4 = 0;
             weeklyCounts.forEach(r => {
@@ -321,7 +441,7 @@ app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], re
             monthlyGrowth = {
                 labels: ['Minggu 1 (Tgl 1-7)', 'Minggu 2 (Tgl 8-14)', 'Minggu 3 (Tgl 15-21)', 'Minggu 4 (Tgl 22-31)'],
                 data: [w1, w2, w3, w4],
-                title: `Pendaftaran Siswa (${fullMonthNames[targetMonthNum - 1]})`
+                title: `Pendaftaran Siswa (${fullMonthNames[effectiveGrowthMonth - 1]})`
             };
         } else {
             const [monthlyCounts] = await db.query(`
@@ -338,7 +458,7 @@ app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], re
             });
 
             const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-            const currentMonth = new Date().getMonth() + 1;
+            const currentMonth = now.getMonth() + 1;
 
             let growthLabels = [];
             let growthData = [];
@@ -366,7 +486,11 @@ app.get(['/api/dashboard/stats', '/dashboard/stats', '/api/stats', '/stats'], re
             };
         }
 
+        const [[{ count: totalTransactions }]] = await db.query('SELECT COUNT(*) AS count FROM payments');
+
         res.json({
+            selectedMonth: filterMonth,
+            monthName: filterMonth ? fullMonthNames[filterMonth - 1] : 'Semua Bulan',
             totalStudents: Number(totalStudents || 0),
             activeStudents: Number(activeStudents || 0),
             totalTeachers: Number(totalTeachers || 0),

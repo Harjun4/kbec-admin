@@ -105,6 +105,9 @@ async function addStudentToClass(req, res, next) {
             return res.status(400).json({ success: false, message: 'Kelas sudah penuh (kapasitas maksimal tercapai).' });
         }
 
+        // Pastikan satu siswa hanya bisa masuk ke dalam satu kelas
+        await db.query('DELETE FROM class_students WHERE student_id = ?', [student_id]);
+
         await db.query(
             'INSERT INTO class_students (class_id, student_id) VALUES (?, ?) ON CONFLICT DO NOTHING',
             [id, student_id]

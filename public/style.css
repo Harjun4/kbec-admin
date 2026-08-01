@@ -46,4 +46,14 @@ body {
 /* Mobile drawer sidebar helper */
 .sidebar-transition {
     transition: transform 0.3s ease-in-out;
+}
+
+@media (max-width: 1023px) {
+    .kbec-sidebar {
+        transform: translateX(-100%);
+    }
+    .kbec-sidebar.open,
+    .kbec-sidebar.show {
+        transform: translateX(0) !important;
+    }
 }

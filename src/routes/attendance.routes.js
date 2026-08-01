@@ -11,5 +11,6 @@ router.post('/bulk', requireAuth, attendanceController.saveAttendance);
 router.get('/student-grades', requireAuth, attendanceController.getStudentGrades);
 router.post('/student-grades', requireAuth, attendanceController.saveStudentGrade);
 router.get('/performance-report', requireAuth, attendanceController.getPerformanceReport);
+router.get('/report', requireAuth, attendanceController.getAttendanceReport);
 
 module.exports = router;
