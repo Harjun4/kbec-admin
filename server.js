@@ -26,8 +26,15 @@ const inventoryRoutes = require('./src/routes/inventory.routes');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Enable Trust Proxy for Vercel & Reverse Proxies
+app.set('trust proxy', 1);
+
+// Handle favicon.ico requests quickly
+app.get('/favicon.ico', (req, res) => res.status(204).end());
+
 // Essential Middlewares
 app.use(helmet({ contentSecurityPolicy: false }));
+
 app.use(globalRateLimiter);
 app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Private-Network', 'true');
@@ -135,43 +142,46 @@ app.get(['/api/admin/unlinked-teachers', '/admin/unlinked-teachers'], requireAut
     }
 });
 
-// Startup Database Schema Migrations for FK & Approval Status
-(async function initSchemaMigrations() {
-    try {
-        await db.query(`
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(255) DEFAULT 'Pending';
-            ALTER TABLE users ADD COLUMN IF NOT EXISTS teacher_id VARCHAR(255);
-            ALTER TABLE classes ADD COLUMN IF NOT EXISTS teacher_id VARCHAR(255);
-        `);
-
-        // Synchronize & backfill existing approved teacher users into teachers table
-        const [approvedUsers] = await db.query(`
-            SELECT id, nis, name, email, role, status 
-            FROM users 
-            WHERE (LOWER(role) LIKE '%pengajar%' OR LOWER(role) LIKE '%guru%')
-              AND (LOWER(status) = 'approved' OR status IS NULL OR status = '')
-        `);
-
-        for (const u of approvedUsers) {
-            await ensureTeacherProfile(u.id, 'Pengajar', 'Approved', u.email, u.name);
-        }
-
-        // Auto-link classes.teacher_id to teachers.id if unlinked
+// Startup Database Schema Migrations for FK & Approval Status (Only in standalone mode)
+if (require.main === module && !process.env.VERCEL) {
+    (async function initSchemaMigrations() {
         try {
             await db.query(`
-                UPDATE classes
-                SET teacher_id = teachers.id
-                FROM teachers
-                WHERE (LOWER(TRIM(classes.pengajar)) = LOWER(TRIM(teachers.nama)) OR classes.pengajar ILIKE '%' || teachers.nama || '%')
-                  AND (classes.teacher_id IS NULL OR classes.teacher_id = '')
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(255) DEFAULT 'Pending';
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS teacher_id VARCHAR(255);
+                ALTER TABLE classes ADD COLUMN IF NOT EXISTS teacher_id VARCHAR(255);
             `);
-        } catch (linkErr) {
-            console.warn('Auto-link classes teacher_id note:', linkErr.message);
+
+            // Synchronize & backfill existing approved teacher users into teachers table
+            const [approvedUsers] = await db.query(`
+                SELECT id, nis, name, email, role, status 
+                FROM users 
+                WHERE (LOWER(role) LIKE '%pengajar%' OR LOWER(role) LIKE '%guru%')
+                  AND (LOWER(status) = 'approved' OR status IS NULL OR status = '')
+            `);
+
+            for (const u of approvedUsers) {
+                await ensureTeacherProfile(u.id, 'Pengajar', 'Approved', u.email, u.name);
+            }
+
+            // Auto-link classes.teacher_id to teachers.id if unlinked
+            try {
+                await db.query(`
+                    UPDATE classes
+                    SET teacher_id = teachers.id
+                    FROM teachers
+                    WHERE (LOWER(TRIM(classes.pengajar)) = LOWER(TRIM(teachers.nama)) OR classes.pengajar ILIKE '%' || teachers.nama || '%')
+                      AND (classes.teacher_id IS NULL OR classes.teacher_id = '')
+                `);
+            } catch (linkErr) {
+                console.warn('Auto-link classes teacher_id note:', linkErr.message);
+            }
+        } catch (e) {
+            console.warn('Schema migration note:', e.message);
         }
-    } catch (e) {
-        console.warn('Schema migration note:', e.message);
-    }
-})();
+    })();
+}
+
 
 // Endpoint diagnosa database aman
 app.get(['/api/test-db', '/test-db'], requireAuth, requireRole('Super Admin'), async (req, res, next) => {

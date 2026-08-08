@@ -25,6 +25,12 @@ if (isPostgres) {
         max: 20
     });
 
+    pgPool.on('error', (err) => {
+        console.error('PostgreSQL Idle Pool Client Error:', err.message);
+    });
+
+
+
     const formatPgSql = (sql) => {
         let pgSql = sql;
 
