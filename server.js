@@ -245,7 +245,7 @@ function getLocalIpAddress() {
     return '127.0.0.1';
 }
 
-if (require.main === module) {
+if (require.main === module && !process.env.VERCEL) {
     app.listen(PORT, '0.0.0.0', () => {
         const localIp = getLocalIpAddress();
         console.log(`🚀 Server berjalan di:`);
@@ -255,4 +255,5 @@ if (require.main === module) {
 }
 
 module.exports = app;
+
 
