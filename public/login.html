@@ -15,10 +15,11 @@
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
+
         .bg-pattern {
             background-color: #0A58CA;
-            background-image: radial-gradient(at 0% 0%, hsla(243,98%,73%,1) 0, transparent 50%), 
-                              radial-gradient(at 100% 100%, hsla(218,100%,57%,1) 0, transparent 50%);
+            background-image: radial-gradient(at 0% 0%, hsla(243, 98%, 73%, 1) 0, transparent 50%),
+                radial-gradient(at 100% 100%, hsla(218, 100%, 57%, 1) 0, transparent 50%);
         }
     </style>
 </head>
@@ -26,30 +27,38 @@
 <body class="bg-slate-50 min-h-screen flex items-center justify-center p-4 antialiased select-none">
 
     <!-- Container Utama Split Screen / Card Modern -->
-    <div class="bg-white w-full max-w-4xl rounded-3xl shadow-[0_24px_70px_rgba(0,0,0,0.07)] overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[580px]">
-        
+    <div
+        class="bg-white w-full max-w-4xl rounded-3xl shadow-[0_24px_70px_rgba(0,0,0,0.07)] overflow-hidden grid grid-cols-1 md:grid-cols-12 min-h-[580px]">
+
         <!-- SISI KIRI: ILUSTRASI & BRANDING BRAND (PANEL BIRU PREMIUM) -->
-        <div class="md:col-span-5 bg-pattern p-8 flex flex-col justify-between text-white relative overflow-hidden hidden md:flex">
+        <div
+            class="md:col-span-5 bg-pattern p-8 flex flex-col justify-between text-white relative overflow-hidden hidden md:flex">
             <!-- Variasi Dekorasi Bulat Transparan -->
             <div class="absolute -top-10 -left-10 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
             <div class="absolute -bottom-20 -right-10 w-60 h-60 bg-blue-400/20 rounded-full blur-3xl"></div>
-            
+
             <!-- Logo Header -->
             <div class="flex items-center gap-3 relative z-10">
-                <div class="bg-white/10 backdrop-blur-md p-2.5 rounded-2xl border border-white/20 flex items-center justify-center">
+                <div
+                    class="bg-white/10 backdrop-blur-md p-2.5 rounded-2xl border border-white/20 flex items-center justify-center">
                     <i data-lucide="graduation-cap" class="w-5 h-5 text-white"></i>
                 </div>
                 <div>
                     <h2 class="font-bold text-base leading-tight tracking-wide">KBEC Admin</h2>
-                    <p class="text-[10px] text-blue-100 font-medium tracking-wider uppercase">Sistem Manajemen Kursus</p>
+                    <p class="text-[10px] text-blue-100 font-medium tracking-wider uppercase">Sistem Manajemen Kursus
+                    </p>
                 </div>
             </div>
 
             <!-- Pesan Sambutan Tengah -->
             <div class="my-auto space-y-3 relative z-10">
-                <span class="text-[10px] font-extrabold tracking-widest bg-white/20 px-2.5 py-1 rounded-full uppercase backdrop-blur-xs">Selamat Datang Kembali</span>
-                <h1 class="text-2xl font-extrabold leading-tight tracking-tight">Kelola Aktivitas Akademik Lebih Efisien.</h1>
-                <p class="text-xs text-blue-100/80 leading-relaxed font-medium">Akses panel administrasi keuangan, data siswa, jadwal pengajar, dan pelaporan kelas dalam satu dasbor terintegrasi.</p>
+                <span
+                    class="text-[10px] font-extrabold tracking-widest bg-white/20 px-2.5 py-1 rounded-full uppercase backdrop-blur-xs">Selamat
+                    Datang Kembali</span>
+                <h1 class="text-2xl font-extrabold leading-tight tracking-tight">Kelola Aktivitas Akademik Lebih
+                    Efisien.</h1>
+                <p class="text-xs text-blue-100/80 leading-relaxed font-medium">Akses panel administrasi keuangan, data
+                    siswa, jadwal pengajar, dan pelaporan kelas dalam satu dasbor terintegrasi.</p>
             </div>
 
             <!-- Footer Hak Cipta Sisi Kiri -->
@@ -60,7 +69,7 @@
 
         <!-- SISI KANAN: FORMULIR INPUT LOGIN -->
         <div class="md:col-span-7 p-8 lg:p-12 flex flex-col justify-center bg-white">
-            
+
             <!-- Header Mobile Branding (Hanya muncul di layar hp kecil) -->
             <div class="flex items-center gap-2.5 mb-6 md:hidden">
                 <div class="bg-[#0A58CA] text-white p-2 rounded-xl">
@@ -74,17 +83,20 @@
             <!-- Judul Form -->
             <div class="mb-8">
                 <h3 class="text-xl font-extrabold text-slate-900 tracking-tight">Masuk Akun</h3>
-                <p class="text-xs text-slate-400 font-medium mt-1.5">Silakan masukkan email dan kata sandi Anda untuk mengakses panel.</p>
+                <p class="text-xs text-slate-400 font-medium mt-1.5">Silakan masukkan email dan kata sandi Anda untuk
+                    mengakses panel.</p>
             </div>
 
             <!-- Formulir Interaktif -->
             <form id="login-form" onsubmit="handleLogin(event)" class="space-y-4">
-                
+
                 <!-- Input Email -->
                 <div class="space-y-1.5">
-                    <label for="email" class="text-[11px] font-bold text-slate-400 uppercase tracking-wider pl-1">Alamat Email</label>
+                    <label for="email" class="text-[11px] font-bold text-slate-400 uppercase tracking-wider pl-1">Alamat
+                        Email</label>
                     <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                        <div
+                            class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
                             <i data-lucide="mail" class="w-4 h-4"></i>
                         </div>
                         <input type="email" id="email" required placeholder="admin@kbec.com"
@@ -95,18 +107,22 @@
                 <!-- Input Password -->
                 <div class="space-y-1.5">
                     <div class="flex justify-between items-center px-1">
-                        <label for="password" class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Kata Sandi</label>
-                        <a href="#" onclick="alert('Silakan hubungi Super Admin IT untuk reset kata sandi.')" class="text-[11px] font-bold text-[#0A58CA] hover:underline">Lupa Sandi?</a>
+                        <label for="password" class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Kata
+                            Sandi</label>
+                        <a href="#" onclick="alert('Silakan hubungi Super Admin IT untuk reset kata sandi.')"
+                            class="text-[11px] font-bold text-[#0A58CA] hover:underline">Lupa Sandi?</a>
                     </div>
                     <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                        <div
+                            class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
                             <i data-lucide="lock" class="w-4 h-4"></i>
                         </div>
                         <input type="password" id="password" required placeholder="••••••••"
                             class="w-full pl-11 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0A58CA] focus:bg-white focus:ring-4 focus:ring-blue-500/5 transition-all">
-                        
+
                         <!-- Tombol Show/Hide Password -->
-                        <button type="button" onclick="togglePasswordVisibility()" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors">
+                        <button type="button" onclick="togglePasswordVisibility()"
+                            class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors">
                             <i id="eye-icon" data-lucide="eye" class="w-4 h-4"></i>
                         </button>
                     </div>
@@ -114,8 +130,10 @@
 
                 <!-- Opsi Ingat Saya -->
                 <div class="flex items-center gap-2 pt-1 pl-1">
-                    <input type="checkbox" id="remember" class="w-4 h-4 text-[#0A58CA] border-slate-300 rounded-lg cursor-pointer focus:ring-0 focus:ring-offset-0">
-                    <label for="remember" class="text-xs text-slate-500 font-semibold cursor-pointer select-none">Ingat perangkat ini</label>
+                    <input type="checkbox" id="remember"
+                        class="w-4 h-4 text-[#0A58CA] border-slate-300 rounded-lg cursor-pointer focus:ring-0 focus:ring-offset-0">
+                    <label for="remember" class="text-xs text-slate-500 font-semibold cursor-pointer select-none">Ingat
+                        perangkat ini</label>
                 </div>
 
                 <!-- Tombol Submit Utama -->
@@ -131,7 +149,7 @@
             <!-- Link ke Register -->
             <div class="mt-6 text-center">
                 <p class="text-xs text-slate-500 font-semibold">
-                    Belum memiliki akun admin? 
+                    Belum memiliki akun admin?
                     <a href="register.html" class="text-[#0A58CA] font-bold hover:underline">Daftar di sini</a>
                 </p>
             </div>
@@ -141,7 +159,8 @@
                 <div class="w-7 h-7 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500">
                     <i data-lucide="shield-check" class="w-4 h-4"></i>
                 </div>
-                <p class="text-[10px] font-medium leading-relaxed">Koneksi dienkripsi dengan standar keamanan tinggi. Sesi Anda akan otomatis ditutup jika tidak aktif.</p>
+                <p class="text-[10px] font-medium leading-relaxed">Koneksi dienkripsi dengan standar keamanan tinggi.
+                    Sesi Anda akan otomatis ditutup jika tidak aktif.</p>
             </div>
 
         </div>
@@ -169,52 +188,70 @@
         }
 
         const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
-        function handleLogin(e) {
+        async function handleLogin(e) {
             e.preventDefault();
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const btnSubmit = document.getElementById('btn-submit');
+            if (!btnSubmit) return;
 
-            btnSubmit.disabled = true;
             const originalHTML = btnSubmit.innerHTML;
+            btnSubmit.disabled = true;
             btnSubmit.innerHTML = `
-                <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <svg class="animate-spin h-4 w-4 text-white inline-block mr-1.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
                 <span>Memverifikasi Akun...</span>
             `;
 
-            fetch(`${API_BASE}/api/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password })
-            })
-            .then(async res => {
+            try {
+                const res = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
                 const data = await res.json();
                 if (!res.ok || !data.success) {
                     throw new Error(data.message || 'Email atau password yang Anda masukkan salah.');
                 }
-                return data;
-            })
-            .then(data => {
+
+                const role = data.user && data.user.role ? data.user.role : null;
+                const status = data.user && data.user.status ? data.user.status : null;
+
+                if (role === 'Pending' || status === 'Pending') {
+                    alert('Akun Anda sedang menunggu persetujuan dan pengaturan role oleh Super Admin.');
+                    localStorage.clear();
+                    return;
+                }
+
                 localStorage.setItem('currentUser', JSON.stringify(data.user));
                 if (data.token) {
                     localStorage.setItem('authToken', data.token);
                 }
-                window.location.href = 'dashboard.html';
-            })
-            .catch(err => {
+                localStorage.setItem('userRole', role || 'Pending');
+
+                if (role === 'Pengajar' || role === 'Guru') {
+                    window.location.href = 'absensi.html';
+                } else if (role === 'Admin' || role === 'Super Admin') {
+                    window.location.href = 'dashboard.html';
+                } else {
+                    alert('Akun Anda belum disetujui atau role belum ditentukan oleh Super Admin.');
+                    localStorage.clear();
+                }
+            } catch (err) {
                 alert(err.message || 'Gagal terhubung ke server.');
+            } finally {
                 btnSubmit.disabled = false;
                 btnSubmit.innerHTML = originalHTML;
-            });
+                if (window.lucide) lucide.createIcons();
+            }
         }
     </script>
 </body>
 
-</html>}
-    </script>
+</html>
+</script>
 </body>
 
 </html>

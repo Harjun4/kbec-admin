@@ -11,7 +11,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/route-guard.js"></script>
     <script src="global-user.js"></script>
+    <script src="js/ui-guard.js"></script>
     <style>
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -65,7 +67,7 @@
         <div>
             <!-- Header Atas Premium -->
             <header
-                class="h-20 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-20">
+                class="h-20 bg-white/95 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 shadow-xs transition-all">
                 <div class="relative w-full max-w-[200px] sm:max-w-xs lg:w-96">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400"><i
                             data-lucide="search" class="w-4 h-4"></i></span>
@@ -226,12 +228,10 @@
 
         <!-- Bagian Kaki (Footer) -->
         <footer
-            class="p-8 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 mt-12 font-medium">
-            <p>© 2026 Kampung Bahasa English Course (KBEC). Hak cipta dilindungi undang-undang.</p>
+            class="px-6 sm:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-400 border-t border-slate-100 mt-12 font-medium">
+            <p>© 2026 Yayasan Ar-Rasyid Bintaro — KBEC Management System. All rights reserved.</p>
             <div class="flex gap-4">
-                <a href="#" class="hover:text-slate-600 transition-colors">Kebijakan Privasi</a>
-                <a href="#" class="hover:text-slate-600 transition-colors">Syarat & Ketentuan</a>
-                <a href="#" class="hover:text-slate-600 transition-colors">Pusat Bantuan</a>
+                <span>Versi 2.4.0 Production</span>
             </div>
         </footer>
     </div>
@@ -690,19 +690,26 @@
 
         async function handleFormSubmit(e) {
             e.preventDefault();
-            const idx = document.getElementById('student-idx').value;
-            const nis = document.getElementById('form-nis').value.trim();
-            const nama = document.getElementById('form-nama').value;
-            const alamat = document.getElementById('form-alamat').value;
-            const kontak = document.getElementById('form-kontak').value;
-            const program = document.getElementById('form-program').value;
-            const level = document.getElementById('form-level').value;
-            const status = document.getElementById('form-status').value;
-            const initial = nama.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-
-            const payload = { id: nis, nama, alamat, kontak, program, level, status, initial };
+            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.querySelector('#student-modal button[type="submit"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+            }
 
             try {
+                const idx = document.getElementById('student-idx').value;
+                const nis = document.getElementById('form-nis').value.trim();
+                const nama = document.getElementById('form-nama').value;
+                const alamat = document.getElementById('form-alamat').value;
+                const kontak = document.getElementById('form-kontak').value;
+                const program = document.getElementById('form-program').value;
+                const level = document.getElementById('form-level').value;
+                const status = document.getElementById('form-status').value;
+                const initial = nama.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+                const payload = { id: nis, nama, alamat, kontak, program, level, status, initial };
+
                 if (idx === '') {
                     payload.color = 'bg-blue-50 text-blue-600';
                     const res = await fetch(`${API_BASE}/api/students`, {
@@ -727,6 +734,12 @@
             } catch (err) {
                 console.error(err);
                 showToast('Gagal menyimpan data siswa ke database.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 
@@ -1044,11 +1057,18 @@
 
         async function saveStudentNotes() {
             if (activeNotesStudentIndex === null) return;
-            const student = studentsData[activeNotesStudentIndex];
-            const notesText = document.getElementById('notes-textarea').value;
+            const btn = document.querySelector('#notes-modal button[onclick="saveStudentNotes()"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+            }
 
-            student.notes = notesText;
             try {
+                const student = studentsData[activeNotesStudentIndex];
+                const notesText = document.getElementById('notes-textarea').value;
+
+                student.notes = notesText;
                 const res = await fetch(`${API_BASE}/api/students/${encodeURIComponent(student.id)}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -1069,6 +1089,12 @@
             } catch (err) {
                 console.error(err);
                 showToast('Gagal menyimpan catatan siswa ke database.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 

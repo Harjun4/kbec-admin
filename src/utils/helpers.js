@@ -56,19 +56,21 @@ async function generateUniqueStudentId(db, unitCodeOrProgram = 'KBEC') {
         suffix = '-TK';
     }
 
-    const [[maxRow]] = await db.query("SELECT COUNT(*) AS count FROM students");
-    const count = (maxRow ? (maxRow.count || maxRow.cnt || 0) : 0) + 1;
-    let seqStr = String(count).padStart(6, '0');
-    let candidateId = `${yy}${mm}${seqStr}${suffix}`;
+    let isUnique = false;
+    let candidateId = '';
+    let attempts = 0;
 
-    const [existing] = await db.query('SELECT id FROM students WHERE id = ?', [candidateId]);
-    if (existing.length === 0) {
-        return candidateId;
+    while (!isUnique && attempts < 10) {
+        const randomNum = String(Math.floor(100000 + Math.random() * 900000));
+        candidateId = `${yy}${mm}${randomNum}${suffix}`;
+        const [existing] = await db.query('SELECT id FROM students WHERE id = ?', [candidateId]);
+        if (existing.length === 0) {
+            isUnique = true;
+        }
+        attempts++;
     }
 
-    // Fallback if collision occurs
-    const randomNum = String(Math.floor(100000 + Math.random() * 900000));
-    return `${yy}${mm}${randomNum}${suffix}`;
+    return candidateId;
 }
 
 /**
@@ -88,18 +90,21 @@ async function generateUniqueUserId(db, role = 'Admin') {
         suffix = '-TCH';
     }
 
-    const [[maxRow]] = await db.query("SELECT COUNT(*) AS count FROM users");
-    const count = (maxRow ? (maxRow.count || 0) : 0) + 1;
-    let seqStr = String(count).padStart(6, '0');
-    let candidateId = `${yy}${mm}${seqStr}${suffix}`;
+    let isUnique = false;
+    let candidateId = '';
+    let attempts = 0;
 
-    const [existing] = await db.query('SELECT id FROM users WHERE id = ? OR nis = ?', [candidateId, candidateId]);
-    if (existing.length === 0) {
-        return candidateId;
+    while (!isUnique && attempts < 10) {
+        const randomNum = String(Math.floor(100000 + Math.random() * 900000));
+        candidateId = `${yy}${mm}${randomNum}${suffix}`;
+        const [existing] = await db.query('SELECT id FROM users WHERE id = ? OR nis = ?', [candidateId, candidateId]);
+        if (existing.length === 0) {
+            isUnique = true;
+        }
+        attempts++;
     }
 
-    const randomNum = String(Math.floor(100000 + Math.random() * 900000));
-    return `${yy}${mm}${randomNum}${suffix}`;
+    return candidateId;
 }
 
 /**

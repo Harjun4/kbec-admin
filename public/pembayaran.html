@@ -11,7 +11,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/route-guard.js"></script>
     <script src="global-user.js"></script>
+    <script src="js/ui-guard.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
@@ -229,9 +231,8 @@
                         <i data-lucide="file-plus" class="w-5 h-5"></i>
                     </div>
                     <div>
-                        <h3 class="text-base font-extrabold text-slate-900">Buat Tagihan Manual</h3>
-                        <p class="text-[11px] text-slate-400 font-medium">Buat kewajiban tagihan SPP/biaya kursus siswa
-                        </p>
+                        <h3 id="modalTagihanTitle" class="text-base font-extrabold text-slate-900">Buat Tagihan Manual</h3>
+                        <p id="modalTagihanSubtitle" class="text-[11px] text-slate-400 font-medium">Buat kewajiban tagihan SPP/biaya kursus siswa</p>
                     </div>
                 </div>
                 <button onclick="closeBillModal()"
@@ -241,6 +242,7 @@
             </div>
 
             <form id="bill-form" onsubmit="handleBillSubmit(event)" class="p-6 space-y-4 bg-white">
+                <input type="hidden" id="editInvoiceId" value="" />
                 <div class="space-y-1.5">
                     <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Pilih Siswa</label>
                     <input type="text" id="bill-nama" list="student-datalist" oninput="handleBillStudentSelect()"
@@ -252,13 +254,9 @@
                     <div class="space-y-1.5">
                         <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Unit /
                             Program</label>
-                        <select id="bill-unit" required
+                        <select id="bill-unit" required onchange="handleBillUnitChange()"
                             class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700">
-                            <option value="KBEC">Unit KBEC</option>
-                            <option value="TK">Unit TK</option>
-                            <option value="Bimbel">Unit Bimbel</option>
-                            <option value="Calistung">Unit Calistung</option>
-                            <option value="Arabin">Unit Arabin (Beasiswa Bantuan)</option>
+                            <option value="" disabled selected>Pilih Program Kursus</option>
                         </select>
                     </div>
                     <div class="space-y-1.5">
@@ -298,7 +296,7 @@
                 <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
                     <button type="button" onclick="closeBillModal()"
                         class="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">Batal</button>
-                    <button type="submit"
+                    <button type="submit" id="btnSubmitTagihan"
                         class="px-6 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md">Simpan
                         Tagihan</button>
                 </div>
@@ -537,7 +535,7 @@
     <div class="flex-1 pl-0 lg:pl-64 flex flex-col min-h-screen w-full min-w-0 transition-all duration-300">
 
         <header
-            class="h-20 bg-[#F8FAFC] flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 border-b border-slate-100">
+            class="h-20 bg-white/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 border-b border-slate-100 shadow-xs transition-all">
             <div class="relative w-full max-w-[200px] sm:max-w-xs lg:w-72">
                 <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
                 <input type="text" id="search-data" oninput="handleSearchInput()"
@@ -1044,11 +1042,10 @@
             </div>
 
             <footer
-                class="pt-6 mt-auto border-t border-slate-100 flex justify-between items-center text-[11px] font-medium text-slate-400">
-                <p>© 2026 Kampung Bahasa English Course (KBEC). Hak cipta dilindungi undang-undang.</p>
+                class="pt-6 mt-auto border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center text-[11px] font-medium text-slate-400 gap-2">
+                <p>© 2026 Yayasan Ar-Rasyid Bintaro — KBEC Management System. All rights reserved.</p>
                 <div class="flex gap-4">
-                    <a href="#" class="hover:text-slate-600">Kebijakan Privasi</a>
-                    <a href="#" class="hover:text-slate-600">Syarat Ketentuan</a>
+                    <span>Versi 2.4.0 Production</span>
                 </div>
             </footer>
         </main>
@@ -1160,16 +1157,54 @@
                 const filterPayProgram = document.getElementById('filter-pay-program');
                 const billUnitSelect = document.getElementById('bill-unit');
 
-                if (programSelect) programSelect.innerHTML = '<option value="" disabled selected>Pilih Program</option>';
-                if (filterPayProgram) filterPayProgram.innerHTML = '<option value="Semua">Semua Program</option>';
-                if (billUnitSelect) billUnitSelect.innerHTML = '<option value="" disabled selected>Pilih Program / Unit</option>';
+                if (programSelect) {
+                    programSelect.innerHTML = `
+                        <option value="" disabled selected>Pilih Program / Unit</option>
+                        <optgroup label="=== UNIT / KATEGORI UMUM ===">
+                            <option value="Unit KBEC" data-price="0" data-type="unit">Unit KBEC - Rp 0</option>
+                            <option value="Unit TK" data-price="0" data-type="unit">Unit TK - Rp 0</option>
+                            <option value="Unit Bimbel" data-price="0" data-type="unit">Unit Bimbel - Rp 0</option>
+                            <option value="Unit Calistung" data-price="0" data-type="unit">Unit Calistung - Rp 0</option>
+                            <option value="Unit Arabin" data-price="0" data-type="unit">Unit Arabin (Beasiswa Bantuan) - Rp 0</option>
+                        </optgroup>
+                    `;
+                    if (programsList.length > 0) {
+                        const groupProg = document.createElement('optgroup');
+                        groupProg.label = '=== PROGRAM KURSUS ===';
+                        programsList.forEach(p => {
+                            const fee = parseInt(p.biaya || 0, 10);
+                            const optText = `${p.nama} - Rp ${fee.toLocaleString('id-ID')}`;
+                            const opt = document.createElement('option');
+                            opt.value = p.nama;
+                            opt.textContent = optText;
+                            opt.setAttribute('data-price', String(fee));
+                            opt.setAttribute('data-type', 'program');
+                            groupProg.appendChild(opt);
+                        });
+                        programSelect.appendChild(groupProg);
+                    }
+                }
 
-                programsList.forEach(p => {
-                    const optText = `${p.nama} - Rp ${parseInt(p.biaya || 0, 10).toLocaleString('id-ID')}`;
-                    if (programSelect) programSelect.innerHTML += `<option value="${p.nama}">${optText}</option>`;
-                    if (filterPayProgram) filterPayProgram.innerHTML += `<option value="${p.nama}">${p.nama}</option>`;
-                    if (billUnitSelect) billUnitSelect.innerHTML += `<option value="${p.nama}">${optText}</option>`;
-                });
+                if (filterPayProgram) {
+                    filterPayProgram.innerHTML = '<option value="Semua">Semua Program</option>';
+                    programsList.forEach(p => {
+                        filterPayProgram.innerHTML += `<option value="${p.nama}">${p.nama}</option>`;
+                    });
+                }
+
+                if (billUnitSelect) {
+                    billUnitSelect.innerHTML = '<option value="" disabled selected>Pilih Program Kursus</option>';
+                    programsList.forEach(p => {
+                        const fee = parseInt(p.biaya || 0, 10);
+                        const optText = `${p.nama} - Rp ${fee.toLocaleString('id-ID')}`;
+                        const opt = document.createElement('option');
+                        opt.value = p.nama;
+                        opt.textContent = optText;
+                        opt.setAttribute('data-price', String(fee));
+                        opt.setAttribute('data-type', 'program');
+                        billUnitSelect.appendChild(opt);
+                    });
+                }
             } catch (err) {
                 console.error(err);
             }
@@ -1681,21 +1716,52 @@
         function openBillModal(bill = null) {
             document.getElementById('bill-form').reset();
             const modal = document.getElementById('bill-modal');
+            const hiddenIdEl = document.getElementById('editInvoiceId');
+            const titleEl = document.getElementById('modalTagihanTitle');
+            const subtitleEl = document.getElementById('modalTagihanSubtitle');
+            const btnSubmitEl = document.getElementById('btnSubmitTagihan');
             
-            if (bill && (bill.id || bill.student_id)) {
-                editBillModeId = bill.id || null;
+            if (bill && bill.id) {
+                editBillModeId = bill.id;
+                if (hiddenIdEl) hiddenIdEl.value = bill.id;
+                if (titleEl) titleEl.innerText = 'Edit Tagihan Siswa';
+                if (subtitleEl) subtitleEl.innerText = `Edit data tagihan ${bill.id}`;
+                if (btnSubmitEl) btnSubmitEl.innerText = 'Simpan Perubahan';
+
                 document.getElementById('bill-nama').value = bill.student_id ? `${bill.nama} (${bill.student_id})` : bill.nama;
                 
                 const selectUnit = document.getElementById('bill-unit');
-                let targetUnit = bill.unit || bill.program || 'KBEC';
-                let hasOpt = Array.from(selectUnit.options).some(o => o.value.toLowerCase() === targetUnit.toLowerCase());
-                if (!hasOpt) {
-                    const opt = document.createElement('option');
-                    opt.value = targetUnit;
-                    opt.textContent = targetUnit;
-                    selectUnit.appendChild(opt);
+                let targetProg = bill.program || bill.unit || '';
+                let matchingOpt = null;
+
+                if (targetProg) {
+                    matchingOpt = Array.from(selectUnit.options).find(o => o.value.toLowerCase() === targetProg.toLowerCase());
+                    if (!matchingOpt) {
+                        matchingOpt = Array.from(selectUnit.options).find(o => 
+                            o.text.toLowerCase().startsWith(targetProg.toLowerCase() + ' -') || 
+                            o.text.toLowerCase() === targetProg.toLowerCase()
+                        );
+                    }
+                    if (!matchingOpt) {
+                        matchingOpt = Array.from(selectUnit.options).find(o => 
+                            o.value.toLowerCase().includes(targetProg.toLowerCase()) || 
+                            o.text.toLowerCase().includes(targetProg.toLowerCase())
+                        );
+                    }
                 }
-                selectUnit.value = targetUnit;
+
+                if (matchingOpt) {
+                    selectUnit.value = matchingOpt.value;
+                } else if (targetProg) {
+                    const opt = document.createElement('option');
+                    opt.value = targetProg;
+                    const fee = bill.nominal || 175000;
+                    opt.textContent = `${targetProg} - Rp ${parseInt(fee, 10).toLocaleString('id-ID')}`;
+                    opt.setAttribute('data-price', String(fee));
+                    opt.setAttribute('data-type', 'program');
+                    selectUnit.appendChild(opt);
+                    selectUnit.value = targetProg;
+                }
                 
                 document.getElementById('bill-bulan').value = bill.bulan_tagihan || new Date().toISOString().slice(0, 7);
                 document.getElementById('bill-kategori').value = bill.kategori || 'SPP';
@@ -1703,8 +1769,40 @@
                 document.getElementById('bill-jatuh-tempo').value = bill.jatuh_tempo || `${document.getElementById('bill-bulan').value}-10`;
             } else {
                 editBillModeId = null;
-                document.getElementById('bill-bulan').value = new Date().toISOString().slice(0, 7);
-                document.getElementById('bill-jatuh-tempo').value = `${new Date().toISOString().slice(0, 7)}-10`;
+                if (hiddenIdEl) hiddenIdEl.value = '';
+                if (titleEl) titleEl.innerText = 'Buat Tagihan Manual';
+                if (subtitleEl) subtitleEl.innerText = 'Buat kewajiban tagihan SPP/biaya kursus siswa';
+                if (btnSubmitEl) btnSubmitEl.innerText = 'Simpan Tagihan';
+
+                if (bill && bill.nama) {
+                    document.getElementById('bill-nama').value = bill.student_id ? `${bill.nama} (${bill.student_id})` : bill.nama;
+                    let targetProg = bill.program || bill.unit || '';
+                    if (targetProg) {
+                        let matchingOpt = Array.from(selectUnit.options).find(o => o.value.toLowerCase() === targetProg.toLowerCase());
+                        if (!matchingOpt) {
+                            matchingOpt = Array.from(selectUnit.options).find(o => 
+                                o.text.toLowerCase().startsWith(targetProg.toLowerCase() + ' -') || 
+                                o.text.toLowerCase() === targetProg.toLowerCase()
+                            );
+                        }
+                        if (matchingOpt) {
+                            selectUnit.value = matchingOpt.value;
+                        } else {
+                            const opt = document.createElement('option');
+                            opt.value = targetProg;
+                            const fee = bill.nominal || 175000;
+                            opt.textContent = `${targetProg} - Rp ${parseInt(fee, 10).toLocaleString('id-ID')}`;
+                            opt.setAttribute('data-price', String(fee));
+                            opt.setAttribute('data-type', 'program');
+                            selectUnit.appendChild(opt);
+                            selectUnit.value = targetProg;
+                        }
+                    }
+                    if (bill.nominal) document.getElementById('bill-nominal').value = bill.nominal;
+                }
+
+                document.getElementById('bill-bulan').value = (bill && bill.bulan_tagihan) || new Date().toISOString().slice(0, 7);
+                document.getElementById('bill-jatuh-tempo').value = (bill && bill.jatuh_tempo) || `${document.getElementById('bill-bulan').value}-10`;
             }
             
             modal.classList.remove('hidden');
@@ -1714,79 +1812,203 @@
         function closeBillModal() {
             const modal = document.getElementById('bill-modal');
             modal.classList.add('opacity-0'); modal.querySelector('div').classList.add('scale-95');
-            setTimeout(() => modal.classList.add('hidden'), 200);
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('bill-form').reset();
+                editBillModeId = null;
+                const hiddenIdEl = document.getElementById('editInvoiceId');
+                if (hiddenIdEl) hiddenIdEl.value = '';
+                const titleEl = document.getElementById('modalTagihanTitle');
+                if (titleEl) titleEl.innerText = 'Buat Tagihan Manual';
+                const subtitleEl = document.getElementById('modalTagihanSubtitle');
+                if (subtitleEl) subtitleEl.innerText = 'Buat kewajiban tagihan SPP/biaya kursus siswa';
+                const btnSubmitEl = document.getElementById('btnSubmitTagihan');
+                if (btnSubmitEl) btnSubmitEl.innerText = 'Simpan Tagihan';
+            }, 200);
         }
 
         function handleBillStudentSelect() {
             const rawVal = document.getElementById('bill-nama').value.trim();
-            const student = studentsList.find(s => `${s.nama} (${s.id})` === rawVal || s.nama === rawVal);
+            if (!rawVal) return;
+
+            const student = studentsList.find(s => 
+                `${s.nama} (${s.id})`.toLowerCase() === rawVal.toLowerCase() || 
+                s.nama.toLowerCase() === rawVal.toLowerCase() || 
+                String(s.id).toLowerCase() === rawVal.toLowerCase()
+            );
+
             if (student) {
                 const selectUnit = document.getElementById('bill-unit');
                 let targetUnit = student.program || student.level || 'KBEC';
-                let hasOpt = Array.from(selectUnit.options).some(o => o.value.toLowerCase() === targetUnit.toLowerCase());
-                if (!hasOpt) {
+
+                let matchingOpt = Array.from(selectUnit.options).find(o => 
+                    o.value.toLowerCase() === targetUnit.toLowerCase() || 
+                    o.text.toLowerCase().includes(targetUnit.toLowerCase())
+                );
+
+                if (!matchingOpt && student.level) {
+                    matchingOpt = Array.from(selectUnit.options).find(o => 
+                        o.value.toLowerCase() === student.level.toLowerCase() || 
+                        o.text.toLowerCase().includes(student.level.toLowerCase())
+                    );
+                }
+
+                if (!matchingOpt) {
                     const opt = document.createElement('option');
                     opt.value = targetUnit;
                     opt.textContent = targetUnit;
+                    opt.setAttribute('data-price', String(student.spp_nominal || 175000));
+                    opt.setAttribute('data-type', 'program');
                     selectUnit.appendChild(opt);
+                    selectUnit.value = targetUnit;
+                } else {
+                    selectUnit.value = matchingOpt.value;
                 }
-                selectUnit.value = targetUnit;
-                document.getElementById('bill-nominal').value = student.spp_nominal || 175000;
+
+                let fee = student.spp_nominal;
+                if (!fee || fee <= 0) {
+                    const matchedProg = programsList.find(p => p.nama.toLowerCase() === targetUnit.toLowerCase() || (student.level && p.nama.toLowerCase() === student.level.toLowerCase()));
+                    if (matchedProg) fee = parseInt(matchedProg.biaya || 0, 10);
+                }
+                if (!fee || fee <= 0) {
+                    const selectedOpt = selectUnit.options[selectUnit.selectedIndex];
+                    if (selectedOpt && selectedOpt.getAttribute('data-price')) {
+                        fee = parseInt(selectedOpt.getAttribute('data-price'), 10);
+                    }
+                }
+
+                document.getElementById('bill-nominal').value = (fee !== undefined && fee !== null && fee >= 0) ? fee : 175000;
+            }
+        }
+
+        function handleBillUnitChange() {
+            const selectUnit = document.getElementById('bill-unit');
+            if (!selectUnit || selectUnit.selectedIndex < 0) return;
+
+            const selectedOpt = selectUnit.options[selectUnit.selectedIndex];
+            if (!selectedOpt) return;
+
+            const priceAttr = selectedOpt.getAttribute('data-price');
+            const typeAttr = selectedOpt.getAttribute('data-type');
+            const optVal = selectedOpt.value;
+
+            if (priceAttr !== null && priceAttr !== undefined) {
+                const price = parseInt(priceAttr, 10);
+                if (!isNaN(price) && price > 0) {
+                    document.getElementById('bill-nominal').value = price;
+                } else if (typeAttr === 'unit' || price === 0) {
+                    document.getElementById('bill-nominal').value = 0;
+                }
+            } else {
+                const matchedProg = programsList.find(p => p.nama.toLowerCase() === optVal.toLowerCase());
+                if (matchedProg && matchedProg.biaya) {
+                    document.getElementById('bill-nominal').value = parseInt(matchedProg.biaya, 10);
+                }
             }
         }
 
         async function handleBillSubmit(e) {
             e.preventDefault();
-            let rawNama = document.getElementById('bill-nama').value.trim();
-            let student_id = null;
-            let nama = rawNama;
-            if (rawNama.includes(' (')) {
-                const parts = rawNama.split(' (');
-                nama = parts[0].trim();
-                student_id = parts[1].replace(')', '').trim();
+            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.getElementById('btnSubmitTagihan');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
             }
 
-            const payload = {
-                id: editBillModeId || undefined,
-                student_id: student_id,
-                nama: nama,
-                unit: document.getElementById('bill-unit').value,
-                program: document.getElementById('bill-unit').value,
-                kategori: document.getElementById('bill-kategori').value,
-                nominal: parseInt(document.getElementById('bill-nominal').value, 10),
-                bulan_tagihan: document.getElementById('bill-bulan').value,
-                jatuh_tempo: document.getElementById('bill-jatuh-tempo').value,
-                status: 'Tertagih'
-            };
-
-            const url = editBillModeId ? `${API_BASE}/api/finance/bills/${editBillModeId}` : `${API_BASE}/api/finance/bills`;
-            const method = editBillModeId ? 'PUT' : 'POST';
+            const hiddenId = document.getElementById('editInvoiceId') ? document.getElementById('editInvoiceId').value : null;
+            const targetBillId = hiddenId || editBillModeId;
 
             try {
+                let rawNama = document.getElementById('bill-nama').value.trim();
+                let student_id = null;
+                let nama = rawNama;
+                if (rawNama.includes(' (')) {
+                    const parts = rawNama.split(' (');
+                    nama = parts[0].trim();
+                    student_id = parts[1].replace(')', '').trim();
+                }
+
+                const payload = {
+                    id: targetBillId || undefined,
+                    student_id: student_id,
+                    nama: nama,
+                    unit: document.getElementById('bill-unit').value,
+                    program: document.getElementById('bill-unit').value,
+                    kategori: document.getElementById('bill-kategori').value,
+                    nominal: parseInt(document.getElementById('bill-nominal').value, 10),
+                    bulan_tagihan: document.getElementById('bill-bulan').value,
+                    jatuh_tempo: document.getElementById('bill-jatuh-tempo').value,
+                    status: 'Tertagih'
+                };
+
+                const url = targetBillId ? `${API_BASE}/api/finance/bills/${targetBillId}` : `${API_BASE}/api/finance/bills`;
+                const method = targetBillId ? 'PUT' : 'POST';
+
                 const res = await fetch(url, {
                     method: method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     body: JSON.stringify(payload)
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.message || 'Error saving bill');
+                if (!res.ok) throw new Error(data.message || 'Gagal menyimpan tagihan');
                 
-                showToast(editBillModeId ? 'Tagihan berhasil diperbarui.' : 'Tagihan baru berhasil dibuat.');
+                showToast(targetBillId ? 'Tagihan berhasil diperbarui.' : 'Tagihan baru berhasil dibuat.');
                 closeBillModal();
                 await fetchBills();
                 await fetchStudentBillsSummary();
                 await fetchFinancialSummary();
             } catch (err) {
                 console.error(err);
-                showToast('Gagal menyimpan tagihan.', 'error');
+                showToast(err.message || 'Gagal menyimpan tagihan.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 
         function handleStudentSelect() {
             const rawVal = document.getElementById('form-nama').value.trim();
-            const student = studentsList.find(s => `${s.nama} (${s.id})` === rawVal || s.nama === rawVal);
+            if (!rawVal) return;
+
+            const student = studentsList.find(s => 
+                `${s.nama} (${s.id})`.toLowerCase() === rawVal.toLowerCase() || 
+                s.nama.toLowerCase() === rawVal.toLowerCase() || 
+                String(s.id).toLowerCase() === rawVal.toLowerCase()
+            );
+
             if (student) {
-                document.getElementById('form-program').value = student.program || '';
+                const programSelect = document.getElementById('form-program');
+                let targetProg = student.program || student.level || '';
+
+                if (programSelect && targetProg) {
+                    let matchingOpt = Array.from(programSelect.options).find(o => 
+                        o.value.toLowerCase() === targetProg.toLowerCase() || 
+                        o.text.toLowerCase().startsWith(targetProg.toLowerCase() + ' -') ||
+                        o.text.toLowerCase() === targetProg.toLowerCase()
+                    );
+
+                    if (!matchingOpt && student.level) {
+                        matchingOpt = Array.from(programSelect.options).find(o => 
+                            o.value.toLowerCase() === student.level.toLowerCase() || 
+                            o.text.toLowerCase().includes(student.level.toLowerCase())
+                        );
+                    }
+
+                    if (matchingOpt) {
+                        programSelect.value = matchingOpt.value;
+                    } else {
+                        const opt = document.createElement('option');
+                        opt.value = targetProg;
+                        opt.textContent = targetProg;
+                        programSelect.appendChild(opt);
+                        programSelect.value = targetProg;
+                    }
+                }
+
                 handleProgramSelect();
             }
         }
@@ -1795,44 +2017,68 @@
             const isPayingBill = !!document.getElementById('form-bill-id').value;
             if (isPayingBill || editPaymentModeId) return;
 
-            const progName = document.getElementById('form-program').value;
-            const prog = programsList.find(p => p.nama === progName);
-            if (prog && document.getElementById('form-jumlah')) {
-                document.getElementById('form-jumlah').value = prog.biaya || 150000;
+            const progSelect = document.getElementById('form-program');
+            if (!progSelect || progSelect.selectedIndex < 0) return;
+
+            const selectedOpt = progSelect.options[progSelect.selectedIndex];
+            if (!selectedOpt) return;
+
+            const priceAttr = selectedOpt.getAttribute('data-price');
+            const progName = progSelect.value;
+
+            if (priceAttr !== null && priceAttr !== undefined) {
+                const price = parseInt(priceAttr, 10);
+                if (!isNaN(price) && price > 0) {
+                    document.getElementById('form-jumlah').value = price;
+                } else {
+                    document.getElementById('form-jumlah').value = 0;
+                }
+            } else {
+                const prog = programsList.find(p => p.nama.toLowerCase() === progName.toLowerCase());
+                if (prog && document.getElementById('form-jumlah')) {
+                    document.getElementById('form-jumlah').value = parseInt(prog.biaya || 150000, 10);
+                }
             }
         }
 
         async function handleFormSubmit(e) {
             e.preventDefault();
-            let rawNama = document.getElementById('form-nama').value.trim();
-            let student_id = null;
-            let nama = rawNama;
-            if (rawNama.includes(' (')) {
-                const parts = rawNama.split(' (');
-                nama = parts[0].trim();
-                student_id = parts[1].replace(')', '').trim();
+            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.querySelector('#payment-form button[type="submit"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
             }
 
-            const selectedProgram = document.getElementById('form-program').value || 'KBEC';
-            const url = editPaymentModeId ? `${API_BASE}/api/payments/${editPaymentModeId}` : `${API_BASE}/api/payments`;
-            const method = editPaymentModeId ? 'PUT' : 'POST';
-
-            const payload = {
-                id: editPaymentModeId || undefined,
-                bill_id: document.getElementById('form-bill-id').value || null,
-                student_id,
-                nama,
-                program: selectedProgram,
-                unit: selectedProgram,
-                kategori: document.getElementById('form-kategori').value,
-                jumlah: parseInt(document.getElementById('form-jumlah').value, 10),
-                metode: document.getElementById('form-metode').value,
-                status: document.getElementById('form-status').value,
-                tanggal: document.getElementById('form-tanggal').value,
-                notes: document.getElementById('form-notes').value || ''
-            };
-
             try {
+                let rawNama = document.getElementById('form-nama').value.trim();
+                let student_id = null;
+                let nama = rawNama;
+                if (rawNama.includes(' (')) {
+                    const parts = rawNama.split(' (');
+                    nama = parts[0].trim();
+                    student_id = parts[1].replace(')', '').trim();
+                }
+
+                const selectedProgram = document.getElementById('form-program').value || 'KBEC';
+                const url = editPaymentModeId ? `${API_BASE}/api/payments/${editPaymentModeId}` : `${API_BASE}/api/payments`;
+                const method = editPaymentModeId ? 'PUT' : 'POST';
+
+                const payload = {
+                    id: editPaymentModeId || undefined,
+                    bill_id: document.getElementById('form-bill-id').value || null,
+                    student_id,
+                    nama,
+                    program: selectedProgram,
+                    unit: selectedProgram,
+                    kategori: document.getElementById('form-kategori').value,
+                    jumlah: parseInt(document.getElementById('form-jumlah').value, 10),
+                    metode: document.getElementById('form-metode').value,
+                    status: document.getElementById('form-status').value,
+                    tanggal: document.getElementById('form-tanggal').value,
+                    notes: document.getElementById('form-notes').value || ''
+                };
+
                 const res = await fetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
@@ -1849,6 +2095,12 @@
             } catch (err) {
                 console.error(err);
                 showToast(editPaymentModeId ? 'Gagal memperbarui transaksi.' : 'Gagal menyimpan transaksi pembayaran.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 
@@ -1941,6 +2193,11 @@
                 return;
             }
 
+            const rawUser = localStorage.getItem('currentUser');
+            const currentUser = JSON.parse(rawUser || '{}');
+            const userRole = (currentUser.role || currentUser.role_name || '').toLowerCase();
+            const isSuperAdmin = userRole.includes('super');
+
             data.forEach((d, idx) => {
                 const isVerified = d.status === 'Diterima';
                 const stBadge = isVerified ? '<span class="px-2.5 py-0.5 text-[10px] font-bold rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">Diterima / Verified</span>' :
@@ -1959,14 +2216,14 @@
                         <td class="py-3 px-4 text-center">
                             ${!isVerified ? `
                                 <div class="flex items-center justify-center gap-1.5">
-                                    <button onclick="verifyDeposit('${d.id}')" class="px-2.5 py-1 text-[11px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-xs flex items-center gap-1" title="Verifikasi Diterima"><i data-lucide="check" class="w-3.5 h-3.5"></i> Terima</button>
+                                    ${isSuperAdmin ? `<button onclick="verifyDeposit('${d.id}')" class="px-2.5 py-1 text-[11px] font-bold bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 shadow-xs flex items-center gap-1" title="Verifikasi Diterima"><i data-lucide="check" class="w-3.5 h-3.5"></i> Terima</button>` : ''}
                                     <button onclick="editDeposit('${d.id}')" class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit Setoran"><i data-lucide="edit-3" class="w-4 h-4"></i></button>
-                                    <button onclick="deleteDeposit('${d.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg" title="Hapus Setoran"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                    ${isSuperAdmin ? `<button onclick="deleteDeposit('${d.id}')" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg" title="Hapus Setoran"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : ''}
                                 </div>
                             ` : `
                                 <div class="flex items-center justify-center gap-2">
                                     <span class="text-xs font-bold text-emerald-600">✔ Terverifikasi</span>
-                                    <button onclick="unverifyDeposit('${d.id}')" class="px-2 py-0.5 text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-md transition-all" title="Batal Verifikasi Setoran">Batal</button>
+                                    ${isSuperAdmin ? `<button onclick="unverifyDeposit('${d.id}')" class="px-2 py-0.5 text-[10px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-md transition-all" title="Batal Verifikasi Setoran">Batal</button>` : ''}
                                 </div>
                             `}
                         </td>
@@ -2013,17 +2270,24 @@
 
         async function handleDepositSubmit(e) {
             e.preventDefault();
-            const payload = {
-                tanggal: document.getElementById('dep-tanggal').value,
-                disetorkan_oleh: document.getElementById('dep-kasir').value,
-                jumlah: parseInt(document.getElementById('dep-jumlah').value, 10),
-                catatan: document.getElementById('dep-catatan').value
-            };
-
-            const url = editDepositModeId ? `${API_BASE}/api/finance/deposits/${editDepositModeId}` : `${API_BASE}/api/finance/deposits`;
-            const method = editDepositModeId ? 'PUT' : 'POST';
+            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.querySelector('#deposit-modal button[type="submit"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+            }
 
             try {
+                const payload = {
+                    tanggal: document.getElementById('dep-tanggal').value,
+                    disetorkan_oleh: document.getElementById('dep-kasir').value,
+                    jumlah: parseInt(document.getElementById('dep-jumlah').value, 10),
+                    catatan: document.getElementById('dep-catatan').value
+                };
+
+                const url = editDepositModeId ? `${API_BASE}/api/finance/deposits/${editDepositModeId}` : `${API_BASE}/api/finance/deposits`;
+                const method = editDepositModeId ? 'PUT' : 'POST';
+
                 const res = await fetch(url, {
                     method: method,
                     headers: { 'Content-Type': 'application/json' },
@@ -2036,6 +2300,12 @@
                 await fetchFinancialSummary();
             } catch (err) {
                 showToast(editDepositModeId ? 'Gagal memperbarui setoran.' : 'Gagal menginput setoran.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 
@@ -2146,16 +2416,23 @@
 
         async function handlePettySubmit(e) {
             e.preventDefault();
-            const payload = {
-                tanggal: document.getElementById('petty-tanggal').value,
-                tipe: document.getElementById('petty-tipe').value,
-                kategori: document.getElementById('petty-kategori').value,
-                jumlah: parseInt(document.getElementById('petty-jumlah').value, 10),
-                keterangan: document.getElementById('petty-keterangan').value,
-                dicatat_oleh: 'Super Admin / Direktur'
-            };
+            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.querySelector('#petty-modal button[type="submit"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+            }
 
             try {
+                const payload = {
+                    tanggal: document.getElementById('petty-tanggal').value,
+                    tipe: document.getElementById('petty-tipe').value,
+                    kategori: document.getElementById('petty-kategori').value,
+                    jumlah: parseInt(document.getElementById('petty-jumlah').value, 10),
+                    keterangan: document.getElementById('petty-keterangan').value,
+                    dicatat_oleh: 'Super Admin / Direktur'
+                };
+
                 const res = await fetch(`${API_BASE}/api/finance/petty-cash`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -2168,6 +2445,12 @@
                 await fetchFinancialSummary();
             } catch (err) {
                 showToast('Gagal menyimpan transaksi kas kecil.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 

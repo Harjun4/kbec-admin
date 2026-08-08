@@ -10,7 +10,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/route-guard.js"></script>
     <script src="global-user.js"></script>
+    <script src="js/ui-guard.js"></script>
     <style>
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -107,7 +109,7 @@
     <div class="flex-1 pl-0 lg:pl-64 flex flex-col min-h-screen w-full min-w-0 transition-all duration-300">
 
         <!-- TOPBAR NAVBAR -->
-        <header class="h-20 bg-[#F8FAFC] flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 border-b border-slate-100">
+        <header class="h-20 bg-white/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 border-b border-slate-100 shadow-xs transition-all">
             <div class="relative w-full max-w-[200px] sm:max-w-xs lg:w-72">
                 <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
                 <input type="text" id="search-data" oninput="filterDataSiswa()" placeholder="Cari data siswa..." class="w-full pl-9 pr-4 py-2 text-xs bg-slate-100 border border-transparent rounded-xl focus:outline-none focus:bg-white focus:border-slate-200">
@@ -336,11 +338,10 @@
             </div>
 
             <!-- FOOTER MANAJEMEN -->
-            <footer class="pt-4 border-t border-slate-100 flex justify-between items-center text-[11px] font-medium text-slate-400">
-                <p>© 2024 Kampung Bahasa English Course (KBEC). All rights reserved.</p>
+            <footer class="pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center text-[11px] font-medium text-slate-400 gap-2">
+                <p>© 2026 Yayasan Ar-Rasyid Bintaro — KBEC Management System. All rights reserved.</p>
                 <div class="flex gap-4">
-                    <a href="#" class="hover:text-slate-600 transition-colors">Privacy Policy</a>
-                    <a href="#" class="hover:text-slate-600 transition-colors">Terms of Service</a>
+                    <span>Versi 2.4.0 Production</span>
                 </div>
             </footer>
         </main>
@@ -631,21 +632,28 @@
 
         async function saveMonthlyAttendance() {
             if (!activeClass || !monthlyMatrixData || !monthlyMatrixData.matrix) return;
-            let payload = [];
-            monthlyMatrixData.matrix.forEach(s => {
-                monthlyMatrixData.dates.forEach(d => {
-                    payload.push({
-                        student_id: s.id,
-                        nama: s.nama,
-                        kelas: activeClass.nama,
-                        program: activeClass.program || null,
-                        tanggal: d,
-                        status: s.attendance[d] || '-'
-                    });
-                });
-            });
+            const btn = document.querySelector('button[onclick="saveMonthlyAttendance()"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+            }
 
             try {
+                let payload = [];
+                monthlyMatrixData.matrix.forEach(s => {
+                    monthlyMatrixData.dates.forEach(d => {
+                        payload.push({
+                            student_id: s.id,
+                            nama: s.nama,
+                            kelas: activeClass.nama,
+                            program: activeClass.program || null,
+                            tanggal: d,
+                            status: s.attendance[d] || '-'
+                        });
+                    });
+                });
+
                 const res = await fetch(`${API_BASE}/api/attendance`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -659,6 +667,12 @@
             } catch (err) {
                 console.error(err);
                 showToast(`Gagal menyimpan matrix: ${err.message}`, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 
@@ -866,33 +880,40 @@
 
         async function handleEvalSubmit(e) {
             e.preventDefault();
-            const student_id = document.getElementById('eval-student-select').value;
-            let student_name = 'Siswa KBEC';
-            if (currentMonthReport && currentMonthReport.report) {
-                const found = currentMonthReport.report.find(r => String(r.nis) === String(student_id));
-                if (found) student_name = found.nama;
+            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.querySelector('#eval-modal button[type="submit"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
             }
-            if (student_name === 'Siswa KBEC' && studentsData.length > 0) {
-                const found = studentsData.find(s => String(s.id) === String(student_id));
-                if (found) student_name = found.nama;
-            }
-
-            const payload = {
-                student_id,
-                student_name,
-                class_id: activeClass ? activeClass.id : null,
-                class_name: activeClass ? activeClass.nama : '-',
-                tanggal: document.getElementById('eval-tanggal').value,
-                presensi: document.getElementById('eval-presensi').value,
-                grade: document.getElementById('eval-grade').value,
-                sb_page: document.getElementById('eval-sb').value,
-                wb_page: document.getElementById('eval-wb').value,
-                lesson: document.getElementById('eval-lesson').value,
-                material_tambahan: document.getElementById('eval-notes').value,
-                keterangan: document.getElementById('eval-notes').value
-            };
 
             try {
+                const student_id = document.getElementById('eval-student-select').value;
+                let student_name = 'Siswa KBEC';
+                if (currentMonthReport && currentMonthReport.report) {
+                    const found = currentMonthReport.report.find(r => String(r.nis) === String(student_id));
+                    if (found) student_name = found.nama;
+                }
+                if (student_name === 'Siswa KBEC' && studentsData.length > 0) {
+                    const found = studentsData.find(s => String(s.id) === String(student_id));
+                    if (found) student_name = found.nama;
+                }
+
+                const payload = {
+                    student_id,
+                    student_name,
+                    class_id: activeClass ? activeClass.id : null,
+                    class_name: activeClass ? activeClass.nama : '-',
+                    tanggal: document.getElementById('eval-tanggal').value,
+                    presensi: document.getElementById('eval-presensi').value,
+                    grade: document.getElementById('eval-grade').value,
+                    sb_page: document.getElementById('eval-sb').value,
+                    wb_page: document.getElementById('eval-wb').value,
+                    lesson: document.getElementById('eval-lesson').value,
+                    material_tambahan: document.getElementById('eval-notes').value,
+                    keterangan: document.getElementById('eval-notes').value
+                };
+
                 const res = await fetch(`${API_BASE}/api/attendance/student-grades`, {
                     method: 'POST',
                     headers: { 
@@ -911,6 +932,12 @@
             } catch (err) {
                 console.error(err);
                 showToast(`Gagal menyimpan evaluasi: ${err.message}`, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 
@@ -1055,17 +1082,24 @@
 
         async function submitAttendance() {
             if (!activeClass) return;
-            const tanggal = document.getElementById('filter-tanggal').value;
-            const payload = studentsData.map(s => ({
-                student_id: s.id,
-                nama: s.nama,
-                kelas: activeClass.nama,
-                program: activeClass.program || null,
-                tanggal,
-                status: s.status || 'Hadir'
-            }));
+            const btn = document.querySelector('#submit-modal button[onclick="submitAttendance()"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+            }
 
             try {
+                const tanggal = document.getElementById('filter-tanggal').value;
+                const payload = studentsData.map(s => ({
+                    student_id: s.id,
+                    nama: s.nama,
+                    kelas: activeClass.nama,
+                    program: activeClass.program || null,
+                    tanggal,
+                    status: s.status || 'Hadir'
+                }));
+
                 const res = await fetch(`${API_BASE}/api/attendance`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1081,6 +1115,12 @@
             } catch (err) {
                 console.error(err);
                 showToast(`Gagal menyimpan presensi: ${err.message}`, 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 

@@ -98,6 +98,16 @@ async function createStudent(req, res, next) {
             [finalId, finalNama, alamat || '', kontak || '', validProgram, level || 'Beginner', status || 'Aktif', initial || 'S', finalColor]
         );
 
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || 'Admin',
+                action: `Pendaftaran Siswa Baru (${finalNama})`,
+                program: validProgram || 'KBEC',
+                status: 'Terverifikasi'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
         res.status(201).json({
             success: true,
             id: finalId,
@@ -151,6 +161,17 @@ async function updateStudent(req, res, next) {
         }
 
         await conn.commit();
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || 'Admin',
+                action: `Pembaruan Data Siswa (${nama || oldId})`,
+                program: validProgram || '-',
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
         res.json({ success: true, id: targetId });
     } catch (err) {
         await conn.rollback();
@@ -164,6 +185,16 @@ async function deleteStudent(req, res, next) {
     const { id } = req.params;
     try {
         await db.query('DELETE FROM students WHERE id = ?', [id]);
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || 'Admin',
+                action: `Penghapusan/Nonaktif Siswa (${id})`,
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
         res.json({ success: true });
     } catch (err) {
         next(err);

@@ -11,7 +11,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/route-guard.js"></script>
     <script src="global-user.js"></script>
+    <script src="js/ui-guard.js"></script>
     <style>
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -27,8 +29,41 @@
         }
 
         @media print {
+            body {
+                background: white !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
             body>* {
                 display: none !important;
+            }
+
+            #receipt-modal {
+                display: flex !important;
+                position: fixed !important;
+                inset: 0 !important;
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                opacity: 1 !important;
+                z-index: 99999 !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+
+            #receipt-modal * {
+                visibility: visible !important;
+            }
+
+            #printable-area {
+                box-shadow: none !important;
+                border: 2px solid #000 !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                margin: 0 !important;
+                transform: none !important;
+                padding: 24px !important;
             }
 
             #print-area {
@@ -54,7 +89,7 @@
 
         <!-- HEADER SYSTEM -->
         <header
-            class="h-20 bg-[#F8FAFC] flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 border-b border-slate-100">
+            class="h-20 bg-white/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 border-b border-slate-100 shadow-xs transition-all">
             <div class="flex items-center gap-3">
                 <div class="text-xs text-slate-400 font-medium">
                     Pages / <span class="text-slate-700 font-semibold">Pusat Laporan & Analitik</span>
@@ -149,32 +184,66 @@
                     <input type="date" id="filter-end-date" onchange="applyReportFilter()"
                         class="w-full text-xs font-semibold text-slate-700 border border-slate-200 p-2 rounded-xl bg-slate-50/50 focus:outline-none focus:border-blue-500">
                 </div>
-                <div>
-                    <label
-                        class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Metode
-                        Pembayaran</label>
-                    <select id="filter-report-metode" onchange="applyReportFilter()"
-                        class="w-full text-xs font-semibold text-slate-700 border border-slate-200 p-2 rounded-xl bg-slate-50/50 focus:outline-none focus:border-blue-500">
-                        <option value="Semua">Semua Metode</option>
-                        <option value="Tunai">Tunai</option>
-                        <option value="Non-Tunai">Non-Tunai (Transfer & QRIS)</option>
-                        <option value="Transfer">Transfer</option>
-                        <option value="QRIS">QRIS</option>
-                    </select>
+                <!-- FINANCE FILTERS (Metode & Status) -->
+                <div id="finance-filters-wrapper" class="contents">
+                    <div>
+                        <label
+                            class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Metode
+                            Pembayaran</label>
+                        <select id="filter-report-metode" onchange="applyReportFilter()"
+                            class="w-full text-xs font-semibold text-slate-700 border border-slate-200 p-2 rounded-xl bg-slate-50/50 focus:outline-none focus:border-blue-500">
+                            <option value="Semua">Semua Metode</option>
+                            <option value="Tunai">Tunai</option>
+                            <option value="Non-Tunai">Non-Tunai (Transfer & QRIS)</option>
+                            <option value="Transfer">Transfer</option>
+                            <option value="QRIS">QRIS</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label
+                            class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Status
+                            Transaksi</label>
+                        <select id="filter-report-status" onchange="applyReportFilter()"
+                            class="w-full text-xs font-semibold text-slate-700 border border-slate-200 p-2 rounded-xl bg-slate-50/50 focus:outline-none focus:border-blue-500">
+                            <option value="Semua">Semua Status</option>
+                            <option value="Lunas">Lunas</option>
+                            <option value="Tertagih">Tertagih</option>
+                            <option value="Tunggakan">Tunggakan</option>
+                            <option value="Disetorkan">Disetorkan</option>
+                            <option value="Diterima">Diterima</option>
+                        </select>
+                    </div>
                 </div>
-                <div>
-                    <label
-                        class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Status
-                        Transaksi</label>
-                    <select id="filter-report-status" onchange="applyReportFilter()"
-                        class="w-full text-xs font-semibold text-slate-700 border border-slate-200 p-2 rounded-xl bg-slate-50/50 focus:outline-none focus:border-blue-500">
-                        <option value="Semua">Semua Status</option>
-                        <option value="Lunas">Lunas</option>
-                        <option value="Tertagih">Tertagih</option>
-                        <option value="Tunggakan">Tunggakan</option>
-                        <option value="Disetorkan">Disetorkan</option>
-                        <option value="Diterima">Diterima</option>
-                    </select>
+
+                <!-- ACADEMIC FILTERS FOR TAB KINERJA (Unit & Grade) -->
+                <div id="academic-filters-wrapper" class="contents hidden">
+                    <div>
+                        <label
+                            class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Unit / Program</label>
+                        <select id="filter-report-unit" onchange="applyReportFilter()"
+                            class="w-full text-xs font-semibold text-slate-700 border border-slate-200 p-2 rounded-xl bg-slate-50/50 focus:outline-none focus:border-blue-500">
+                            <option value="Semua">Semua Unit</option>
+                            <option value="KBEC">KBEC Reguler</option>
+                            <option value="TK">TK Ar-Rasyiid</option>
+                            <option value="Bimbel">Bimbel</option>
+                            <option value="Calistung">Calistung</option>
+                            <option value="Arabin">Arabin (Beasiswa)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label
+                            class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Grade / Level</label>
+                        <select id="filter-report-grade" onchange="applyReportFilter()"
+                            class="w-full text-xs font-semibold text-slate-700 border border-slate-200 p-2 rounded-xl bg-slate-50/50 focus:outline-none focus:border-blue-500">
+                            <option value="Semua">Semua Grade</option>
+                            <option value="Grade 1A">Grade 1A</option>
+                            <option value="Grade 1B">Grade 1B</option>
+                            <option value="Beginner">Beginner</option>
+                            <option value="Elementary">Elementary</option>
+                            <option value="Intermediate">Intermediate</option>
+                            <option value="Advanced">Advanced</option>
+                        </select>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">Cari
@@ -289,6 +358,75 @@
     <!-- TOAST CONTAINER -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-3 pointer-events-none"></div>
 
+    <!-- CETAK KUITANSI / RECEIPT MODAL -->
+    <div id="receipt-modal"
+        class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden transform scale-95 transition-transform duration-300 border border-slate-200 p-8"
+            id="printable-area">
+            <div class="border-b-2 border-slate-800 pb-4 mb-6 flex justify-between items-start">
+                <div>
+                    <h2 class="text-xl font-extrabold text-slate-900 uppercase tracking-wide">YAYASAN AR-RASYID BINTARO</h2>
+                    <p class="text-xs font-bold text-slate-600">Lembaga Kursus & Pelatihan Bahasa Inggris Terpadu</p>
+                    <p class="text-[11px] text-slate-400">Jl. Garuda raya no.108 A, Komplek Pajak, Jurang Mangu Timur•</p>
+                    <p class="text-[11px] text-slate-400">Telp: 0857-1013-6660</p>
+                </div>
+                <div class="text-right">
+                    <span class="px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-extrabold rounded-lg uppercase tracking-wider">KUITANSI RESMI</span>
+                    <p id="rc-no" class="text-xs font-mono font-bold text-blue-600 mt-2">INV-202607-001</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 text-xs mb-6 bg-slate-50 p-4 rounded-xl border border-slate-200/60">
+                <div>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">Telah Diterima Dari:</p>
+                    <p id="rc-nama" class="font-extrabold text-slate-900 text-sm">Nama Siswa</p>
+                    <p id="rc-nis" class="font-mono text-slate-500 text-[11px]">ID: KBEC-2026-001</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-[10px] font-bold text-slate-400 uppercase">Tanggal Transaksi:</p>
+                    <p id="rc-tanggal" class="font-bold text-slate-800">26 Juli 2026</p>
+                    <p id="rc-metode" class="text-slate-500">Metode: Tunai</p>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <table class="w-full text-xs text-left border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-300 text-[10px] font-extrabold text-slate-500 uppercase">
+                            <th class="py-2">Deskripsi Pembayaran</th>
+                            <th class="py-2 text-center">Unit / Program</th>
+                            <th class="py-2 text-right">Jumlah (Rp)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        <tr>
+                            <td id="rc-kategori" class="py-3 font-bold text-slate-800">Pembayaran SPP Bulanan</td>
+                            <td id="rc-program" class="py-3 text-center font-semibold text-slate-600">KBEC Elementary</td>
+                            <td id="rc-jumlah" class="py-3 text-right font-extrabold text-slate-900">Rp 150.000</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex justify-between items-end pt-4 border-t border-slate-200">
+                <div>
+                    <p class="text-[10px] text-slate-400 italic">Simpan kuitansi ini sebagai bukti pembayaran sah.</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-[11px] font-bold text-slate-500 mb-8">Kasir / Admin KBEC</p>
+                    <p class="text-xs font-extrabold text-slate-900 border-t border-slate-400 pt-1">( Admin Keuangan )</p>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3 print:hidden">
+                <button onclick="closeReceiptModal()" class="px-4 py-2 text-xs font-bold bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200">Tutup</button>
+                <button onclick="window.print()" class="px-4 py-2 text-xs font-bold bg-[#0A58CA] text-white rounded-xl hover:bg-blue-700 shadow-md flex items-center gap-1.5">
+                    <i data-lucide="printer" class="w-4 h-4"></i> Cetak Kuitansi
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
         let activeTab = 'pembayaran';
@@ -312,7 +450,12 @@
         };
 
         function switchReportTab(tabName) {
-            const cleanTab = (tabName || 'pembayaran').toLowerCase().trim().replace(/[^a-z0-9_]/g, '');
+            const cleanTab = (tabName || 'pembayaran').toLowerCase().trim();
+            if (cleanTab === 'kehadiran') {
+                window.location.href = 'rekap-kehadiran.html';
+                return;
+            }
+
             activeTab = cleanTab;
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             const activeBtn = document.getElementById(`tab-${cleanTab}`);
@@ -328,13 +471,33 @@
                 window.renderDynamicGlobalSidebar();
             }
 
+            updateFilterVisibility();
             loadActiveReportData();
         }
+        window.switchReportTab = switchReportTab;
+
+        function updateFilterVisibility() {
+            const finWrapper = document.getElementById('finance-filters-wrapper');
+            const acadWrapper = document.getElementById('academic-filters-wrapper');
+
+            if (activeTab === 'kinerja') {
+                if (finWrapper) finWrapper.classList.add('hidden');
+                if (acadWrapper) acadWrapper.classList.remove('hidden');
+            } else {
+                if (finWrapper) finWrapper.classList.remove('hidden');
+                if (acadWrapper) acadWrapper.classList.add('hidden');
+            }
+        }
+
+        const getVal = (id, fallback = '') => {
+            const el = document.getElementById(id);
+            return el ? el.value : fallback;
+        };
 
         async function loadActiveReportData() {
             showToast(`Memuat Laporan ${activeTab.toUpperCase()}...`);
-            const startDate = document.getElementById('filter-start-date').value;
-            const endDate = document.getElementById('filter-end-date').value;
+            const startDate = getVal('filter-start-date');
+            const endDate = getVal('filter-end-date');
 
             try {
                 if (activeTab === 'pembayaran') {
@@ -411,25 +574,86 @@
                     const attData = await res.json();
                     rawReportData = attData.report || [];
                 } else if (activeTab === 'kinerja') {
-                    const bulan = startDate ? startDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
-                    const res = await fetch(`${API_BASE}/api/attendance/performance-report?bulan=${bulan}`);
+                    console.log("Fetching Student Performance Report...");
+                    let perfUrl = `${API_BASE}/api/reports/student-performance?`;
+                    let queryParams = [];
+                    if (startDate) queryParams.push(`startDate=${startDate}`);
+                    if (endDate) queryParams.push(`endDate=${endDate}`);
+
+                    const filterUnit = getVal('filter-report-unit', 'Semua');
+                    const filterGrade = getVal('filter-report-grade', 'Semua');
+                    const searchVal = getVal('report-search-input');
+
+                    if (filterUnit && filterUnit !== 'Semua') queryParams.push(`unit=${encodeURIComponent(filterUnit)}`);
+                    if (filterGrade && filterGrade !== 'Semua') queryParams.push(`grade=${encodeURIComponent(filterGrade)}`);
+                    if (searchVal) queryParams.push(`search=${encodeURIComponent(searchVal)}`);
+
+                    perfUrl += queryParams.join('&');
+                    
+                    const token = localStorage.getItem('authToken');
+                    const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                    const res = await fetch(perfUrl, { headers });
+                    console.log("Performance Response Status:", res.status);
                     const perf = await res.json();
-                    rawReportData = perf.report || [];
+                    console.log("Performance Data Received:", perf);
+
+                    if (!res.ok || (perf.success === false)) {
+                        throw new Error(perf.message || `HTTP ${res.status}`);
+                    }
+                    rawReportData = perf.data || perf.report || [];
                 }
 
                 applyReportFilter();
             } catch (err) {
-                console.error(err);
+                console.error("Fetch Error Detail:", err);
                 showToast(`Gagal memuat data laporan ${activeTab}.`, 'error');
             }
         }
+        window.loadActiveReportData = loadActiveReportData;
 
         function applyReportFilter() {
-            const startDate = document.getElementById('filter-start-date').value;
-            const endDate = document.getElementById('filter-end-date').value;
-            const filterMetode = document.getElementById('filter-report-metode').value;
-            const filterStatus = document.getElementById('filter-report-status').value;
-            const searchVal = document.getElementById('report-search-input').value.toLowerCase().trim();
+            const startDate = getVal('filter-start-date');
+            const endDate = getVal('filter-end-date');
+            const searchVal = getVal('report-search-input').toLowerCase().trim();
+
+            if (activeTab === 'kinerja') {
+                const filterUnit = getVal('filter-report-unit', 'Semua');
+                const filterGrade = getVal('filter-report-grade', 'Semua');
+
+                filteredReportData = rawReportData.filter(item => {
+                    const itemDate = item.tanggal || item.tgl;
+                    if (itemDate) {
+                        if (startDate && itemDate < startDate) return false;
+                        if (endDate && itemDate > endDate) return false;
+                    }
+
+                    if (filterUnit && filterUnit !== 'Semua') {
+                        const u = (item.unit || item.program || '').toLowerCase();
+                        if (!u.includes(filterUnit.toLowerCase())) return false;
+                    }
+
+                    if (filterGrade && filterGrade !== 'Semua') {
+                        const g = (item.grade || item.level || item.program || '').toLowerCase();
+                        if (!g.includes(filterGrade.toLowerCase())) return false;
+                    }
+
+                    if (searchVal) {
+                        const str = JSON.stringify(item).toLowerCase();
+                        if (!str.includes(searchVal)) return false;
+                    }
+
+                    return true;
+                });
+
+                renderKPIs();
+                renderTable();
+                return;
+            }
+
+            const filterMetode = getVal('filter-report-metode', 'Semua');
+            const filterStatus = getVal('filter-report-status', 'Semua');
 
             filteredReportData = rawReportData.filter(item => {
                 // Filter tanggal
@@ -468,6 +692,7 @@
             renderKPIs();
             renderTable();
         }
+        window.applyReportFilter = applyReportFilter;
 
         function renderKPIs() {
             const card1Title = document.getElementById('kpi-card1-title');
@@ -539,12 +764,16 @@
                 card3Title.innerText = 'Status Aktif';
                 card3Val.innerText = `${activeCount} Siswa Aktif`;
             } else if (activeTab === 'kinerja') {
+                const totalSiswa = filteredReportData.length;
+                const avgPct = totalSiswa > 0 ? (filteredReportData.reduce((acc, r) => acc + (r.persentase || 0), 0) / totalSiswa).toFixed(1) : 0;
+                const notesCount = filteredReportData.filter(r => (r.catatan && r.catatan !== '-') || (r.keterangan && r.keterangan !== '-')).length;
+
                 card1Title.innerText = 'Siswa Dievaluasi';
-                card1Val.innerText = `${filteredReportData.length} Siswa`;
-                card2Title.innerText = 'Rata-rata Grade';
-                card2Val.innerText = 'Grade 1A - Excellent';
-                card3Title.innerText = 'Catatan Khusus';
-                card3Val.innerText = `${filteredReportData.filter(r => r.keterangan && r.keterangan !== '-').length} Siswa`;
+                card1Val.innerText = `${totalSiswa} Siswa`;
+                card2Title.innerText = 'Rata-rata Presensi';
+                card2Val.innerText = `${avgPct}% Kehadiran`;
+                card3Title.innerText = 'Catatan Progress';
+                card3Val.innerText = `${notesCount} Catatan Aktif`;
             }
         }
 
@@ -598,9 +827,9 @@
                             <td class="py-4 px-6"><span class="text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${stClass}">${p.status || 'Lunas'}</span></td>
                             <td class="py-4 px-6 font-medium text-slate-500">${p.tanggal}</td>
                             <td class="py-4 px-6 text-center">
-                                <a href="pembayaran.html#receipt-${p.id}" class="px-2.5 py-1 bg-blue-50 text-[#0A58CA] hover:bg-blue-100 rounded-lg text-xs font-bold inline-flex items-center gap-1 transition-colors">
+                                <button onclick="openReceiptModal('${p.id}')" class="px-2.5 py-1 bg-blue-50 text-[#0A58CA] hover:bg-blue-100 rounded-lg text-xs font-bold inline-flex items-center gap-1 transition-colors">
                                     <i data-lucide="printer" class="w-3.5 h-3.5"></i> Kuitansi
-                                </a>
+                                </button>
                             </td>
                         </tr>
                     `;
@@ -741,27 +970,49 @@
                 head.innerHTML = `
                     <tr class="bg-slate-50/80 border-b border-slate-100 text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
                         <th class="py-3.5 px-6">NO</th>
-                        <th class="py-3.5 px-6">NIS</th>
-                        <th class="py-3.5 px-6">NAMA LENGKAP</th>
-                        <th class="py-3.5 px-6">NAMA PANGGILAN</th>
+                        <th class="py-3.5 px-6">NIS & NAMA SISWA</th>
+                        <th class="py-3.5 px-6">UNIT / PROGRAM</th>
                         <th class="py-3.5 px-6">GRADE</th>
-                        <th class="py-3.5 px-6">LESSON</th>
+                        <th class="py-3.5 px-6">LESSON / MATERI</th>
+                        <th class="py-3.5 px-6 min-w-[180px]">KEHADIRAN & PERSENTASE</th>
                         <th class="py-3.5 px-6">MATERIAL TAMBAHAN</th>
-                        <th class="py-3.5 px-6">KETERANGAN</th>
+                        <th class="py-3.5 px-6">CATATAN / KETERANGAN</th>
                     </tr>
                 `;
 
                 filteredReportData.forEach((r, idx) => {
+                    const pct = r.persentase || 0;
+                    let barColor = 'bg-emerald-500';
+                    let badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                    if (pct < 50) {
+                        barColor = 'bg-rose-500';
+                        badgeColor = 'bg-rose-50 text-rose-700 border-rose-200';
+                    } else if (pct < 75) {
+                        barColor = 'bg-amber-500';
+                        badgeColor = 'bg-amber-50 text-amber-700 border-amber-200';
+                    }
+
                     body.innerHTML += `
                         <tr class="hover:bg-slate-50/60 transition-colors">
                             <td class="py-4 px-6 font-bold text-slate-400">${idx + 1}</td>
-                            <td class="py-4 px-6 font-mono font-bold text-[#0A58CA]">${r.nis}</td>
-                            <td class="py-4 px-6 font-bold text-slate-900">${r.nama}</td>
-                            <td class="py-4 px-6 font-semibold text-slate-700">${r.nama_panggilan}</td>
-                            <td class="py-4 px-6 font-bold text-blue-600">${r.grade}</td>
-                            <td class="py-4 px-6 font-medium text-slate-700">${r.lesson}</td>
-                            <td class="py-4 px-6 font-medium text-slate-500">${r.material_tambahan}</td>
-                            <td class="py-4 px-6 font-medium text-slate-600">${r.keterangan}</td>
+                            <td class="py-4 px-6">
+                                <div class="font-extrabold text-slate-900">${r.nama}</div>
+                                <div class="text-[11px] text-slate-400 font-mono">${r.nis}</div>
+                            </td>
+                            <td class="py-4 px-6 font-bold text-slate-700">${r.unit || r.program}</td>
+                            <td class="py-4 px-6 font-extrabold text-[#0A58CA]">${r.grade || 'Grade 1A'}</td>
+                            <td class="py-4 px-6 font-semibold text-slate-700">${r.lesson || '-'}</td>
+                            <td class="py-4 px-6">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs font-bold text-slate-800">${r.total_hadir || 0}/${r.total_sesi || 0} Sesi</span>
+                                    <span class="text-[10px] font-extrabold px-1.5 py-0.5 rounded border ${badgeColor}">${pct}%</span>
+                                </div>
+                                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                    <div class="${barColor} h-1.5 rounded-full transition-all duration-500" style="width: ${Math.min(pct, 100)}%"></div>
+                                </div>
+                            </td>
+                            <td class="py-4 px-6 font-medium text-slate-500">${r.material_tambahan || '-'}</td>
+                            <td class="py-4 px-6 font-medium text-slate-600">${r.catatan || r.keterangan || '-'}</td>
                         </tr>
                     `;
                 });
@@ -921,6 +1172,72 @@
                 toast.style.opacity = '0';
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
+        }
+
+        async function openReceiptModal(id) {
+            try {
+                let pay = (typeof filteredReportData !== 'undefined' && Array.isArray(filteredReportData)) ? filteredReportData.find(p => p.id === id) : null;
+                let nis = pay ? (pay.student_id || pay.nis || '-') : '-';
+
+                try {
+                    const API_BASE = window.location.origin;
+                    const res = await fetch(`${API_BASE}/api/payments/receipt/${id}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        const r = data.receipt || data;
+                        if (r.transaksi) {
+                            pay = {
+                                id: r.receipt_no || id,
+                                nama: r.siswa?.nama || pay?.nama || '-',
+                                student_id: r.siswa?.id || nis,
+                                program: r.siswa?.program || pay?.program || 'KBEC',
+                                kategori: r.transaksi?.kategori || pay?.kategori || 'SPP Bulanan',
+                                jumlah: r.transaksi?.jumlah || pay?.jumlah || 0,
+                                metode: r.transaksi?.metode || pay?.metode || 'Tunai',
+                                tanggal: r.transaksi?.tanggal || pay?.tanggal || '-'
+                            };
+                            nis = r.siswa?.id || nis;
+                        }
+                    }
+                } catch (e) { console.warn('Fetch receipt error:', e); }
+
+                if (!pay) {
+                    showToast('Data kuitansi tidak ditemukan.', 'error');
+                    return;
+                }
+
+                document.getElementById('rc-no').innerText = pay.id || id;
+                document.getElementById('rc-nama').innerText = pay.nama || 'Siswa KBEC';
+                document.getElementById('rc-nis').innerText = `ID: ${pay.student_id || nis}`;
+                document.getElementById('rc-tanggal').innerText = pay.tanggal || new Date().toISOString().slice(0, 10);
+                document.getElementById('rc-metode').innerText = `Metode: ${pay.metode || 'Tunai'}`;
+                document.getElementById('rc-kategori').innerText = `Pembayaran ${pay.kategori || 'SPP Bulanan'}`;
+                document.getElementById('rc-program').innerText = pay.program || pay.unit || 'KBEC';
+                document.getElementById('rc-jumlah').innerText = `Rp ${parseInt(pay.jumlah || 0, 10).toLocaleString('id-ID')}`;
+
+                const modal = document.getElementById('receipt-modal');
+                if (modal) {
+                    modal.classList.remove('hidden');
+                    setTimeout(() => {
+                        modal.classList.remove('opacity-0');
+                        const printArea = modal.querySelector('#printable-area') || modal.querySelector('div');
+                        if (printArea) printArea.classList.remove('scale-95');
+                    }, 10);
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Gagal memuat detail kuitansi.', 'error');
+            }
+        }
+
+        function closeReceiptModal() {
+            const modal = document.getElementById('receipt-modal');
+            if (modal) {
+                modal.classList.add('opacity-0');
+                const printArea = modal.querySelector('#printable-area') || modal.querySelector('div');
+                if (printArea) printArea.classList.add('scale-95');
+                setTimeout(() => modal.classList.add('hidden'), 300);
+            }
         }
     </script>
 </body>

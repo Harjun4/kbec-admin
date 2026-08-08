@@ -1,5 +1,9 @@
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'kbec_jwt_secret_key_2026_super_secure';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('❌ FATAL: JWT_SECRET is not set in environment variables.');
+  process.exit(1);
+}
 
 function generateToken(user) {
     if (!user || !user.id) {
@@ -21,9 +25,15 @@ function generateToken(user) {
 function requireAuth(req, res, next) {
     const authHeader = req.headers['authorization'] || req.headers['x-auth-token'];
     let token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
+    
+    if (!token && req.cookies && req.cookies.token) {
+        token = req.cookies.token;
+    }
+
     if (!token) {
         return res.status(401).json({ success: false, message: 'Akses ditolak. Token autentikasi tidak valid atau belum login.' });
     }
+
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         req.user = decoded;

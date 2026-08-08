@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS attendance (
     kelas TEXT,
     inisial TEXT
 );
-  -- Foreign Key: student_id -> students(id)
 
 CREATE TABLE IF NOT EXISTS bills (
     id VARCHAR(255) PRIMARY KEY,
@@ -47,14 +46,12 @@ CREATE TABLE IF NOT EXISTS bills (
     jatuh_tempo DATE,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
-  -- Foreign Key: student_id -> students(id)
 
 CREATE TABLE IF NOT EXISTS class_students (
     class_id BIGINT NOT NULL,
     student_id VARCHAR(255) NOT NULL,
     PRIMARY KEY (class_id, student_id)
 );
-  -- Foreign Keys: class_id -> classes(id), student_id -> students(id)
 
 CREATE TABLE IF NOT EXISTS classes (
     id VARCHAR(255) PRIMARY KEY,
@@ -62,6 +59,7 @@ CREATE TABLE IF NOT EXISTS classes (
     program VARCHAR(255),
     unit VARCHAR(255),
     pengajar VARCHAR(255),
+    teacher_id VARCHAR(255),
     jadwal VARCHAR(255),
     jam VARCHAR(255),
     ruangan VARCHAR(255),
@@ -113,7 +111,6 @@ CREATE TABLE IF NOT EXISTS inventory_mutations (
     user_name VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
-  -- Foreign Key: item_id -> inventory(id)
 
 CREATE TABLE IF NOT EXISTS payments (
     id VARCHAR(255) PRIMARY KEY,
@@ -131,7 +128,6 @@ CREATE TABLE IF NOT EXISTS payments (
     bill_id TEXT,
     notes TEXT
 );
-  -- Foreign Keys: student_id -> students(id), bill_id -> bills(id)
 
 CREATE TABLE IF NOT EXISTS performance_reports (
     id INT PRIMARY KEY DEFAULT nextval('performance_reports_id_seq'::regclass),
@@ -148,7 +144,6 @@ CREATE TABLE IF NOT EXISTS performance_reports (
     status VARCHAR(255) DEFAULT 'Terbit'::character varying,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
-  -- Foreign Key: student_id -> students(id)
 
 CREATE TABLE IF NOT EXISTS petty_cash (
     id INT PRIMARY KEY DEFAULT nextval('petty_cash_id_seq'::regclass),
@@ -205,7 +200,6 @@ CREATE TABLE IF NOT EXISTS student_grades (
     wb_page VARCHAR(255),
     keterangan TEXT
 );
-  -- Foreign Keys: student_id -> students(id), class_id -> classes(id)
 
 CREATE TABLE IF NOT EXISTS students (
     id VARCHAR(255) PRIMARY KEY,
@@ -235,7 +229,6 @@ CREATE TABLE IF NOT EXISTS teacher_checkins (
     status VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
-  -- Foreign Keys: teacher_id -> teachers(id), class_id -> classes(id)
 
 CREATE TABLE IF NOT EXISTS teachers (
     id VARCHAR(255) PRIMARY KEY,
@@ -258,10 +251,16 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(255),
     password VARCHAR(255) NOT NULL,
     name VARCHAR(255),
-    role VARCHAR(255) DEFAULT 'admin'::character varying,
+    role VARCHAR(255) DEFAULT 'Pending'::character varying,
+    status VARCHAR(255) DEFAULT 'Pending'::character varying,
+    teacher_id VARCHAR(255),
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     email TEXT,
     nis TEXT,
-    PRIMARY KEY (id, id)
+    PRIMARY KEY (id)
 );
 
+-- Schema Migration Additions
+ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(255) DEFAULT 'Pending';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS teacher_id VARCHAR(255);
+ALTER TABLE classes ADD COLUMN IF NOT EXISTS teacher_id VARCHAR(255);

@@ -22,7 +22,7 @@ router.post('/deposits', requireAuth, requireRole('Super Admin', 'Admin'), finan
 router.put('/deposits/:id', requireAuth, requireRole('Super Admin', 'Admin'), financeController.updateDeposit);
 router.put('/deposits/:id/verify', requireAuth, requireRole('Super Admin'), financeController.verifyDeposit);
 router.put('/deposits/:id/unverify', requireAuth, requireRole('Super Admin'), financeController.unverifyDeposit);
-router.delete('/deposits/:id', requireAuth, requireRole('Super Admin', 'Admin'), financeController.deleteDeposit);
+router.delete('/deposits/:id', requireAuth, requireRole('Super Admin'), financeController.deleteDeposit);
 
 router.get('/petty-cash', requireAuth, financeController.getPettyCash);
 router.post('/petty-cash', requireAuth, requireRole('Super Admin', 'Admin'), financeController.createPettyCash);

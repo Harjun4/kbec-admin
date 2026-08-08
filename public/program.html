@@ -10,7 +10,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/route-guard.js"></script>
     <script src="global-user.js"></script>
+    <script src="js/ui-guard.js"></script>
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
         ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -35,7 +37,7 @@
     <div class="flex-1 pl-0 lg:pl-64 min-h-screen flex flex-col justify-between w-full min-w-0 transition-all duration-300">
         <div>
             <!-- HEADER BAR -->
-            <header class="h-20 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-20">
+            <header class="h-20 bg-white/95 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 shadow-xs transition-all">
                 <div class="relative w-full max-w-[200px] sm:max-w-xs lg:w-96">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
                         <i data-lucide="search" class="w-4 h-4"></i>
@@ -134,12 +136,10 @@
         </div>
 
         <!-- FOOTER -->
-        <footer class="p-8 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-100 mt-12 font-medium bg-white">
-            <p>© 2026 Kampung Bahasa English Course (KBEC). Hak Cipta Dilindungi.</p>
+        <footer class="px-6 sm:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-slate-400 border-t border-slate-100 mt-12 font-medium bg-white">
+            <p>© 2026 Yayasan Ar-Rasyid Bintaro — KBEC Management System. All rights reserved.</p>
             <div class="flex gap-4">
-                <a href="#" class="hover:text-slate-600 transition-colors">Kebijakan Privasi</a>
-                <a href="#" class="hover:text-slate-600 transition-colors">Syarat & Ketentuan</a>
-                <a href="#" class="hover:text-slate-600 transition-colors">Pusat Bantuan</a>
+                <span>Versi 2.4.0 Production</span>
             </div>
         </footer>
     </div>
@@ -401,18 +401,25 @@
 
         async function saveProgram(e) {
             e.preventDefault();
-            const id = document.getElementById('input-program-id').value;
-            const nama = document.getElementById('input-nama').value.trim();
-            const cat = document.getElementById('input-filter-cat').value;
-            const level = document.getElementById('input-level').value.trim();
-            const deskripsi = document.getElementById('input-deskripsi').value.trim();
-            const biaya = document.getElementById('input-biaya').value;
-            const durasi = document.getElementById('input-durasi').value.trim();
-            const sesi = document.getElementById('input-sesi').value.trim();
-
-            const payload = { nama, cat, level, deskripsi, biaya, durasi, sesi };
+            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.querySelector('#modal-program button[type="submit"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+            }
 
             try {
+                const id = document.getElementById('input-program-id').value;
+                const nama = document.getElementById('input-nama').value.trim();
+                const cat = document.getElementById('input-filter-cat').value;
+                const level = document.getElementById('input-level').value.trim();
+                const deskripsi = document.getElementById('input-deskripsi').value.trim();
+                const biaya = document.getElementById('input-biaya').value;
+                const durasi = document.getElementById('input-durasi').value.trim();
+                const sesi = document.getElementById('input-sesi').value.trim();
+
+                const payload = { nama, cat, level, deskripsi, biaya, durasi, sesi };
+
                 if (!id) {
                     const res = await fetch(`${API_BASE}/api/programs`, {
                         method: 'POST',
@@ -437,6 +444,12 @@
             } catch (err) {
                 console.error(err);
                 showToast(err.message || 'Gagal menyimpan program ke database.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 

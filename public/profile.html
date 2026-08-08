@@ -5,15 +5,19 @@
     <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="KBEC Course Management Admin System">
-    <title>KBEC Admin - Pengaturan Profil</title>
+    <meta name="description" content="KBEC Course Management Admin System - Pengaturan Profil Saya">
+    <title>KBEC Admin - Pengaturan Profil Saya</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/route-guard.js"></script>
+    <script src="global-user.js"></script>
+    <script src="js/ui-guard.js"></script>
     <style>
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #F8FAFC;
         }
 
         ::-webkit-scrollbar {
@@ -37,85 +41,12 @@
     <!-- Wadah Toast Notifikasi -->
     <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-3 pointer-events-none"></div>
 
-    <!-- SIDEBAR -->
-    <aside
-        class="w-64 bg-white border-r border-slate-100 flex flex-col justify-between fixed h-full z-30 shadow-[4px_0_24px_rgba(0,0,0,0.01)]">
-        <div>
-            <div class="p-5 flex items-center gap-3">
-                <div class="bg-[#0A58CA] text-white p-2 rounded-xl flex items-center justify-center">
-                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
-                </div>
-                <div>
-                    <h1 class="font-bold text-slate-900 text-sm leading-tight">KBEC Admin</h1>
-                    <p class="text-[10px] text-slate-400 font-medium">Course Management</p>
-                </div>
-            </div>
-
-            <nav class="px-3 py-2 space-y-0.5">
-                <a href="dashboard.html"
-                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
-                    <i data-lucide="layout-dashboard" class="w-4 h-4"></i> <span>Dashboard</span>
-                </a>
-                <a href="siswa.html"
-                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
-                    <i data-lucide="users" class="w-4 h-4"></i> <span>Data Siswa</span>
-                </a>
-                <a href="pengajar.html"
-                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
-                    <i data-lucide="user-check" class="w-4 h-4"></i> <span>Data Pengajar</span>
-                </a>
-                <a href="kelas.html"
-                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
-                    <i data-lucide="book-open" class="w-4 h-4"></i> <span>Data Kelas</span>
-                </a>
-                <a href="program.html"
-                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
-                    <i data-lucide="layers" class="w-4 h-4"></i> <span>Program Kursus</span>
-                </a>
-                <a href="jadwal.html"
-                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
-                    <i data-lucide="calendar" class="w-4 h-4"></i> <span>Jadwal</span>
-                </a>
-                <a href="absensi.html"
-                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
-                    <i data-lucide="check-square" class="w-4 h-4"></i> <span>Absensi</span>
-                </a>
-                <a href="pembayaran.html"
-                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
-                    <i data-lucide="credit-card" class="w-4 h-4"></i> <span>Pembayaran</span>
-                </a>
-                <a href="laporan.html"
-                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
-                    <i data-lucide="file-text" class="w-4 h-4"></i> <span>Laporan</span>
-                </a>
-
-                <hr class="border-slate-100 my-2 mx-4">
-                <a href="profile.html"
-                    class="w-full flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-600 rounded-xl hover:bg-slate-50">
-                    <i data-lucide="user-cog" class="w-4 h-4"></i> <span>Manajemen User</span>
-                </a>
-                <a href="profile.html"
-                    class="relative w-full flex items-center gap-3 px-4 py-2.5 text-xs font-bold rounded-xl bg-[#0A58CA]/5 text-[#0A58CA]">
-                    <span class="absolute left-0 top-2 bottom-2 w-1 bg-[#0A58CA] rounded-r-md"></span>
-                    <i data-lucide="user" class="w-4 h-4"></i> <span>Profile</span>
-                </a>
-            </nav>
-        </div>
-
-        <div class="p-4">
-            <a href="#" onclick="window.handleLogout(); return false;"
-                class="flex items-center gap-3 px-4 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">
-                <i data-lucide="log-out" class="w-4 h-4 text-rose-500"></i> <span>Logout</span>
-            </a>
-        </div>
-    </aside>
-
-    <!-- CONTENT CONTAINER -->
+    <!-- MAIN CONTAINER -->
     <div class="flex-1 pl-0 lg:pl-64 flex flex-col min-h-screen w-full min-w-0 transition-all duration-300">
 
         <!-- HEADER -->
         <header
-            class="h-20 bg-[#F8FAFC] flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 border-b border-slate-100">
+            class="h-20 bg-white/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 border-b border-slate-100 shadow-xs transition-all">
             <div class="relative w-full max-w-[200px] sm:max-w-xs lg:w-72">
                 <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
                 <input type="text" placeholder="Pencarian umum..." disabled
@@ -125,12 +56,12 @@
             <div class="flex items-center gap-2 sm:gap-4">
                 <div class="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-slate-100">
                     <div class="text-right hidden sm:block">
-                        <h4 id="header-user-name" class="text-xs font-bold text-slate-900 leading-tight">Admin KBEC</h4>
-                        <p class="text-[9px] text-slate-400 font-bold tracking-wider uppercase">Super Administrator</p>
+                        <h4 id="header-user-name" class="text-xs font-bold text-slate-900 leading-tight">User KBEC</h4>
+                        <p id="header-user-role" class="text-[9px] text-slate-400 font-bold tracking-wider uppercase">User</p>
                     </div>
                     <div id="header-user-badge"
                         class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 border border-blue-200/20 flex items-center justify-center font-bold text-xs text-white shadow-sm">
-                        AK
+                        US
                     </div>
                 </div>
             </div>
@@ -142,13 +73,12 @@
                 <!-- Welcome Section -->
                 <div class="flex flex-col gap-4 mt-6 mb-6">
                     <div>
-                        <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Pengaturan Profil Pengguna
-                        </h2>
+                        <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight">Pengaturan Profil Saya</h2>
                         <div class="flex items-center gap-1.5 text-xs text-slate-400 font-medium mt-1">
                             <i data-lucide="home" class="w-3.5 h-3.5"></i>
                             <a href="dashboard.html" class="hover:text-[#0A58CA] transition-colors">Dashboard</a>
                             <i data-lucide="chevron-right" class="w-3 h-3"></i>
-                            <span class="text-blue-600 font-semibold">Profile</span>
+                            <span class="text-blue-600 font-semibold">Profil Saya</span>
                         </div>
                     </div>
                 </div>
@@ -158,31 +88,33 @@
                     <!-- Form 1: Informasi Personal -->
                     <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm space-y-4">
                         <div class="flex items-center gap-3 text-blue-600 border-b border-slate-100 pb-3">
-                            <div class="bg-blue-50 p-2 rounded-xl"><i data-lucide="user-check" class="w-5 h-5"></i>
-                            </div>
+                            <div class="bg-blue-50 p-2.5 rounded-xl"><i data-lucide="user-check" class="w-5 h-5"></i></div>
                             <div>
                                 <h3 class="text-sm font-bold text-slate-900">Informasi Pribadi</h3>
-                                <p class="text-[10px] text-slate-400">Ubah detail nama profil dan alamat email Anda</p>
+                                <p class="text-[10px] text-slate-400">Ubah detail nama profil, alamat email, dan nomor HP Anda</p>
                             </div>
                         </div>
 
                         <form id="profile-info-form" onsubmit="updateProfileInfo(event)" class="space-y-4">
                             <div class="space-y-1.5">
-                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nama
-                                    Lengkap</label>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nama Lengkap *</label>
                                 <input type="text" id="profile-name" required placeholder="Ahmad Syarif"
                                     class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
                             </div>
                             <div class="space-y-1.5">
-                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Alamat
-                                    Email</label>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Alamat Email *</label>
                                 <input type="email" id="profile-email" required placeholder="admin@kbec.com"
+                                    class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">No. Telepon / WhatsApp</label>
+                                <input type="text" id="profile-phone" placeholder="08123456789"
                                     class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
                             </div>
                             <div class="pt-2">
                                 <button type="submit"
-                                    class="w-full bg-[#0A58CA] hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md shadow-blue-500/10 flex items-center justify-center gap-1.5">
-                                    <i data-lucide="save" class="w-4 h-4"></i> Simpan Informasi
+                                    class="w-full bg-[#0A58CA] hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md shadow-blue-500/10 flex items-center justify-center gap-1.5 cursor-pointer">
+                                    <i data-lucide="save" class="w-4 h-4"></i> Simpan Perubahan Profil
                                 </button>
                             </div>
                         </form>
@@ -191,23 +123,30 @@
                     <!-- Form 2: Ganti Password -->
                     <div class="bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm space-y-4">
                         <div class="flex items-center gap-3 text-amber-600 border-b border-slate-100 pb-3">
-                            <div class="bg-amber-50 p-2 rounded-xl"><i data-lucide="key-round" class="w-5 h-5"></i>
-                            </div>
+                            <div class="bg-amber-50 p-2.5 rounded-xl"><i data-lucide="key-round" class="w-5 h-5"></i></div>
                             <div>
                                 <h3 class="text-sm font-bold text-slate-900">Ubah Kata Sandi</h3>
-                                <p class="text-[10px] text-slate-400">Perbarui kata sandi lama Anda demi keamanan akun
-                                </p>
+                                <p class="text-[10px] text-slate-400">Perbarui kata sandi lama Anda demi keamanan akun</p>
                             </div>
                         </div>
 
                         <form id="profile-password-form" onsubmit="updateProfilePassword(event)" class="space-y-4">
                             <div class="space-y-1.5">
-                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Password
-                                    Baru</label>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Password Lama</label>
                                 <div class="relative">
-                                    <input type="password" id="profile-password" required
-                                        placeholder="Minimal 6 karakter"
-                                        class="w-full px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
+                                    <input type="password" id="profile-old-password" placeholder="Masukkan password lama"
+                                        class="w-full px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white transition-all font-semibold text-slate-700">
+                                    <button type="button" onclick="togglePasswordVisibility('profile-old-password', this)"
+                                        class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+                                        <i data-lucide="eye" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Password Baru *</label>
+                                <div class="relative">
+                                    <input type="password" id="profile-password" required placeholder="Minimal 6 karakter"
+                                        class="w-full px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white transition-all font-semibold text-slate-700">
                                     <button type="button" onclick="togglePasswordVisibility('profile-password', this)"
                                         class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
                                         <i data-lucide="eye" class="w-4 h-4"></i>
@@ -215,12 +154,10 @@
                                 </div>
                             </div>
                             <div class="space-y-1.5">
-                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Konfirmasi
-                                    Password Baru</label>
+                                <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Konfirmasi Password Baru *</label>
                                 <div class="relative">
-                                    <input type="password" id="profile-confirm" required
-                                        placeholder="Ulangi password baru"
-                                        class="w-full px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-blue-500 focus:bg-white transition-all font-semibold text-slate-700">
+                                    <input type="password" id="profile-confirm" required placeholder="Ulangi password baru"
+                                        class="w-full px-4 py-2.5 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-amber-500 focus:bg-white transition-all font-semibold text-slate-700">
                                     <button type="button" onclick="togglePasswordVisibility('profile-confirm', this)"
                                         class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
                                         <i data-lucide="eye" class="w-4 h-4"></i>
@@ -229,115 +166,21 @@
                             </div>
                             <div class="pt-2">
                                 <button type="submit"
-                                    class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md shadow-amber-500/10 flex items-center justify-center gap-1.5">
+                                    class="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 rounded-xl text-xs transition-all shadow-md shadow-amber-500/10 flex items-center justify-center gap-1.5 cursor-pointer">
                                     <i data-lucide="shield-check" class="w-4 h-4"></i> Perbarui Sandi Keamanan
                                 </button>
                             </div>
                         </form>
                     </div>
                 </div>
-
-                <!-- Section 3: Manajemen Data User System (Super Admin) -->
-                <div class="mt-8 bg-white rounded-2xl border border-slate-200/60 p-6 shadow-sm space-y-4">
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-4">
-                        <div class="flex items-center gap-3 text-[#0A58CA]">
-                            <div class="bg-blue-50 p-2.5 rounded-xl"><i data-lucide="users" class="w-5 h-5"></i></div>
-                            <div>
-                                <h3 class="text-sm font-bold text-slate-900">Manajemen Data User System</h3>
-                                <p class="text-[10px] text-slate-400">Kelola akun, role hak akses, dan NIS/ID pengguna sistem</p>
-                            </div>
-                        </div>
-                        <button onclick="openAddUserModal()"
-                            class="bg-[#0A58CA] hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/10">
-                            <i data-lucide="user-plus" class="w-4 h-4"></i> Tambah User Baru
-                        </button>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-xs text-slate-600 border-collapse">
-                            <thead>
-                                <tr class="text-[10px] text-slate-400 font-bold tracking-wider uppercase border-b border-slate-100 bg-slate-50/50">
-                                    <th class="py-3 px-4">NIS / ID User</th>
-                                    <th class="py-3 px-4">Nama User</th>
-                                    <th class="py-3 px-4">Email</th>
-                                    <th class="py-3 px-4">Role Hak Akses</th>
-                                    <th class="py-3 px-4 text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody id="user-table-body" class="divide-y divide-slate-50">
-                                <tr><td colspan="5" class="text-center py-6 text-slate-400">Memuat data user...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Modal Tambah / Edit User -->
-            <div id="user-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4">
-                <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform scale-95 transition-transform duration-300 p-6 space-y-4">
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <h3 id="user-modal-title" class="text-base font-bold text-slate-900">Tambah User Baru</h3>
-                        <button onclick="closeUserModal()" class="text-slate-400 hover:text-slate-600 p-1">
-                            <i data-lucide="x" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                    <form id="user-modal-form" onsubmit="handleUserSubmit(event)" class="space-y-3">
-                        <input type="hidden" id="user-idx">
-                        <input type="hidden" id="user-db-id">
-                        <div>
-                            <div class="flex items-center justify-between mb-1">
-                                <label class="text-[11px] font-bold text-slate-700 uppercase tracking-wider">NIS / ID User *</label>
-                                <button type="button" onclick="generateAndSetUserNis()" class="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
-                                    <i data-lucide="refresh-cw" class="w-3 h-3"></i> Auto Generate
-                                </button>
-                            </div>
-                            <input type="text" id="user-modal-nis" required placeholder="Contoh: 2607000001-ADM"
-                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-700 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors">
-                            <p class="text-[9px] text-slate-400 mt-1">Format: <code>[YY][MM][000001][SUFFIX]</code> (-SA: Super Admin, -ADM: Admin, -TCH: Pengajar). Bebas diedit manual.</p>
-                        </div>
-                        <div>
-                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Nama Lengkap *</label>
-                            <input type="text" id="user-modal-name" required placeholder="Contoh: Budi Santoso"
-                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Email *</label>
-                            <input type="email" id="user-modal-email" required placeholder="budi@kbec.com"
-                                class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none">
-                        </div>
-                        <div class="grid grid-cols-2 gap-3">
-                            <div>
-                                <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Role / Akses *</label>
-                                <select id="user-modal-role" onchange="generateAndSetUserNis()"
-                                    class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none cursor-pointer">
-                                    <option value="Admin">Admin</option>
-                                    <option value="Super Admin">Super Admin</option>
-                                    <option value="Pengajar">Pengajar</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Password</label>
-                                <input type="password" id="user-modal-password" placeholder="Kosongkan jika tak diubah"
-                                    class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none">
-                            </div>
-                        </div>
-                        <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                            <button type="button" onclick="closeUserModal()"
-                                class="px-4 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors">Batal</button>
-                            <button type="submit"
-                                class="px-4 py-2 text-xs font-bold text-white bg-[#0A58CA] hover:bg-blue-700 rounded-xl transition-colors">Simpan User</button>
-                        </div>
-                    </form>
-                </div>
             </div>
 
             <!-- FOOTER -->
             <footer
-                class="pt-8 border-t border-slate-100 flex justify-between items-center text-[11px] font-medium text-slate-400 bg-transparent mt-12">
-                <p>© 2026 Kampung Bahasa English Course (KBEC). Hak cipta dilindungi undang-undang.</p>
+                class="pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center text-[11px] font-medium text-slate-400 gap-2 bg-transparent mt-12">
+                <p>© 2026 Yayasan Ar-Rasyid Bintaro — KBEC Management System. All rights reserved.</p>
                 <div class="flex gap-4">
-                    <a href="#" class="hover:text-slate-600 transition-colors">Kebijakan Privasi</a>
-                    <a href="#" class="hover:text-slate-600 transition-colors">Syarat Ketentuan</a>
+                    <span>Versi 2.4.0 Production</span>
                 </div>
             </footer>
         </main>
@@ -346,7 +189,33 @@
     <script>
         const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
         let currentUser = null;
-        let usersData = [];
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-xs font-bold transition-all transform translate-y-2 opacity-0 bg-white ${
+                type === 'error' ? 'border-rose-200 text-rose-700' : 'border-emerald-200 text-emerald-700'
+            }`;
+            
+            toast.innerHTML = `
+                <i data-lucide="${type === 'error' ? 'alert-circle' : 'check-circle-2'}" class="w-4 h-4"></i>
+                <span>${message}</span>
+            `;
+
+            container.appendChild(toast);
+            if (window.lucide) lucide.createIcons();
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
 
         function togglePasswordVisibility(inputId, btn) {
             const input = document.getElementById(inputId);
@@ -373,287 +242,103 @@
             document.getElementById('header-user-name').innerText = currentUser.name;
             document.getElementById('header-user-badge').innerText = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 
-            document.getElementById('profile-name').value = currentUser.name;
-            document.getElementById('profile-email').value = currentUser.email;
-
-            fetchUsers();
-            lucide.createIcons();
-        }
-
-        async function fetchUsers() {
-            try {
-                const res = await fetch(`${API_BASE}/api/users`);
-                if (!res.ok) return;
-                usersData = await res.json();
-                renderUserTable();
-            } catch (err) {
-                console.error('Gagal memuat data user:', err);
-            }
-        }
-
-        function renderUserTable() {
-            const tbody = document.getElementById('user-table-body');
-            if (!tbody) return;
-            tbody.innerHTML = '';
-
-            if (usersData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-6 text-slate-400">Belum ada user terdaftar.</td></tr>`;
-                return;
-            }
-
-            usersData.forEach((u, idx) => {
-                const userNis = u.nis || u.id || `2607000001-ADM`;
-                const roleBadge = (u.role || 'Admin').toLowerCase().includes('super')
-                    ? 'text-purple-600 bg-purple-50'
-                    : (u.role || '').toLowerCase().includes('pengajar')
-                    ? 'text-cyan-600 bg-cyan-50'
-                    : 'text-blue-600 bg-blue-50';
-
-                tbody.innerHTML += `
-                    <tr class="hover:bg-slate-50/60 transition-colors">
-                        <td class="py-3 px-4 font-mono font-bold text-[#0A58CA]">${userNis}</td>
-                        <td class="py-3 px-4 font-bold text-slate-900">${u.name}</td>
-                        <td class="py-3 px-4 text-slate-500">${u.email}</td>
-                        <td class="py-3 px-4"><span class="font-bold text-[10px] px-2 py-0.5 rounded-full ${roleBadge}">${u.role || 'Admin'}</span></td>
-                        <td class="py-3 px-4 text-center">
-                            <div class="flex items-center justify-center gap-1.5">
-                                <button onclick="openEditUserModal(${idx})" class="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Ubah User / NIS"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
-                                <button onclick="deleteUser('${u.id}', '${u.name}')" class="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Hapus User"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
-                            </div>
-                        </td>
-                    </tr>
-                `;
-            });
+            document.getElementById('profile-name').value = currentUser.name || '';
+            document.getElementById('profile-email').value = currentUser.email || '';
+            document.getElementById('profile-phone').value = currentUser.phone || currentUser.kontak || '';
 
             if (window.lucide) lucide.createIcons();
-        }
-
-        async function generateAndSetUserNis() {
-            const role = document.getElementById('user-modal-role')?.value || 'Admin';
-            const nisInput = document.getElementById('user-modal-nis');
-            if (!nisInput) return;
-            try {
-                const res = await fetch(`${API_BASE}/api/users/next-id?role=${encodeURIComponent(role)}`);
-                const data = await res.json();
-                if (data && data.nextId) {
-                    nisInput.value = data.nextId;
-                }
-            } catch (e) {
-                console.error('Gagal generate NIS user:', e);
-            }
-        }
-
-        async function openAddUserModal() {
-            document.getElementById('user-modal-form').reset();
-            document.getElementById('user-idx').value = '';
-            document.getElementById('user-db-id').value = '';
-            document.getElementById('user-modal-title').innerText = "Tambah User Baru";
-            await generateAndSetUserNis();
-            openModal('user-modal');
-        }
-
-        function openEditUserModal(idx) {
-            const user = usersData[idx];
-            if (!user) return;
-            document.getElementById('user-idx').value = idx;
-            document.getElementById('user-db-id').value = user.id;
-            document.getElementById('user-modal-nis').value = user.nis || user.id || '';
-            document.getElementById('user-modal-name').value = user.name || '';
-            document.getElementById('user-modal-email').value = user.email || '';
-            document.getElementById('user-modal-role').value = user.role || 'Admin';
-            document.getElementById('user-modal-password').value = '';
-            document.getElementById('user-modal-title').innerText = "Edit User & NIS";
-            openModal('user-modal');
-        }
-
-        function closeUserModal() {
-            closeModal('user-modal');
-        }
-
-        function openModal(id) {
-            const modal = document.getElementById(id);
-            if (!modal) return;
-            modal.classList.remove('hidden');
-            setTimeout(() => {
-                modal.classList.remove('opacity-0');
-                const box = modal.querySelector('div');
-                if (box) box.classList.remove('scale-95');
-            }, 10);
-        }
-
-        function closeModal(id) {
-            const modal = document.getElementById(id);
-            if (!modal) return;
-            modal.classList.add('opacity-0');
-            const box = modal.querySelector('div');
-            if (box) box.classList.add('scale-95');
-            setTimeout(() => modal.classList.add('hidden'), 300);
-        }
-
-        async function handleUserSubmit(e) {
-            e.preventDefault();
-            const dbId = document.getElementById('user-db-id').value;
-            const nis = document.getElementById('user-modal-nis').value.trim();
-            const name = document.getElementById('user-modal-name').value.trim();
-            const email = document.getElementById('user-modal-email').value.trim();
-            const role = document.getElementById('user-modal-role').value;
-            const password = document.getElementById('user-modal-password').value;
-
-            const payload = { id: nis, nis, name, email, role };
-            if (password) payload.password = password;
-
-            try {
-                if (dbId === '') {
-                    const res = await fetch(`${API_BASE}/api/users`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    if (!res.ok) {
-                        const data = await res.json();
-                        throw new Error(data.message || 'Gagal membuat user.');
-                    }
-                    showToast(`User "${name}" (NIS: ${nis}) berhasil dibuat!`);
-                } else {
-                    const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(dbId)}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    if (!res.ok) throw new Error();
-                    showToast(`Data user "${name}" berhasil diperbarui!`);
-                }
-                closeUserModal();
-                await fetchUsers();
-            } catch (err) {
-                console.error(err);
-                showToast(err.message || 'Gagal menyimpan data user ke database.', 'error');
-            }
-        }
-
-        async function deleteUser(id, name) {
-            if (confirm(`Apakah Anda yakin ingin menghapus user "${name}"?`)) {
-                try {
-                    const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(id)}`, { method: 'DELETE' });
-                    if (!res.ok) throw new Error();
-                    showToast(`User "${name}" berhasil dihapus.`);
-                    await fetchUsers();
-                } catch (err) {
-                    console.error(err);
-                    showToast('Gagal menghapus user.', 'error');
-                }
-            }
         }
 
         async function updateProfileInfo(e) {
             e.preventDefault();
             const name = document.getElementById('profile-name').value.trim();
             const email = document.getElementById('profile-email').value.trim();
+            const phone = document.getElementById('profile-phone').value.trim();
 
             if (!name || !email) {
-                showToast('Nama dan Email wajib diisi!', 'error');
+                showToast('Nama dan Email wajib diisi.', 'error');
                 return;
             }
 
-            showToast('Memperbarui profil...');
-
             try {
-                const res = await fetch(`${API_BASE}/api/auth/profile`, {
+                const token = localStorage.getItem('authToken');
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                const res = await fetch(`${API_BASE}/api/users/profile`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name,
-                        email,
-                        oldEmail: currentUser.email
-                    })
+                    headers,
+                    body: JSON.stringify({ name, email, phone })
                 });
 
-                if (!res.ok) {
-                    const data = await res.json();
-                    throw new Error(data.message || 'Gagal memperbarui profil.');
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    showToast(data.message || 'Gagal memperbarui profil.', 'error');
+                    return;
                 }
 
-                const data = await res.json();
-                currentUser = data.user;
+                currentUser.name = name;
+                currentUser.email = email;
+                currentUser.phone = phone;
                 localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
-                // Update header
-                document.getElementById('header-user-name').innerText = currentUser.name;
-                document.getElementById('header-user-badge').innerText = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                const headerName = document.getElementById('header-user-name');
+                const headerBadge = document.getElementById('header-user-badge');
+                if (headerName) headerName.innerText = name;
+                if (headerBadge) headerBadge.innerText = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 
-                showToast('Informasi pribadi sukses diperbarui!');
+                if (typeof window.renderDynamicGlobalSidebar === 'function') {
+                    window.renderDynamicGlobalSidebar();
+                }
+
+                showToast('Informasi profil berhasil diperbarui!', 'success');
             } catch (err) {
                 console.error(err);
-                showToast(err.message || 'Terjadi kesalahan sistem.', 'error');
+                showToast('Terjadi kesalahan koneksi.', 'error');
             }
         }
 
         async function updateProfilePassword(e) {
             e.preventDefault();
-            const password = document.getElementById('profile-password').value;
-            const confirm = document.getElementById('profile-confirm').value;
+            const oldPassword = document.getElementById('profile-old-password').value;
+            const newPassword = document.getElementById('profile-password').value;
+            const confirmPassword = document.getElementById('profile-confirm').value;
 
-            if (password.length < 6) {
-                showToast('Password minimal berisi 6 karakter!', 'error');
+            if (newPassword.length < 6) {
+                showToast('Password baru minimal 6 karakter.', 'error');
                 return;
             }
 
-            if (password !== confirm) {
-                showToast('Konfirmasi password tidak cocok!', 'error');
+            if (newPassword !== confirmPassword) {
+                showToast('Konfirmasi password baru tidak cocok.', 'error');
                 return;
             }
-
-            showToast('Memperbarui password...');
 
             try {
-                const res = await fetch(`${API_BASE}/api/auth/profile`, {
+                const token = localStorage.getItem('authToken');
+                const headers = { 'Content-Type': 'application/json' };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                const res = await fetch(`${API_BASE}/api/auth/change-password`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: currentUser.name,
-                        email: currentUser.email,
-                        oldEmail: currentUser.email,
-                        password: password
-                    })
+                    headers,
+                    body: JSON.stringify({ oldPassword, newPassword })
                 });
 
-                if (!res.ok) {
-                    const data = await res.json();
-                    throw new Error(data.message || 'Gagal memperbarui password.');
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    showToast(data.message || 'Gagal memperbarui kata sandi.', 'error');
+                    return;
                 }
 
-                showToast('Kata sandi keamanan berhasil diperbarui!');
+                showToast('Kata sandi berhasil diperbarui!', 'success');
                 document.getElementById('profile-password-form').reset();
             } catch (err) {
                 console.error(err);
-                showToast(err.message || 'Gagal memperbarui kata sandi.', 'error');
+                showToast('Terjadi kesalahan koneksi.', 'error');
             }
-        }
-
-        function showToast(message, type = 'success') {
-            let container = document.getElementById('toast-container');
-            if (!container) {
-                container = document.createElement('div');
-                container.id = 'toast-container';
-                container.className = 'fixed bottom-5 right-5 z-50 space-y-3 pointer-events-none';
-                document.body.appendChild(container);
-            }
-
-            const toast = document.createElement('div');
-            toast.className = `flex items-center gap-3 bg-white border border-slate-100 p-4 rounded-xl shadow-lg pointer-events-auto min-w-[300px] transition-all duration-300`;
-            const icon = type === 'success' ? '<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500"></i>' : '<i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i>';
-
-            toast.innerHTML = `<div class="flex items-center justify-center">${icon}</div><div class="flex-1"><p class="text-xs font-bold text-slate-900">${message}</p></div>`;
-            container.appendChild(toast);
-            lucide.createIcons();
-
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
         }
     </script>
-    <script src="global-user.js"></script>
 </body>
 
 </html>

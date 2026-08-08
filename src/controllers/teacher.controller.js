@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { escapeHTML } = require('../utils/helpers');
 
 const KBEC_LAT = -7.8123;
 const KBEC_LNG = 112.0123;
@@ -56,17 +57,17 @@ async function createTeacher(req, res, next) {
 
         await db.query(
             'INSERT INTO teachers (id, nama, joined, expertise, email, kontak, status, avatar) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-            [uniqueId, nama.trim(), joined || 'Jan 2026', expertiseStr, email || '', kontak || '', status || 'Aktif', finalAvatar]
+            [uniqueId, escapeHTML(nama.trim()), escapeHTML(joined || 'Jan 2026'), expertiseStr, escapeHTML(email || ''), escapeHTML(kontak || ''), escapeHTML(status || 'Aktif'), finalAvatar]
         );
 
         res.status(201).json({
             id: uniqueId,
-            nama: nama.trim(),
-            joined,
+            nama: escapeHTML(nama.trim()),
+            joined: escapeHTML(joined),
             expertise,
-            email,
-            kontak,
-            status,
+            email: escapeHTML(email),
+            kontak: escapeHTML(kontak),
+            status: escapeHTML(status),
             avatar: finalAvatar
         });
     } catch (err) {
@@ -81,7 +82,7 @@ async function updateTeacher(req, res, next) {
         const expertiseStr = JSON.stringify(expertise || []);
         await db.query(
             'UPDATE teachers SET nama = ?, email = ?, kontak = ?, expertise = ?, joined = ?, status = ? WHERE id = ?',
-            [nama, email, kontak, expertiseStr, joined, status, id]
+            [escapeHTML(nama), escapeHTML(email), escapeHTML(kontak), expertiseStr, escapeHTML(joined), escapeHTML(status), id]
         );
         res.json({ success: true });
     } catch (err) {
@@ -125,7 +126,7 @@ async function checkinTeacher(req, res, next) {
 
         await db.query(
             'INSERT INTO teacher_checkins (teacher_id, teacher_name, class_id, class_name, lat, lng, distance_meters, is_online, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [teacher_id, teacher_name, class_id || null, class_name || 'Tatap Muka', lat || 0, lng || 0, distanceMeters, is_online ? 1 : 0, status]
+            [teacher_id, escapeHTML(teacher_name), class_id || null, escapeHTML(class_name || 'Tatap Muka'), lat || 0, lng || 0, distanceMeters, is_online ? 1 : 0, status]
         );
 
         res.json({

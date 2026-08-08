@@ -11,7 +11,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/route-guard.js"></script>
     <script src="global-user.js"></script>
+    <script src="js/ui-guard.js"></script>
     <style>
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -311,7 +313,7 @@
     <div class="flex-1 pl-0 lg:pl-64 flex flex-col min-h-screen w-full min-w-0 transition-all duration-300">
 
         <header
-            class="h-20 bg-[#F8FAFC] flex items-center justify-between px-4 sm:px-6 lg:px-8 z-20 border-b border-slate-100">
+            class="h-20 bg-white/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 border-b border-slate-100 shadow-xs transition-all">
             <div class="relative w-full max-w-[200px] sm:max-w-xs lg:w-72">
                 <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
                 <input type="text" id="search-data" oninput="filterDataKelas()"
@@ -498,11 +500,10 @@
             </div>
 
             <footer
-                class="pt-4 border-t border-slate-100 flex justify-between items-center text-[11px] font-medium text-slate-400 bg-transparent">
-                <p>© 2026 Kampung Bahasa English Course (KBEC). Hak cipta dilindungi undang-undang.</p>
+                class="pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center text-[11px] font-medium text-slate-400 gap-2 bg-transparent">
+                <p>© 2026 Yayasan Ar-Rasyid Bintaro — KBEC Management System. All rights reserved.</p>
                 <div class="flex gap-4">
-                    <a href="#" class="hover:text-slate-600 transition-colors">Kebijakan Privasi</a>
-                    <a href="#" class="hover:text-slate-600 transition-colors">Syarat Ketentuan</a>
+                    <span>Versi 2.4.0 Production</span>
                 </div>
             </footer>
         </main>
@@ -533,7 +534,8 @@
                 teachers.forEach(t => {
                     const opt = document.createElement('option');
                     opt.value = t.nama;
-                    opt.innerText = t.nama;
+                    opt.setAttribute('data-id', t.id);
+                    opt.innerText = `${t.nama} (${t.id})`;
                     select.appendChild(opt);
                 });
             } catch (err) {
@@ -741,19 +743,30 @@
 
         async function handleFormSubmit(e) {
             e.preventDefault();
-            const nama = document.getElementById('form-nama').value;
-            const program = document.getElementById('form-program').value;
-            const pengajar = document.getElementById('form-pengajar').value;
-            const kapasitas = parseInt(document.getElementById('form-kapasitas').value);
-            const hari = document.getElementById('form-hari').value;
-            const mulai = document.getElementById('form-mulai').value;
-            const selesai = document.getElementById('form-selesai').value;
-            const tipe = document.getElementById('form-tipe').value;
-            const ruang = document.getElementById('form-ruang').value;
-
-            const payload = { nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang };
+            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.querySelector('#class-modal button[type="submit"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+            }
 
             try {
+                const nama = document.getElementById('form-nama').value;
+                const program = document.getElementById('form-program').value;
+                const selectPengajar = document.getElementById('form-pengajar');
+                const pengajar = selectPengajar ? selectPengajar.value : '';
+                const selectedOpt = selectPengajar && selectPengajar.selectedIndex >= 0 ? selectPengajar.options[selectPengajar.selectedIndex] : null;
+                const teacherId = selectedOpt ? selectedOpt.getAttribute('data-id') : null;
+
+                const kapasitas = parseInt(document.getElementById('form-kapasitas').value);
+                const hari = document.getElementById('form-hari').value;
+                const mulai = document.getElementById('form-mulai').value;
+                const selesai = document.getElementById('form-selesai').value;
+                const tipe = document.getElementById('form-tipe').value;
+                const ruang = document.getElementById('form-ruang').value;
+
+                const payload = { nama, program, pengajar, teacher_id: teacherId, kapasitas, hari, mulai, selesai, tipe, ruang };
+
                 const url = editClassId ? `${API_BASE}/api/classes/${editClassId}` : `${API_BASE}/api/classes`;
                 const method = editClassId ? 'PUT' : 'POST';
 
@@ -769,6 +782,12 @@
             } catch (err) {
                 console.error(err);
                 showToast('Gagal menyimpan kelas ke database.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 
@@ -873,18 +892,25 @@
                 return;
             }
 
-            // Cari siswa berdasarkan kecocokan string datalist, ID, atau nama
-            const student = availableStudents.find(s => {
-                const optVal = `${s.nama} (${s.id}) - ${s.program || ''} [${s.level || ''}]`;
-                return optVal === inputVal || String(s.id) === inputVal || s.nama.toLowerCase() === inputVal.toLowerCase() || inputVal.includes(`(${s.id})`);
-            });
-
-            if (!student) {
-                alert('Siswa tidak valid! Silakan pilih siswa dari opsi pencarian yang muncul.');
-                return;
+            const btn = document.querySelector('#class-students-modal button[onclick="addStudentToClass()"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
             }
 
             try {
+                // Cari siswa berdasarkan kecocokan string datalist, ID, atau nama
+                const student = availableStudents.find(s => {
+                    const optVal = `${s.nama} (${s.id}) - ${s.program || ''} [${s.level || ''}]`;
+                    return optVal === inputVal || String(s.id) === inputVal || s.nama.toLowerCase() === inputVal.toLowerCase() || inputVal.includes(`(${s.id})`);
+                });
+
+                if (!student) {
+                    alert('Siswa tidak valid! Silakan pilih siswa dari opsi pencarian yang muncul.');
+                    return;
+                }
+
                 const res = await fetch(`${API_BASE}/api/classes/${currentClassId}/students`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -904,6 +930,12 @@
             } catch (err) {
                 console.error(err);
                 showToast('Gagal menambahkan siswa.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 

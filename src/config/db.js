@@ -16,7 +16,7 @@ let pool;
 
 if (isPostgres) {
     const pgPool = new Pool({
-        host: (process.env.SUPABASE_DB_HOST || 'db.ariqvrsvwvtwkllybqeb.supabase.co').trim(),
+        host: (process.env.SUPABASE_DB_HOST || '').trim(),
         port: parseInt(process.env.SUPABASE_DB_PORT || '5432', 10),
         user: (process.env.SUPABASE_DB_USER || 'postgres').trim(),
         password: (process.env.SUPABASE_DB_PASSWORD || '').trim(),

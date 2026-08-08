@@ -100,7 +100,7 @@ function renderDynamicGlobalSidebar() {
 
     // Helper Global Auth Check & Current User Session
     const rawUser = localStorage.getItem('currentUser');
-    const user = JSON.parse(rawUser || '{"name":"Super Admin KBEC","email":"admin@kbec.com","role":"Super Admin"}');
+    const user = JSON.parse(rawUser || '{}');
     const userRole = (user.role || user.role_name || user.type || 'Admin').toLowerCase();
     const isSuperAdmin = userRole.includes('super');
     const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
@@ -115,7 +115,7 @@ function renderDynamicGlobalSidebar() {
     let openAkademik = ['pengajar.html', 'kelas.html', 'absensi.html', 'jadwal.html'].includes(currentPath);
     let openKeuangan = ['pembayaran.html'].includes(currentPath);
     let openInventaris = currentPath === 'inventaris.html' || fullHash.includes('inventaris');
-    let openLaporan = currentPath === 'laporan.html';
+    let openLaporan = currentPath === 'laporan.html' || currentPath === 'rekap-kehadiran.html';
     let openUnitProgram = currentPath === 'program.html';
     let openUsers = currentPath === 'profile.html' && (fullHash.includes('users') || fullHash.includes('roles') || fullHash.includes('reset'));
     let openSettings = (currentPath === 'profile.html' && fullHash.includes('backup'));
@@ -148,11 +148,11 @@ function renderDynamicGlobalSidebar() {
     const isSetoranActive = currentPath === 'pembayaran.html' && (fullHash.includes('deposits') || fullHash.includes('setoran'));
     const isKasKecilActive = currentPath === 'pembayaran.html' && (fullHash.includes('petty') || fullHash.includes('kas'));
 
-    // Laporan Active States (Strict Guard: Only evaluated on laporan.html)
+    // Laporan Active States
     let isLaporanPembayaranActive = false;
     let isLaporanSetoranActive = false;
     let isLaporanKasActive = false;
-    let isLaporanKehadiranActive = false;
+    let isLaporanKehadiranActive = currentPath === 'rekap-kehadiran.html';
     let isLaporanKasKecilActive = false;
     let isLaporanKinerjaActive = false;
 
@@ -167,7 +167,7 @@ function renderDynamicGlobalSidebar() {
         isLaporanPembayaranActive = cleanReportType === 'pembayaran' || (!rawType && !rawHash);
         isLaporanSetoranActive = cleanReportType === 'setoran';
         isLaporanKasActive = cleanReportType === 'kas' || cleanReportType === 'kas_besar' || cleanReportType === 'kasbesar';
-        isLaporanKehadiranActive = cleanReportType === 'kehadiran';
+        if (!isLaporanKehadiranActive) isLaporanKehadiranActive = cleanReportType === 'kehadiran';
         isLaporanKasKecilActive = cleanReportType === 'kas_kecil' || cleanReportType === 'kaskecil' || cleanReportType === 'petty';
         isLaporanKinerjaActive = cleanReportType === 'kinerja';
     }
@@ -198,14 +198,17 @@ function renderDynamicGlobalSidebar() {
             <nav class="px-3 py-3 space-y-1.5 overflow-y-auto max-h-[calc(100vh-140px)]">
                 
                 <!-- 🏠 Dashboard -->
+                ${!isTeacher ? `
                 <a href="dashboard.html"
                     class="relative w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-bold rounded-xl ${currentPath === 'dashboard.html' ? 'bg-[#0A58CA]/10 text-[#0A58CA] shadow-xs' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'} transition-all">
                     ${currentPath === 'dashboard.html' ? '<span class="absolute left-0 top-2 bottom-2 w-1 bg-[#0A58CA] rounded-r-md"></span>' : ''}
                     <i data-lucide="layout-dashboard" class="w-4 h-4 ${currentPath === 'dashboard.html' ? 'text-[#0A58CA]' : 'text-slate-500'}"></i> 
                     <span>Dashboard</span>
                 </a>
+                ` : ''}
 
                 <!-- 👨🎓 Data Siswa -->
+                ${!isTeacher ? `
                 <div>
                     <button onclick="window.toggleMenu('menu-siswa')"
                         class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs ${openSiswa ? 'bg-blue-50/80 text-[#0A58CA] font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-50 font-semibold'} rounded-xl transition-all">
@@ -227,6 +230,7 @@ function renderDynamicGlobalSidebar() {
                         </a>
                     </div>
                 </div>
+                ` : ''}
 
                 <!-- 📚 Akademik -->
                 <div>
@@ -239,9 +243,10 @@ function renderDynamicGlobalSidebar() {
                         <i data-lucide="chevron-down" id="arrow-menu-akademik" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openAkademik ? 'rotate-180 text-[#0A58CA]' : ''}"></i>
                     </button>
                     <div id="menu-akademik" class="${openAkademik ? '' : 'hidden'} pl-8 pr-2 py-1 space-y-1 text-xs">
-                        <a href="pengajar.html" class="${getSubmenuItemClass(isPengajarActive)}">Guru / Pengajar</a>
-                        <a href="kelas.html" class="${getSubmenuItemClass(isKelasActive)}">Kelas & Jadwal</a>
-                        <a href="absensi.html?mode=excel" class="${getSubmenuItemClass(isAbsensiActive)}">Kinerja Siswa</a>
+                        ${isSuperAdmin ? `<a href="pengajar.html" class="${getSubmenuItemClass(isPengajarActive)}">Guru / Pengajar</a>` : ''}
+                        ${!isTeacher ? `<a href="kelas.html" class="${getSubmenuItemClass(isKelasActive)}">Kelas & Jadwal</a>` : ''}
+                        ${isTeacher ? `<a href="jadwal.html" class="${getSubmenuItemClass(currentPath === 'jadwal.html')}">Jadwal Kursus</a>` : ''}
+                        ${isTeacher || isSuperAdmin ? `<a href="absensi.html?mode=excel" class="${getSubmenuItemClass(isAbsensiActive)}">Absensi & Matrik Kinerja</a>` : ''}
                     </div>
                 </div>
 
@@ -307,6 +312,7 @@ function renderDynamicGlobalSidebar() {
                 ` : ''}
 
                 <!-- 📊 Laporan -->
+                ${!isTeacher ? `
                 <div>
                     <button onclick="window.toggleMenu('menu-laporan')"
                         class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs ${openLaporan ? 'bg-blue-50/80 text-[#0A58CA] font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-50 font-semibold'} rounded-xl transition-all">
@@ -320,18 +326,27 @@ function renderDynamicGlobalSidebar() {
                         <a href="laporan.html?type=pembayaran#pembayaran" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('pembayaran'); return false; }" class="${getSubmenuItemClass(isLaporanPembayaranActive)}">Laporan Pembayaran</a>
                         <a href="laporan.html?type=setoran#setoran" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('setoran'); return false; }" class="${getSubmenuItemClass(isLaporanSetoranActive)}">Laporan Setoran</a>
                         <a href="laporan.html?type=kas#kas" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kas'); return false; }" class="${getSubmenuItemClass(isLaporanKasActive)}">Laporan Kas Besar</a>
-                        <a href="laporan.html?type=kehadiran#kehadiran" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kehadiran'); return false; }" class="${getSubmenuItemClass(isLaporanKehadiranActive)}">Laporan Kehadiran</a>
+                        <a href="rekap-kehadiran.html" class="${getSubmenuItemClass(isLaporanKehadiranActive)}">Laporan Kehadiran</a>
                         <a href="laporan.html?type=kas_kecil#kas_kecil" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kas_kecil'); return false; }" class="${getSubmenuItemClass(isLaporanKasKecilActive)}">Laporan Kas Kecil</a>
-                        <a href="laporan.html?type=kinerja#kinerja" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kinerja'); return false; }" class="${getSubmenuItemClass(isLaporanKinerjaActive)}">Laporan Kinerja Siswa</a>
+                        ${isSuperAdmin ? `<a href="laporan.html?type=kinerja#kinerja" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kinerja'); return false; }" class="${getSubmenuItemClass(isLaporanKinerjaActive)}">Laporan Kinerja Siswa</a>` : ''}
                     </div>
                 </div>
+                ` : ''}
 
-                <!-- 👤 Manajemen User (Super Admin Only) -->
-                ${isSuperAdmin ? `
+                <!-- 👤 Profil Saya (Semua Role) -->
                 <a href="profile.html"
                     class="relative w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-bold rounded-xl ${currentPath === 'profile.html' ? 'bg-[#0A58CA]/10 text-[#0A58CA] shadow-xs' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'} transition-all">
                     ${currentPath === 'profile.html' ? '<span class="absolute left-0 top-2 bottom-2 w-1 bg-[#0A58CA] rounded-r-md"></span>' : ''}
-                    <i data-lucide="user-check" class="w-4 h-4 ${currentPath === 'profile.html' ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
+                    <i data-lucide="user" class="w-4 h-4 ${currentPath === 'profile.html' ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
+                    <span>Profil Saya</span>
+                </a>
+
+                <!-- 🔑 Manajemen User (Super Admin Only) -->
+                ${isSuperAdmin ? `
+                <a href="datauser.html"
+                    class="relative w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-bold rounded-xl ${currentPath === 'datauser.html' ? 'bg-[#0A58CA]/10 text-[#0A58CA] shadow-xs' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'} transition-all">
+                    ${currentPath === 'datauser.html' ? '<span class="absolute left-0 top-2 bottom-2 w-1 bg-[#0A58CA] rounded-r-md"></span>' : ''}
+                    <i data-lucide="shield-check" class="w-4 h-4 ${currentPath === 'datauser.html' ? 'text-[#0A58CA]' : 'text-slate-500'}"></i>
                     <span>Manajemen User</span>
                 </a>
                 ` : ''}
@@ -397,8 +412,29 @@ function renderDynamicGlobalSidebar() {
     }
 
     if (rawUser && isAuthPage) {
-        window.location.href = 'dashboard.html';
-        return;
+        const userRole = localStorage.getItem('userRole');
+        let role = userRole;
+        let isPending = false;
+        try {
+            const u = JSON.parse(rawUser);
+            if (u.role === 'Pending' || u.status === 'Pending') {
+                isPending = true;
+            }
+            if (!role) {
+                role = u.role || u.role_name || u.type;
+            }
+        } catch (e) {}
+
+        if (isPending || role === 'Pending') {
+            localStorage.clear();
+            return;
+        }
+
+        if (role && (role === 'Admin' || role === 'Super Admin' || role === 'Pengajar' || role === 'Guru')) {
+            const targetPage = (role === 'Pengajar' || role === 'Guru') ? 'absensi.html' : 'dashboard.html';
+            window.location.href = targetPage;
+            return;
+        }
     }
 
     if (rawUser && !isAuthPage && window.location.protocol !== 'file:') {
@@ -598,7 +634,7 @@ function renderDynamicGlobalSidebar() {
         }
 
         // 4. Update Profil, Role & Avatar User di Header (Strict Isolation Guard)
-        const currentUser = JSON.parse(rawUser || '{"name":"Super Admin KBEC","email":"admin@kbec.com","role":"Super Admin"}');
+        const currentUser = JSON.parse(rawUser || '{}');
         const userRoleKey = currentUser.role || currentUser.role_name || currentUser.user_role || currentUser.type || '';
         const formattedRole = getFormattedRoleText(userRoleKey);
 
@@ -822,3 +858,43 @@ async function performGlobalSearch(query) {
         modalResults.innerHTML = '<p class="text-center text-rose-500 py-6 font-semibold">Gagal memuat hasil pencarian.</p>';
     }
 }
+
+// Standarisasi Dynamic Sticky Header & Official Footer System
+function applyGlobalStickyHeaderAndFooter() {
+    try {
+        // 1. STICKY HEADER SYSTEM
+        const header = document.querySelector('header');
+        if (header) {
+            header.classList.add('sticky', 'top-0', 'z-30', 'bg-white/95', 'backdrop-blur-md', 'border-b', 'border-slate-100', 'shadow-xs', 'transition-all');
+        }
+
+        // 2. STANDARDIZED OFFICIAL FOOTER SYSTEM
+        let footer = document.querySelector('footer');
+        let mainWrapper = document.querySelector('.flex-1') || document.querySelector('main') || document.body;
+
+        if (!footer && mainWrapper) {
+            footer = document.createElement('footer');
+            mainWrapper.appendChild(footer);
+        }
+
+        if (footer) {
+            footer.className = 'px-6 sm:px-8 py-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center text-[11px] font-medium text-slate-400 gap-3 mt-auto bg-white/50 backdrop-blur-xs';
+            footer.innerHTML = `
+                <p>© 2026 Yayasan Ar-Rasyid Bintaro — KBEC Management System. All rights reserved.</p>
+                <div class="flex items-center gap-4">
+                    <span class="bg-blue-50 text-[#0A58CA] px-2.5 py-0.5 rounded-full font-bold">Versi 2.4.0 Production</span>
+                </div>
+            `;
+        }
+    } catch (err) {
+        console.warn('Global sticky header/footer application note:', err.message);
+    }
+}
+window.applyGlobalStickyHeaderAndFooter = applyGlobalStickyHeaderAndFooter;
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyGlobalStickyHeaderAndFooter);
+} else {
+    applyGlobalStickyHeaderAndFooter();
+}
+

@@ -8,7 +8,9 @@
     <title>Inventaris & Stok Barang - KBEC System</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/route-guard.js"></script>
     <script src="global-user.js"></script>
+    <script src="js/ui-guard.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -24,7 +26,7 @@
     <div class="flex-1 pl-0 lg:pl-64 min-h-screen flex flex-col w-full min-w-0 transition-all duration-300">
 
         <!-- HEADER TOPBAR -->
-        <header class="bg-white border-b border-slate-200 px-6 py-4 sticky top-0 z-20 flex items-center justify-between shadow-2xs">
+        <header class="bg-white/95 backdrop-blur-md border-b border-slate-200 px-6 py-4 sticky top-0 z-30 flex items-center justify-between shadow-xs transition-all">
             <div class="flex items-center gap-3">
                 <div class="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
                     <i data-lucide="package" class="w-5 h-5"></i>
@@ -541,24 +543,31 @@
 
         async function saveItem(e) {
             e.preventDefault();
-            const id = document.getElementById('item-id').value;
-            const payload = {
-                kode_barang: document.getElementById('item-kode').value,
-                nama_barang: document.getElementById('item-nama').value,
-                kategori: document.getElementById('item-kategori').value,
-                stok: document.getElementById('item-stok').value,
-                stok_min: document.getElementById('item-stok-min').value,
-                satuan: document.getElementById('item-satuan').value,
-                harga_beli: document.getElementById('item-harga-beli').value,
-                harga_jual: document.getElementById('item-harga-jual').value,
-                lokasi: document.getElementById('item-lokasi').value,
-                keterangan: document.getElementById('item-keterangan').value
-            };
-
-            const method = id ? 'PUT' : 'POST';
-            const url = id ? `${API_BASE}/api/inventory/${id}` : `${API_BASE}/api/inventory`;
+            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.querySelector('#item-modal button[type="submit"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+            }
 
             try {
+                const id = document.getElementById('item-id').value;
+                const payload = {
+                    kode_barang: document.getElementById('item-kode').value,
+                    nama_barang: document.getElementById('item-nama').value,
+                    kategori: document.getElementById('item-kategori').value,
+                    stok: document.getElementById('item-stok').value,
+                    stok_min: document.getElementById('item-stok-min').value,
+                    satuan: document.getElementById('item-satuan').value,
+                    harga_beli: document.getElementById('item-harga-beli').value,
+                    harga_jual: document.getElementById('item-harga-jual').value,
+                    lokasi: document.getElementById('item-lokasi').value,
+                    keterangan: document.getElementById('item-keterangan').value
+                };
+
+                const method = id ? 'PUT' : 'POST';
+                const url = id ? `${API_BASE}/api/inventory/${id}` : `${API_BASE}/api/inventory`;
+
                 const res = await fetch(url, {
                     method,
                     headers: { 'Content-Type': 'application/json' },
@@ -575,6 +584,12 @@
             } catch (err) {
                 console.error(err);
                 showToast('Terjadi kesalahan jaringan.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 
@@ -613,12 +628,19 @@
 
         async function saveMutation(e) {
             e.preventDefault();
-            const itemId = document.getElementById('mutate-item-id').value;
-            const jenis = document.getElementById('mutate-jenis').value;
-            const jumlah = document.getElementById('mutate-jumlah').value;
-            const keterangan = document.getElementById('mutate-keterangan').value;
+            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.querySelector('#mutate-modal button[type="submit"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+            }
 
             try {
+                const itemId = document.getElementById('mutate-item-id').value;
+                const jenis = document.getElementById('mutate-jenis').value;
+                const jumlah = document.getElementById('mutate-jumlah').value;
+                const keterangan = document.getElementById('mutate-keterangan').value;
+
                 const res = await fetch(`${API_BASE}/api/inventory/mutate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -641,6 +663,12 @@
             } catch (err) {
                 console.error(err);
                 showToast('Terjadi kesalahan jaringan.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
         }
 

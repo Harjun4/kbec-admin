@@ -122,6 +122,16 @@ async function generateSppBills(req, res, next) {
                 }
             }
         }
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || 'System',
+                action: `Auto-Generate Tagihan SPP (${targetBulan})`,
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
         res.json({ success: true, message: `Berhasil men-generate ${generatedCount} tagihan SPP baru untuk bulan ${targetBulan}.`, count: generatedCount });
     } catch (err) {
         next(err);
@@ -185,11 +195,79 @@ async function updateBill(req, res, next) {
             }
         }
 
-        await db.query(
-            'UPDATE bills SET student_id = ?, nama = ?, program = ?, unit = ?, bulan_tagihan = ?, kategori = ?, nominal = ?, jatuh_tempo = ?, status = ? WHERE id = ?',
-            [finalStudentId || null, finalNama, program, unit, bulan_tagihan, kategori, Number(nominal) || 0, jatuh_tempo, status, id]
+        const cleanNominal = Number(nominal) || 0;
+        const targetBulan = bulan_tagihan || new Date().toISOString().slice(0, 7);
+        const targetDueDate = jatuh_tempo || `${targetBulan}-10`;
+
+        // 1. Hitung total terbayar riil dari tabel payments
+        const [[payResult]] = await db.query("SELECT SUM(jumlah) AS total_terbayar FROM payments WHERE bill_id = ? AND status = 'Lunas'", [id]);
+        const totalTerbayar = Number(payResult?.total_terbayar || 0);
+
+        // 2. Tentukan status & terbayar baru
+        let newStatus = 'Tertagih';
+        let newTerbayar = 0;
+        if (totalTerbayar >= cleanNominal && cleanNominal > 0) {
+            newStatus = 'Lunas';
+            newTerbayar = cleanNominal;
+        } else if (totalTerbayar > 0 && totalTerbayar < cleanNominal) {
+            newStatus = 'Partial';
+            newTerbayar = totalTerbayar;
+        } else {
+            newStatus = 'Tertagih';
+            newTerbayar = 0;
+        }
+
+        const [result] = await db.query(
+            'UPDATE bills SET student_id = ?, nama = ?, program = ?, unit = ?, bulan_tagihan = ?, kategori = ?, nominal = ?, jatuh_tempo = ?, status = ?, terbayar = ? WHERE id = ?',
+            [finalStudentId || null, finalNama || 'Siswa', program || 'KBEC', unit || 'KBEC', targetBulan, kategori || 'SPP', cleanNominal, targetDueDate, newStatus, newTerbayar, id]
         );
-        res.json({ success: true });
+
+        if (result && result.affectedRows === 0) {
+            const cleanId = finalStudentId ? String(finalStudentId).split('-')[0].trim() : '';
+            const [existing] = await db.query(
+                "SELECT id FROM bills WHERE (student_id = ? OR (student_id IS NOT NULL AND student_id ILIKE ?) OR LOWER(TRIM(nama)) = LOWER(TRIM(?))) AND bulan_tagihan = ?",
+                [finalStudentId || id, `%${cleanId}%`, finalNama || '', targetBulan]
+            );
+
+            if (existing.length > 0) {
+                const existingId = existing[0].id;
+                const [[existPay]] = await db.query("SELECT SUM(jumlah) AS total_terbayar FROM payments WHERE bill_id = ? AND status = 'Lunas'", [existingId]);
+                const existTerbayar = Number(existPay?.total_terbayar || 0);
+                
+                let existNewStatus = 'Tertagih';
+                let existNewTerbayar = 0;
+                if (existTerbayar >= cleanNominal && cleanNominal > 0) {
+                    existNewStatus = 'Lunas';
+                    existNewTerbayar = cleanNominal;
+                } else if (existTerbayar > 0 && existTerbayar < cleanNominal) {
+                    existNewStatus = 'Partial';
+                    existNewTerbayar = existTerbayar;
+                }
+
+                await db.query(
+                    'UPDATE bills SET student_id = ?, nama = ?, program = ?, unit = ?, bulan_tagihan = ?, kategori = ?, nominal = ?, jatuh_tempo = ?, status = ?, terbayar = ? WHERE id = ?',
+                    [finalStudentId || null, finalNama || 'Siswa', program || 'KBEC', unit || 'KBEC', targetBulan, kategori || 'SPP', cleanNominal, targetDueDate, existNewStatus, existNewTerbayar, existingId]
+                );
+            } else {
+                await db.query(
+                    'INSERT INTO bills (id, student_id, nama, program, unit, bulan_tagihan, kategori, nominal, terbayar, status, jatuh_tempo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [id, finalStudentId || null, finalNama || 'Siswa', program || 'KBEC', unit || 'KBEC', targetBulan, kategori || 'SPP', cleanNominal, 0, 'Tertagih', targetDueDate]
+                );
+            }
+        }
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || 'Admin',
+                action: `Update Tagihan (${id}) — Rp ${cleanNominal.toLocaleString('id-ID')}`,
+                siswa: finalNama,
+                program: program || unit || 'KBEC',
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
+        res.json({ success: true, message: 'Tagihan berhasil diperbarui.', status: newStatus, terbayar: newTerbayar });
     } catch (err) {
         next(err);
     }
@@ -597,6 +675,18 @@ async function createPayment(req, res, next) {
         }
 
         await conn.commit();
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || 'Admin Kasir',
+                action: `Pembayaran (${invoiceId}) — Rp ${cleanJumlah.toLocaleString('id-ID')}`,
+                siswa: finalNama,
+                program: validProgName,
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
         res.status(201).json({ success: true, id: invoiceId, student_id: finalStudentId, nama: finalNama });
     } catch (err) {
         await conn.rollback();
@@ -712,6 +802,16 @@ async function verifyDeposit(req, res, next) {
             'UPDATE deposits SET status = \'Diterima\', diverifikasi_oleh = ? WHERE id = ?',
             [diverifikasi_oleh || 'Super Admin / Direktur KBEC', id]
         );
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || diverifikasi_oleh || 'Super Admin',
+                action: `Verifikasi Setoran Kasir (ID: ${id})`,
+                status: 'Terverifikasi'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
         res.json({ success: true });
     } catch (err) {
         next(err);
@@ -782,6 +882,16 @@ async function createPettyCash(req, res, next) {
             'INSERT INTO petty_cash (kode_transaksi, tanggal, tipe, kategori, jumlah, keterangan, dicatat_oleh) VALUES (?, ?, ?, ?, ?, ?, ?)',
             [kodeTx, finalDate, tipe || 'Pengeluaran', kategori || 'Operasional', Number(jumlah) || 0, keterangan || '', dicatat_oleh || 'Super Admin']
         );
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || dicatat_oleh || 'Admin',
+                action: `Transaksi Kas Kecil (${kategori || 'Operasional'}) — Rp ${Number(jumlah || 0).toLocaleString('id-ID')}`,
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
         res.status(201).json({ success: true, kode_transaksi: kodeTx });
     } catch (err) {
         next(err);

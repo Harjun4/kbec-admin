@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { escapeHTML } = require('../utils/helpers');
 
 async function getInventory(req, res, next) {
     try {
@@ -45,18 +46,29 @@ async function createInventoryItem(req, res, next) {
             'INSERT INTO inventory (kode_barang, nama_barang, kategori, stok, stok_min, satuan, harga_beli, harga_jual, lokasi, keterangan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 finalKode,
-                nama_barang.trim(),
-                kategori.trim(),
+                escapeHTML(nama_barang.trim()),
+                escapeHTML(kategori.trim()),
                 Number(stok) || 0,
                 Number(stok_min) || 10,
-                satuan || 'Pcs',
+                escapeHTML(satuan || 'Pcs'),
                 Number(harga_beli) || 0,
                 Number(harga_jual) || 0,
-                lokasi || '-',
-                keterangan || ''
+                escapeHTML(lokasi || '-'),
+                escapeHTML(keterangan || '')
             ]
         );
         const newId = (result && result.length > 0 && result[0].id) ? result[0].id : (result.insertId || null);
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || 'Admin',
+                action: `Update Stok/Inventaris (${nama_barang.trim()})`,
+                program: kategori || '-',
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
         res.status(201).json({ success: true, id: newId, kode_barang: finalKode });
     } catch (err) {
         next(err);
@@ -70,19 +82,30 @@ async function updateInventoryItem(req, res, next) {
         await db.query(
             'UPDATE inventory SET kode_barang=?, nama_barang=?, kategori=?, stok=?, stok_min=?, satuan=?, harga_beli=?, harga_jual=?, lokasi=?, keterangan=? WHERE id=?',
             [
-                kode_barang,
-                nama_barang,
-                kategori,
+                escapeHTML(kode_barang),
+                escapeHTML(nama_barang),
+                escapeHTML(kategori),
                 Number(stok) || 0,
                 Number(stok_min) || 10,
-                satuan || 'Pcs',
+                escapeHTML(satuan || 'Pcs'),
                 Number(harga_beli) || 0,
                 Number(harga_jual) || 0,
-                lokasi || '-',
-                keterangan || '',
+                escapeHTML(lokasi || '-'),
+                escapeHTML(keterangan || ''),
                 id
             ]
         );
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || 'Admin',
+                action: `Update Stok/Inventaris (${nama_barang || id})`,
+                program: kategori || '-',
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
         res.json({ success: true });
     } catch (err) {
         next(err);
@@ -139,10 +162,21 @@ async function mutateInventory(req, res, next) {
         await conn.query('UPDATE inventory SET stok = ? WHERE id = ?', [newStok, item_id]);
         await conn.query(
             'INSERT INTO inventory_mutations (item_id, jenis, jumlah, keterangan, user_name) VALUES (?, ?, ?, ?, ?)',
-            [item_id, jenis, qty, keterangan || '', user_name || req.user.name || 'Admin']
+            [item_id, jenis, qty, escapeHTML(keterangan || ''), escapeHTML(user_name || (req.user && req.user.name) || 'Admin')]
         );
 
         await conn.commit();
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || user_name || 'Admin',
+                action: `Mutasi Stok (${item.nama_barang || item_id} - ${jenis} ${qty})`,
+                program: item.kategori || '-',
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
         res.json({ success: true, stok_lama: currentStok, stok_baru: newStok });
     } catch (err) {
         await conn.rollback();

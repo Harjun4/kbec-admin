@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { resolveStudentUnit } = require('../utils/helpers');
+const { resolveStudentUnit, escapeHTML } = require('../utils/helpers');
 
 function getAllDaysInMonth(yearMonthStr) {
     const parts = (yearMonthStr || new Date().toISOString().slice(0, 7)).split('-');
@@ -20,17 +20,40 @@ async function getAttendance(req, res, next) {
     const finalDate = tanggal || new Date().toISOString().slice(0, 10);
     
     try {
+        const userRole = (req.user && req.user.role ? req.user.role : '').toLowerCase();
+        const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
+
         let className = kelas;
-        if (class_id && !className) {
-            const [[cRow]] = await db.query('SELECT nama FROM classes WHERE id = ?', [class_id]);
+        let activeClassId = class_id;
+
+        if (isTeacher && !activeClassId && !className && req.user) {
+            const tId = req.user.teacher_id || '';
+            const tEmail = (req.user.email || '').trim().toLowerCase();
+            const tName = (req.user.name || '').trim();
+
+            const [[teacherClass]] = await db.query(
+                'SELECT id, nama FROM classes WHERE (teacher_id IS NOT NULL AND teacher_id = ?)' +
+                ' OR (teacher_id IS NOT NULL AND teacher_id IN (SELECT id FROM teachers WHERE LOWER(email) = LOWER(?)))' +
+                ' OR (LOWER(pengajar) = LOWER(?))' +
+                ' OR (pengajar ILIKE ?) LIMIT 1',
+                [tId, tEmail, tName, `%${tName}%`]
+            );
+            if (teacherClass) {
+                activeClassId = teacherClass.id;
+                className = teacherClass.nama;
+            }
+        }
+
+        if (activeClassId && !className) {
+            const [[cRow]] = await db.query('SELECT nama FROM classes WHERE id = ?', [activeClassId]);
             if (cRow) className = cRow.nama;
         }
 
         let studentQuery = 'SELECT s.id, s.nama, s.program, s.initial FROM students s';
         let studentParams = [];
-        if (class_id) {
+        if (activeClassId) {
             studentQuery += ' JOIN class_students cs ON s.id = cs.student_id WHERE cs.class_id = ?';
-            studentParams.push(class_id);
+            studentParams.push(activeClassId);
         } else if (className) {
             studentQuery += ' JOIN classes c ON c.nama = ? JOIN class_students cs ON c.id = cs.class_id WHERE s.id = cs.student_id';
             studentParams.push(className);
@@ -38,7 +61,7 @@ async function getAttendance(req, res, next) {
 
         let [students] = await db.query(studentQuery, studentParams);
 
-        if (students.length === 0 && !class_id && !className) {
+        if (students.length === 0 && !activeClassId && !className && !isTeacher) {
             [students] = await db.query('SELECT id, nama, program, initial FROM students LIMIT 50');
         }
 
@@ -180,6 +203,18 @@ async function saveAttendance(req, res, next) {
         }
 
         await conn.commit();
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            const sampleRec = Array.isArray(items) && items.length > 0 ? items[0] : {};
+            createActivityLog({
+                user_name: (req.user && req.user.name) || 'Pengajar/Admin',
+                action: `Simpan Presensi (${sampleRec.tanggal || new Date().toISOString().slice(0, 10)})`,
+                program: sampleRec.program || sampleRec.kelas || 'Reguler',
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
         res.json({ success: true, message: 'Presensi berhasil disimpan.' });
     } catch (err) {
         await conn.rollback();
@@ -236,12 +271,12 @@ async function saveStudentGrade(req, res, next) {
         if (existing.length > 0) {
             await db.query(
                 'UPDATE student_grades SET nama_panggilan = ?, class_id = ?, class_name = ?, grade = ?, lesson = ?, material_tambahan = ?, presensi = ?, sb_page = ?, wb_page = ?, notes = ?, keterangan = ? WHERE id = ?',
-                [finalNick, class_id || null, class_name || '-', grade || '1A', lesson || '', material_tambahan || '', finalPresensi, sb_page || '', wb_page || '', notes || '', keterangan || '', existing[0].id]
+                [escapeHTML(finalNick), class_id || null, escapeHTML(class_name || '-'), escapeHTML(grade || '1A'), escapeHTML(lesson || ''), escapeHTML(material_tambahan || ''), finalPresensi, escapeHTML(sb_page || ''), escapeHTML(wb_page || ''), escapeHTML(notes || ''), escapeHTML(keterangan || ''), existing[0].id]
             );
         } else {
             await db.query(
                 'INSERT INTO student_grades (student_id, student_name, nama_panggilan, class_id, class_name, grade, lesson, material_tambahan, tanggal, presensi, sb_page, wb_page, notes, keterangan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                [student_id, student_name, finalNick, class_id || null, class_name || '-', grade || '1A', lesson || '', material_tambahan || '', finalDate, finalPresensi, sb_page || '', wb_page || '', notes || '', keterangan || '']
+                [student_id, escapeHTML(student_name), escapeHTML(finalNick), class_id || null, escapeHTML(class_name || '-'), escapeHTML(grade || '1A'), escapeHTML(lesson || ''), escapeHTML(material_tambahan || ''), finalDate, finalPresensi, escapeHTML(sb_page || ''), escapeHTML(wb_page || ''), escapeHTML(notes || ''), escapeHTML(keterangan || '')]
             );
         }
 
@@ -259,6 +294,16 @@ async function saveStudentGrade(req, res, next) {
                 );
             }
         }
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || 'Pengajar/Admin',
+                action: `Input Evaluasi Kinerja (${student_name} - ${finalDate})`,
+                program: class_name || '-',
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
 
         res.json({ success: true, message: 'Evaluasi kinerja siswa berhasil disimpan.' });
     } catch (err) {
