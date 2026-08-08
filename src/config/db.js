@@ -1,7 +1,7 @@
 const { Pool, types } = require('pg');
-const mysql = require('mysql2/promise');
 const supabase = require('./supabase');
 require('dotenv').config();
+
 
 // Automatically parse PostgreSQL BIGINT (OID 20), INT4 (OID 23), INT2 (OID 21), and NUMERIC (OID 1700) as JavaScript numbers
 types.setTypeParser(20, (val) => val === null ? 0 : parseInt(val, 10));
@@ -213,19 +213,25 @@ if (isPostgres) {
 
     console.log('⚡ Connected to Supabase PostgreSQL Pool & Official SDK Client (db.ariqvrsvwvtwkllybqeb.supabase.co).');
 } else {
-    const mysqlPool = mysql.createPool({
-        host: process.env.DB_HOST || 'localhost',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASSWORD || '',
-        database: process.env.DB_NAME || 'kbec_db',
-        port: parseInt(process.env.DB_PORT || '3306', 10),
-        waitForConnections: true,
-        connectionLimit: 10
-    });
+    try {
+        const mysql = require('mysql2/promise');
+        const mysqlPool = mysql.createPool({
+            host: process.env.DB_HOST || 'localhost',
+            user: process.env.DB_USER || 'root',
+            password: process.env.DB_PASSWORD || '',
+            database: process.env.DB_NAME || 'kbec_db',
+            port: parseInt(process.env.DB_PORT || '3306', 10),
+            waitForConnections: true,
+            connectionLimit: 10
+        });
 
-    pool = mysqlPool;
-    pool.supabase = supabase;
-    console.log('🐬 Connected to Local MySQL Pool.');
+        pool = mysqlPool;
+        pool.supabase = supabase;
+        console.log('🐬 Connected to Local MySQL Pool.');
+    } catch (e) {
+        console.warn('⚠️ Local mysql2/promise module not found. Defaulting to PostgreSQL.');
+    }
 }
+
 
 module.exports = pool;
