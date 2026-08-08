@@ -243,3 +243,6 @@ if (require.main === module) {
         console.log(`   - Network: http://${localIp}:${PORT}`);
     });
 }
+
+module.exports = app;
+
