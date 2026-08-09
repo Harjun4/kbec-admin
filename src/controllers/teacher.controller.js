@@ -77,15 +77,64 @@ async function createTeacher(req, res, next) {
 
 async function updateTeacher(req, res, next) {
     const { id } = req.params;
-    const { nama, email, kontak, expertise, joined, status } = req.body;
+    const { nama, email, kontak, expertise, joined, status, program, unit } = req.body;
+    let conn;
     try {
+        conn = await db.getConnection();
+        await conn.beginTransaction();
+
         const expertiseStr = JSON.stringify(expertise || []);
-        await db.query(
-            'UPDATE teachers SET nama = ?, email = ?, kontak = ?, expertise = ?, joined = ?, status = ? WHERE id = ?',
-            [escapeHTML(nama), escapeHTML(email), escapeHTML(kontak), expertiseStr, escapeHTML(joined), escapeHTML(status), id]
-        );
+        
+        try {
+            await conn.query(
+                'UPDATE teachers SET nama = ?, email = ?, kontak = ?, expertise = ?, joined = ?, status = ?, program = ?, unit = ? WHERE id = ?',
+                [escapeHTML(nama), escapeHTML(email), escapeHTML(kontak), expertiseStr, escapeHTML(joined), escapeHTML(status), escapeHTML(program || ''), escapeHTML(unit || ''), id]
+            );
+        } catch (e) {
+            if (e.message && (e.message.includes('column "program"') || e.message.includes('column "unit"'))) {
+                await conn.query(
+                    'UPDATE teachers SET nama = ?, email = ?, kontak = ?, expertise = ?, joined = ?, status = ? WHERE id = ?',
+                    [escapeHTML(nama), escapeHTML(email), escapeHTML(kontak), expertiseStr, escapeHTML(joined), escapeHTML(status), id]
+                );
+            } else {
+                throw e;
+            }
+        }
+
+        const safeNama = escapeHTML(nama);
+        const safeEmail = escapeHTML(email);
+        const safeKontak = escapeHTML(kontak);
+
+        try {
+            await conn.query(
+                `UPDATE users 
+                 SET name = ?, email = ?, phone = ? 
+                 WHERE (teacher_id = ?::text AND ?::text IS NOT NULL AND ?::text != '') 
+                    OR (LOWER(email) = LOWER(?::text) AND email IS NOT NULL AND email != '')`,
+                [safeNama, safeEmail, safeKontak, id, id, id, email]
+            );
+        } catch (dbErr) {
+            if (dbErr.message && dbErr.message.includes('column "phone"')) {
+                await conn.query(
+                    `UPDATE users 
+                     SET name = ?, email = ? 
+                     WHERE (teacher_id = ?::text AND ?::text IS NOT NULL AND ?::text != '') 
+                        OR (LOWER(email) = LOWER(?::text) AND email IS NOT NULL AND email != '')`,
+                    [safeNama, safeEmail, id, id, id, email]
+                );
+            } else {
+                throw dbErr;
+            }
+        }
+
+        await conn.commit();
+        conn.release();
+
         res.json({ success: true });
     } catch (err) {
+        if (conn) {
+            try { await conn.rollback(); conn.release(); } catch(e) {}
+        }
         next(err);
     }
 }
@@ -101,8 +150,9 @@ async function deleteTeacher(req, res, next) {
 }
 
 async function checkinTeacher(req, res, next) {
-    const teacher_id = req.body.teacher_id || req.user.id || req.user.nis;
-    const teacher_name = req.body.teacher_name || req.user.name;
+    const isTeacherRole = (req.user.role || '').toLowerCase().includes('pengajar') || (req.user.role || '').toLowerCase().includes('guru') || (req.user.role || '').toLowerCase().includes('teacher');
+    const teacher_id = isTeacherRole ? (req.user.teacher_id || req.user.id || req.user.nis) : (req.body.teacher_id || req.user.id || req.user.nis);
+    const teacher_name = isTeacherRole ? req.user.name : (req.body.teacher_name || req.user.name);
     const { class_id, class_name, lat, lng, is_online } = req.body;
 
     if (!teacher_id || !teacher_name) {

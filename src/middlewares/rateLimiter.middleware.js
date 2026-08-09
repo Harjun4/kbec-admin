@@ -2,7 +2,7 @@ const rateLimit = require('express-rate-limit');
 
 const globalRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 Menit
-    max: 5000, // Pelonggaran batas testing: Maksimal 5000 request per IP per 15 menit
+    max: 200, // Standar production: Maksimal 200 request per IP per 15 menit
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false, xForwardedForHeader: false },
@@ -11,7 +11,7 @@ const globalRateLimiter = rateLimit({
 
 const authRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 Menit
-    max: 1000, // Pelonggaran batas testing: Maksimal 1000 percobaan login per IP
+    max: 15, // Mencegah brute-force password: Maksimal 15 percobaan login per IP
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false, xForwardedForHeader: false },

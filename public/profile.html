@@ -277,15 +277,23 @@
                     return;
                 }
 
-                currentUser.name = name;
-                currentUser.email = email;
-                currentUser.phone = phone;
+                if (data.token) {
+                    localStorage.setItem('authToken', data.token);
+                }
+
+                if (data.user) {
+                    currentUser = data.user;
+                } else {
+                    currentUser.name = name;
+                    currentUser.email = email;
+                    currentUser.phone = phone;
+                }
                 localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
                 const headerName = document.getElementById('header-user-name');
                 const headerBadge = document.getElementById('header-user-badge');
-                if (headerName) headerName.innerText = name;
-                if (headerBadge) headerBadge.innerText = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                if (headerName) headerName.innerText = currentUser.name;
+                if (headerBadge) headerBadge.innerText = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 
                 if (typeof window.renderDynamicGlobalSidebar === 'function') {
                     window.renderDynamicGlobalSidebar();

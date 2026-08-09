@@ -53,7 +53,13 @@ async function ensureTeacherProfile(userIdOrNis, role, status, emailInput, nameI
 async function getSelfProfile(req, res, next) {
     try {
         const userId = req.user.id;
-        const [[user]] = await db.query('SELECT id, nis, name, email, role, status, teacher_id FROM users WHERE id = ? OR nis = ?', [userId, userId]);
+        const [[user]] = await db.query(`
+            SELECT u.id, u.nis, u.name, u.email, u.role, u.status, u.teacher_id,
+                   t.avatar, t.expertise, t.joined, t.kontak
+            FROM users u
+            LEFT JOIN teachers t ON u.teacher_id = t.id
+            WHERE u.id = ? OR u.nis = ?
+        `, [userId, userId]);
         if (!user) {
             return res.status(404).json({ success: false, message: 'User tidak ditemukan.' });
         }
@@ -64,6 +70,7 @@ async function getSelfProfile(req, res, next) {
 }
 
 async function updateSelfProfile(req, res, next) {
+    let conn;
     try {
         const userId = req.user.id;
         const { name, email, phone } = req.body;
@@ -72,18 +79,59 @@ async function updateSelfProfile(req, res, next) {
             return res.status(400).json({ success: false, message: 'Nama dan email wajib diisi.' });
         }
 
-        await db.query('UPDATE users SET name = ?, email = ? WHERE id = ? OR nis = ?', [escapeHTML(name.trim()), email.trim(), userId, userId]);
+        conn = await db.getConnection();
+        await conn.beginTransaction();
 
-        if (req.user.teacher_id) {
-            await db.query('UPDATE teachers SET nama = ?, email = ? WHERE id = ?', [escapeHTML(name.trim()), email.trim(), req.user.teacher_id]);
+        const safeName = escapeHTML(name.trim());
+        const safeEmail = email.trim();
+        const safePhone = phone ? escapeHTML(phone.trim()) : '';
+
+        try {
+            await conn.query('UPDATE users SET name = ?, email = ?, phone = ? WHERE id = ? OR nis = ?', [safeName, safeEmail, safePhone, userId, userId]);
+        } catch (dbErr) {
+            if (dbErr.message && dbErr.message.includes('column "phone"')) {
+                await conn.query('UPDATE users SET name = ?, email = ? WHERE id = ? OR nis = ?', [safeName, safeEmail, userId, userId]);
+            } else {
+                throw dbErr;
+            }
         }
+
+        const teacherId = req.user.teacher_id || null;
+        const userEmail = req.user.email || '';
+        const isTeacherRole = (req.user.role || '').toLowerCase().includes('pengajar') || (req.user.role || '').toLowerCase().includes('guru');
+
+        if (teacherId || isTeacherRole) {
+            await conn.query(
+                `UPDATE teachers 
+                 SET nama = ?, email = ?, kontak = ? 
+                 WHERE (id = ?::text AND ?::text IS NOT NULL AND ?::text != '') 
+                    OR (LOWER(email) = LOWER(?::text) AND email IS NOT NULL AND email != '')`,
+                [safeName, safeEmail, safePhone, teacherId, teacherId, teacherId, userEmail]
+            );
+        }
+
+        await conn.commit();
+        conn.release();
+
+        const { generateToken } = require('../middlewares/auth.middleware');
+        const updatedUser = {
+            ...req.user,
+            name: safeName,
+            email: safeEmail,
+            phone: safePhone
+        };
+        const newToken = generateToken(updatedUser);
 
         res.json({
             success: true,
             message: 'Profil pribadi berhasil diperbarui.',
-            user: { ...req.user, name: escapeHTML(name.trim()), email: email.trim() }
+            user: updatedUser,
+            token: newToken
         });
     } catch (err) {
+        if (conn) {
+            try { await conn.rollback(); conn.release(); } catch(e) {}
+        }
         next(err);
     }
 }

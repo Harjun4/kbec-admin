@@ -165,6 +165,32 @@ async function saveAttendance(req, res, next) {
 
     const conn = await db.getConnection();
     try {
+        const userRole = (req.user && req.user.role ? req.user.role : '').toLowerCase();
+        const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
+
+        if (isTeacher) {
+            const tId = req.user.teacher_id || '';
+            const tEmail = (req.user.email || '').trim().toLowerCase();
+            const tName = (req.user.name || '').trim();
+            
+            const [teacherClasses] = await conn.query(
+                'SELECT nama FROM classes WHERE (teacher_id IS NOT NULL AND teacher_id = ?)' +
+                ' OR (teacher_id IS NOT NULL AND teacher_id IN (SELECT id FROM teachers WHERE LOWER(email) = LOWER(?)))' +
+                ' OR (LOWER(pengajar) = LOWER(?))' +
+                ' OR (pengajar ILIKE ?)',
+                [tId, tEmail, tName, `%${tName}%`]
+            );
+            const allowedClasses = teacherClasses.map(c => c.nama.toLowerCase());
+            
+            for (let item of items) {
+                const sClass = (item.kelas || targetClass || '').toLowerCase();
+                if (sClass && !allowedClasses.includes(sClass)) {
+                    conn.release();
+                    return res.status(403).json({ success: false, message: `Akses dilarang. Anda tidak memiliki akses ke kelas: ${item.kelas || targetClass}.` });
+                }
+            }
+        }
+
         await conn.beginTransaction();
 
         const [[maxRow]] = await conn.query('SELECT COALESCE(MAX(id), 0) AS max_id FROM attendance');
@@ -227,19 +253,66 @@ async function saveAttendance(req, res, next) {
 async function getStudentGrades(req, res, next) {
     const { student_id, class_id, tanggal } = req.query;
     try {
+        const userRole = (req.user && req.user.role ? req.user.role : '').toLowerCase();
+        const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
+        
         let query = "SELECT id, student_id, student_name, nama_panggilan, class_id, class_name, grade, lesson, material_tambahan, TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') AS tanggal, presensi, sb_page, wb_page, notes, keterangan FROM student_grades";
         let params = [];
+        let whereClauses = [];
+
         if (student_id) {
-            query += ' WHERE student_id = ?';
+            whereClauses.push('student_id = ?');
             params.push(student_id);
         } else if (class_id) {
-            query += ' WHERE class_id = ?';
+            whereClauses.push('class_id = ?');
             params.push(class_id);
         }
         if (tanggal) {
-            query += (params.length > 0 ? ' AND' : ' WHERE') + ' tanggal::text = ?';
+            whereClauses.push('tanggal::text = ?');
             params.push(tanggal);
         }
+
+        if (isTeacher) {
+            const tId = req.user.teacher_id || '';
+            const tEmail = (req.user.email || '').trim().toLowerCase();
+            const tName = (req.user.name || '').trim();
+
+            const [teacherClasses] = await db.query(
+                'SELECT id, nama FROM classes WHERE (teacher_id IS NOT NULL AND teacher_id = ?)' +
+                ' OR (teacher_id IS NOT NULL AND teacher_id IN (SELECT id FROM teachers WHERE LOWER(email) = LOWER(?)))' +
+                ' OR (LOWER(pengajar) = LOWER(?))' +
+                ' OR (pengajar ILIKE ?)',
+                [tId, tEmail, tName, `%${tName}%`]
+            );
+            
+            if (teacherClasses.length === 0) {
+                 return res.json([]);
+            }
+            const allowedClassIds = teacherClasses.map(c => String(c.id));
+            const allowedClassNames = teacherClasses.map(c => c.nama);
+
+            if (class_id && !allowedClassIds.includes(String(class_id))) {
+                 return res.status(403).json({ success: false, message: 'Akses dilarang. Anda tidak memiliki akses ke kelas ini.' });
+            }
+
+            if (!class_id && !student_id) {
+                const idPlaceholders = allowedClassIds.map(() => '?').join(',');
+                const namePlaceholders = allowedClassNames.map(() => '?').join(',');
+                let teacherWhere = [];
+                if (allowedClassIds.length > 0) teacherWhere.push(`class_id IN (${idPlaceholders})`);
+                if (allowedClassNames.length > 0) teacherWhere.push(`class_name IN (${namePlaceholders})`);
+                
+                if (teacherWhere.length > 0) {
+                    whereClauses.push(`(${teacherWhere.join(' OR ')})`);
+                    params.push(...allowedClassIds, ...allowedClassNames);
+                }
+            }
+        }
+
+        if (whereClauses.length > 0) {
+            query += ' WHERE ' + whereClauses.join(' AND ');
+        }
+
         query += ' ORDER BY id DESC LIMIT 100';
         const [rows] = await db.query(query, params);
         res.json(rows);
@@ -257,6 +330,39 @@ async function saveStudentGrade(req, res, next) {
     const finalNick = nama_panggilan || student_name.split(' ')[0];
 
     try {
+        const userRole = (req.user && req.user.role ? req.user.role : '').toLowerCase();
+        const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
+        
+        if (isTeacher) {
+            const tId = req.user.teacher_id || '';
+            const tEmail = (req.user.email || '').trim().toLowerCase();
+            const tName = (req.user.name || '').trim();
+
+            const [teacherClasses] = await db.query(
+                'SELECT id, nama FROM classes WHERE (teacher_id IS NOT NULL AND teacher_id = ?)' +
+                ' OR (teacher_id IS NOT NULL AND teacher_id IN (SELECT id FROM teachers WHERE LOWER(email) = LOWER(?)))' +
+                ' OR (LOWER(pengajar) = LOWER(?))' +
+                ' OR (pengajar ILIKE ?)',
+                [tId, tEmail, tName, `%${tName}%`]
+            );
+            
+            const allowedClassIds = teacherClasses.map(c => String(c.id));
+            const allowedClassNames = teacherClasses.map(c => c.nama.toLowerCase());
+
+            const reqClassId = String(class_id || '');
+            const reqClassName = (class_name || '').toLowerCase();
+
+            let hasAccess = false;
+            if (reqClassId && allowedClassIds.includes(reqClassId)) hasAccess = true;
+            if (reqClassName && reqClassName !== '-' && allowedClassNames.includes(reqClassName)) hasAccess = true;
+
+            if (!hasAccess) {
+                 return res.status(403).json({ success: false, message: 'Akses dilarang. Anda hanya dapat memberikan nilai untuk kelas Anda sendiri (harap sertakan ID atau Nama Kelas).' });
+            } else if (teacherClasses.length === 0) {
+                 return res.status(403).json({ success: false, message: 'Akses dilarang. Anda belum ditugaskan pada kelas mana pun.' });
+            }
+        }
+
         let finalPresensi = presensi;
         if (!finalPresensi) {
             const [attRows] = await db.query('SELECT status FROM attendance WHERE student_id = ? AND tanggal::text = ?', [student_id, finalDate]);

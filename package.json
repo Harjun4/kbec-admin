@@ -7,7 +7,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "seed": "node scripts/seed.js",
-    "test": "node tests/auth.test.js && node tests/api.test.js"
+    "test": "node tests/auth.test.js && node tests/api.test.js && node tests/attendance_schema.test.js && node tests/route_guard.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.9",

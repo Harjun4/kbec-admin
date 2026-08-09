@@ -53,16 +53,7 @@
                     }
                 });
             }
-            if (currentPath.endsWith('laporan.html')) {
-                document.querySelectorAll('button, a, [role="button"], div').forEach(el => {
-                    const txt = (el.textContent || el.innerText || '').trim().toLowerCase();
-                    const onclickAttr = el.getAttribute('onclick') || '';
-                    if ((txt.includes('kinerja siswa') || onclickAttr.includes('kinerja')) && (el.classList.contains('tab-btn') || onclickAttr.includes('switchReportTab'))) {
-                        el.style.display = 'none';
-                        el.classList.add('hidden');
-                    }
-                });
-            }
+
         }
 
         // 4. Pengajar Suppression: Sembunyikan tombol CRUD non-absensi & modal triggers

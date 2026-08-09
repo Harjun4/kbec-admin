@@ -52,16 +52,32 @@ const classSchema = z.object({
     program: z.string().min(1, 'Program/Unit wajib diisi')
 }).passthrough();
 
-const attendanceSchema = z.object({
-    items: z.array(
-        z.object({
-            student_id: z.string(),
-            status: z.enum(['Hadir', 'Ijin', 'Sakit', 'Alfa'], {
-                errorMap: () => ({ message: 'Status harus Hadir, Ijin, Sakit, atau Alfa' })
-            })
-        })
-    ).min(1, 'Daftar absensi tidak boleh kosong')
+const attendanceItemSchema = z.object({
+    student_id: z.string().or(z.number()).optional(),
+    id: z.string().or(z.number()).optional(),
+    class_id: z.string().or(z.number()).optional(),
+    kelas: z.string().optional().nullable(),
+    program: z.string().optional().nullable(),
+    nama: z.string().optional().nullable(),
+    status: z.enum(['Hadir', 'Izin', 'Ijin', 'Sakit', 'Alpha', 'Alfa', 'Kosong', '-'], {
+        errorMap: () => ({ message: 'Status harus Hadir, Izin, Sakit, Alpha, Kosong, atau -' })
+    }),
+    date: z.string().optional(),
+    tanggal: z.string().optional(),
+    notes: z.string().optional().nullable()
 }).passthrough();
+
+const attendanceSchema = z.union([
+    z.array(attendanceItemSchema).min(1, 'Daftar absensi tidak boleh kosong'),
+    z.object({
+        class_id: z.string().or(z.number()).optional(),
+        kelas: z.string().optional().nullable(),
+        date: z.string().optional(),
+        tanggal: z.string().optional(),
+        items: z.array(attendanceItemSchema).optional(),
+        list: z.array(attendanceItemSchema).optional()
+    }).passthrough()
+]);
 
 const inventorySchema = z.object({
     nama_barang: z.string().min(1, 'Nama barang wajib diisi'),

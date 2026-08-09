@@ -13,6 +13,6 @@ router.post('/bulk', requireAuth, validate(attendanceSchema), attendanceControll
 router.get('/student-grades', requireAuth, attendanceController.getStudentGrades);
 router.post('/student-grades', requireAuth, attendanceController.saveStudentGrade);
 router.get('/performance-report', requireAuth, attendanceController.getPerformanceReport);
-router.get('/report', requireAuth, attendanceController.getAttendanceReport);
+router.get('/report', requireAuth, requireRole('Super Admin', 'Admin'), attendanceController.getAttendanceReport);
 
 module.exports = router;

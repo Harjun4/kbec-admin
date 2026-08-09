@@ -176,6 +176,10 @@ async function changePassword(req, res, next) {
         const userId = req.user.id;
         const { oldPassword, newPassword } = req.body;
 
+        if (!oldPassword || oldPassword.trim() === '') {
+            return res.status(400).json({ success: false, message: 'Password lama wajib diisi.' });
+        }
+
         if (!newPassword || newPassword.length < 6) {
             return res.status(400).json({ success: false, message: 'Password baru minimal 6 karakter.' });
         }

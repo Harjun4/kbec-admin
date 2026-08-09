@@ -328,7 +328,7 @@ function renderDynamicGlobalSidebar() {
                         <a href="laporan.html?type=kas#kas" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kas'); return false; }" class="${getSubmenuItemClass(isLaporanKasActive)}">Laporan Kas Besar</a>
                         <a href="rekap-kehadiran.html" class="${getSubmenuItemClass(isLaporanKehadiranActive)}">Laporan Kehadiran</a>
                         <a href="laporan.html?type=kas_kecil#kas_kecil" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kas_kecil'); return false; }" class="${getSubmenuItemClass(isLaporanKasKecilActive)}">Laporan Kas Kecil</a>
-                        ${isSuperAdmin ? `<a href="laporan.html?type=kinerja#kinerja" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kinerja'); return false; }" class="${getSubmenuItemClass(isLaporanKinerjaActive)}">Laporan Kinerja Siswa</a>` : ''}
+                        <a href="laporan.html?type=kinerja#kinerja" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kinerja'); return false; }" class="${getSubmenuItemClass(isLaporanKinerjaActive)}">Laporan Kinerja Siswa</a>
                     </div>
                 </div>
                 ` : ''}
@@ -674,7 +674,23 @@ function renderDynamicGlobalSidebar() {
 
 // Logic Global Search Modal & Keyboard Shortcut (CTRL+K)
 function setupGlobalHeaderSearch() {
+    const rawUser = localStorage.getItem('currentUser');
+    const user = JSON.parse(rawUser || '{}');
+    const userRole = (user.role || '').toLowerCase();
+    const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
+
     const searchInputs = document.querySelectorAll('header input[type="text"]');
+    
+    if (isTeacher) {
+        // Sembunyikan elemen input search bar beserta container parent-nya dari UI Header
+        searchInputs.forEach(input => {
+            if (input.parentElement) {
+                input.parentElement.style.display = 'none';
+            }
+        });
+        return; // Hentikan inisialisasi fitur search (modal & shortcut CTRL+K)
+    }
+
     if (searchInputs.length === 0) return;
 
     let searchResultModal = document.getElementById('global-search-modal');
@@ -768,6 +784,15 @@ async function performGlobalSearch(query) {
     modalResults.innerHTML = '<p class="text-center text-blue-600 py-6 font-semibold">Mencari data...</p>';
 
     const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
+
+    const rawUser = localStorage.getItem('currentUser');
+    const user = JSON.parse(rawUser || '{}');
+    const userRole = (user.role || '').toLowerCase();
+    
+    if (userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru')) {
+        modalResults.innerHTML = '<p class="text-center text-slate-400 py-6">Fitur pencarian global tidak tersedia untuk akun Pengajar.</p>';
+        return;
+    }
 
     try {
         const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(q)}`);
