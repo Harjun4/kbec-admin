@@ -2,7 +2,7 @@ const rateLimit = require('express-rate-limit');
 
 const globalRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 Menit
-    max: 200, // Standar production: Maksimal 200 request per IP per 15 menit
+    max: 500, // Standar production: Maksimal 200 request per IP per 15 menit
     standardHeaders: true,
     legacyHeaders: false,
     validate: { trustProxy: false, xForwardedForHeader: false },

@@ -103,7 +103,7 @@
 
 <body class="text-slate-700 flex min-h-screen select-none">
 
-    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-3 pointer-events-none"></div>
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[99999] space-y-3 pointer-events-none"></div>
 
     <!-- MODAL 1: INPUT / EDIT PEMBAYARAN -->
     <div id="payment-modal"
@@ -208,6 +208,32 @@
                         class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700">
                 </div>
 
+                <div class="space-y-1.5 border-t border-slate-100 pt-3">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Kode Voucher Promo (Opsional)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="form-voucher-code" placeholder="Kode promo (misal: KBEC50)" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-600 uppercase focus:outline-none focus:border-blue-500 focus:bg-white">
+                        <button type="button" onclick="applyPaymentVoucher()" class="px-3.5 py-2 text-xs font-bold text-white bg-[#0A58CA] hover:bg-blue-700 rounded-xl shrink-0 transition-all flex items-center gap-1">
+                            <i data-lucide="tag" class="w-3.5 h-3.5"></i> Terapkan
+                        </button>
+                    </div>
+                    <div id="payment-voucher-breakdown" class="hidden text-xs p-3 rounded-xl bg-blue-50/80 border border-blue-200/80 mt-1.5 space-y-1">
+                        <div class="flex justify-between text-slate-600">
+                            <span>SPP Bulan Ini:</span>
+                            <span id="breakdown-original" class="font-bold text-slate-800">Rp 0</span>
+                        </div>
+                        <div class="flex justify-between text-emerald-600 font-semibold">
+                            <span>Diskon Voucher (<span id="breakdown-vcode"></span>):</span>
+                            <span id="breakdown-discount" class="font-bold">-Rp 0</span>
+                        </div>
+                        <div class="flex justify-between text-blue-900 font-extrabold border-t border-blue-200 pt-1 text-xs">
+                            <span>Wajib Bayar Bulan Ini:</span>
+                            <span id="breakdown-net" class="text-sm font-extrabold text-blue-700">Rp 0</span>
+                        </div>
+                    </div>
+                    <input type="hidden" id="form-voucher-id">
+                    <input type="hidden" id="form-discount-amount" value="0">
+                </div>
+
                 <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
                     <button type="button" onclick="closePaymentModal()"
                         class="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">Batal</button>
@@ -293,6 +319,22 @@
                         class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-700">
                 </div>
 
+                <div class="space-y-1.5 border-t border-slate-100 pt-3">
+                    <label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Voucher / Diskon Yayasan (Opsional)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="bill-voucher-code" placeholder="Kode promo (misal: YAYASAN50)" class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-600 uppercase focus:outline-none focus:border-blue-500 focus:bg-white">
+                        <button type="button" onclick="applyBillVoucher()" class="px-3.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shrink-0 transition-all flex items-center gap-1">
+                            <i data-lucide="tag" class="w-3.5 h-3.5"></i> Cek
+                        </button>
+                    </div>
+                    <div id="bill-voucher-info" class="hidden text-xs p-2.5 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 mt-1">
+                        <span id="bill-voucher-text" class="font-semibold block"></span>
+                        <span id="bill-net-text" class="font-extrabold text-blue-900 block mt-0.5"></span>
+                    </div>
+                    <input type="hidden" id="bill-voucher-id">
+                    <input type="hidden" id="bill-discount-amount" value="0">
+                </div>
+
                 <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
                     <button type="button" onclick="closeBillModal()"
                         class="px-5 py-2.5 text-sm font-semibold text-slate-600 bg-slate-100 rounded-xl">Batal</button>
@@ -348,7 +390,7 @@
                             <th class="py-2 text-right">Jumlah (Rp)</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100">
+                    <tbody id="rc-table-body" class="divide-y divide-slate-100">
                         <tr>
                             <td id="rc-kategori" class="py-3 font-bold text-slate-800">Pembayaran SPP Bulanan</td>
                             <td id="rc-program" class="py-3 text-center font-semibold text-slate-600">KBEC Elementary
@@ -567,19 +609,22 @@
                         Setoran Kasir, dan Kas Kecil</p>
                 </div>
 
-                <!-- TAB SWITCHER -->
-                <div class="bg-white p-1.5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-1">
+                <!-- TAB SWITCHER SINKRON -->
+                <div class="bg-white p-1.5 rounded-2xl border border-slate-200/60 shadow-xs flex items-center gap-1 flex-wrap">
                     <button onclick="switchTab('bills')" id="tab-btn-bills"
-                        class="px-4 py-2 rounded-xl text-xs font-bold bg-[#0A58CA] text-white shadow-sm transition-all">📋
+                        class="px-3.5 py-2 rounded-xl text-xs font-bold bg-[#0A58CA] text-white shadow-sm transition-all">📋
                         Tagihan SPP</button>
+                    <a href="biaya-lain.html" id="tab-btn-nonspp"
+                        class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition-all">🏷️
+                        Tagihan Non-SPP</a>
                     <button onclick="switchTab('payments')" id="tab-btn-payments"
-                        class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition-all">💳
-                        Pembayaran</button>
+                        class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition-all">💳
+                        Pembayaran & Kuitansi</button>
                     <button onclick="switchTab('deposits')" id="tab-btn-deposits"
-                        class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition-all">📥
+                        class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition-all">📥
                         Setoran Kasir</button>
                     <button onclick="switchTab('petty')" id="tab-btn-petty"
-                        class="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition-all">💼
+                        class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 transition-all">💼
                         Kas Kecil</button>
                 </div>
             </div>
@@ -801,35 +846,58 @@
                     </div>
                 </div>
 
-                <!-- Action & Filter Bar Pembayaran -->
-                <div
-                    class="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-xs flex flex-wrap items-center justify-between gap-3">
+                <!-- Action & Filter Bar Pembayaran (Kas Besar Ledger Audit Trail) -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/60 shadow-xs flex flex-wrap items-center justify-between gap-3">
                     <div class="flex flex-wrap items-center gap-3">
+                        <select id="filter-pay-unit" onchange="fetchPayments()"
+                            class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 cursor-pointer">
+                            <option value="Semua">Semua Unit</option>
+                            <option value="KBEC">KBEC</option>
+                            <option value="Calistung">Calistung</option>
+                            <option value="TK">TK</option>
+                            <option value="Bimbel">Bimbel</option>
+                            <option value="Arabin">Arabin</option>
+                        </select>
                         <select id="filter-pay-program" onchange="fetchPayments()"
                             class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 cursor-pointer">
                             <option value="Semua">Semua Program</option>
+                        </select>
+                        <select id="filter-pay-kategori" onchange="fetchPayments()"
+                            class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 cursor-pointer">
+                            <option value="Semua">Semua Kategori</option>
+                            <option value="SPP">SPP Bulanan</option>
+                            <option value="Pendaftaran">Biaya Pendaftaran</option>
+                            <option value="Modul">Biaya Modul / Buku</option>
+                            <option value="Seragam">Biaya Seragam & Pin</option>
                         </select>
                         <select id="filter-pay-metode" onchange="fetchPayments()"
                             class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 cursor-pointer">
                             <option value="Semua">Semua Metode</option>
                             <option value="Tunai">Tunai</option>
-                            <option value="Non-Tunai">Non-Tunai (Transfer & QRIS)</option>
-                            <option value="Transfer">Transfer</option>
+                            <option value="Transfer">Transfer Bank</option>
                             <option value="QRIS">QRIS</option>
                         </select>
-                        <select id="filter-pay-status" onchange="fetchPayments()"
+                        <select id="filter-pay-period" onchange="handlePayPeriodChange()"
                             class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 cursor-pointer">
-                            <option value="Semua">Semua Status</option>
-                            <option value="Lunas">Lunas</option>
-                            <option value="Tertagih">Tertagih</option>
+                            <option value="Semua">Semua Waktu</option>
+                            <option value="harian">Harian (Hari Ini)</option>
+                            <option value="bulanan">Bulanan (Bulan Ini)</option>
+                            <option value="custom">Custom Date</option>
                         </select>
 
+                        <div id="pay-custom-date-container" class="hidden flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl p-1">
+                            <input type="date" id="filter-pay-start-date" onchange="fetchPayments()"
+                                class="text-xs font-medium text-slate-700 bg-transparent px-2 py-1 outline-none">
+                            <span class="text-slate-400 text-xs font-bold">-</span>
+                            <input type="date" id="filter-pay-end-date" onchange="fetchPayments()"
+                                class="text-xs font-medium text-slate-700 bg-transparent px-2 py-1 outline-none">
+                        </div>
+
                         <div class="flex flex-col">
-                            <span class="text-[10px] font-bold text-slate-400 mb-1 pl-1">Cari Nama / NIS / No. Kuitansi</span>
                             <div class="relative">
                                 <input type="text" id="search-pay-data" onkeyup="fetchPayments()" placeholder="Cari nama, NIS, kuitansi..."
-                                    class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-1.5 focus:outline-none focus:border-blue-500 min-w-[170px]">
-                                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2"></i>
+                                    class="text-xs font-semibold text-slate-700 bg-slate-50 border border-slate-200 rounded-xl pl-8 pr-3 py-2 focus:outline-none focus:border-blue-500 min-w-[170px]">
+                                <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
                             </div>
                         </div>
                     </div>
@@ -1185,11 +1253,23 @@
                     }
                 }
 
-                if (filterPayProgram) {
+                const filterStdProgram = document.getElementById('filter-std-program');
+                if (filterStdProgram && programsList.length > 0) {
+                    const currentVal = filterStdProgram.value;
+                    filterStdProgram.innerHTML = '<option value="Semua">Semua Program</option>';
+                    programsList.forEach(p => {
+                        filterStdProgram.innerHTML += `<option value="${p.nama}">${p.nama}</option>`;
+                    });
+                    if (currentVal) filterStdProgram.value = currentVal;
+                }
+
+                if (filterPayProgram && programsList.length > 0) {
+                    const currentVal = filterPayProgram.value;
                     filterPayProgram.innerHTML = '<option value="Semua">Semua Program</option>';
                     programsList.forEach(p => {
                         filterPayProgram.innerHTML += `<option value="${p.nama}">${p.nama}</option>`;
                     });
+                    if (currentVal) filterPayProgram.value = currentVal;
                 }
 
                 if (billUnitSelect) {
@@ -1809,12 +1889,85 @@
             setTimeout(() => { modal.classList.remove('opacity-0'); modal.querySelector('div').classList.remove('scale-95'); }, 10);
         }
 
+        async function applyPaymentVoucher() {
+            const code = (document.getElementById('form-voucher-code')?.value || '').trim().toUpperCase();
+            if (!code) {
+                showToast('Masukkan kode voucher promo.', 'error');
+                return;
+            }
+            const currentJumlah = parseFloat(document.getElementById('form-jumlah')?.value || '0');
+            try {
+                const res = await fetch(`${API_BASE}/api/vouchers/validate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, bill_amount: currentJumlah })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.valid) {
+                    throw new Error(data.message || 'Voucher tidak valid.');
+                }
+
+                document.getElementById('form-voucher-id').value = data.voucher.id;
+                document.getElementById('form-discount-amount').value = data.discount_amount;
+                document.getElementById('form-jumlah').value = data.net_amount;
+
+                const breakdown = document.getElementById('payment-voucher-breakdown');
+                document.getElementById('breakdown-original').innerText = `Rp ${currentJumlah.toLocaleString('id-ID')}`;
+                document.getElementById('breakdown-vcode').innerText = data.voucher.code;
+                document.getElementById('breakdown-discount').innerText = `-Rp ${data.discount_amount.toLocaleString('id-ID')}`;
+                document.getElementById('breakdown-net').innerText = `Rp ${data.net_amount.toLocaleString('id-ID')}`;
+                breakdown.classList.remove('hidden');
+
+                showToast(data.message);
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Gagal menerapkan voucher.', 'error');
+            }
+        }
+
+        async function applyBillVoucher() {
+            const code = (document.getElementById('bill-voucher-code')?.value || '').trim().toUpperCase();
+            if (!code) {
+                showToast('Masukkan kode voucher.', 'error');
+                return;
+            }
+            const currentNominal = parseFloat(document.getElementById('bill-nominal')?.value || '0');
+            try {
+                const res = await fetch(`${API_BASE}/api/vouchers/validate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, bill_amount: currentNominal })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.valid) {
+                    throw new Error(data.message || 'Voucher tidak valid.');
+                }
+
+                document.getElementById('bill-voucher-id').value = data.voucher.id;
+                document.getElementById('bill-discount-amount').value = data.discount_amount;
+                document.getElementById('bill-nominal').value = data.net_amount;
+
+                const infoBox = document.getElementById('bill-voucher-info');
+                document.getElementById('bill-voucher-text').innerText = `Voucher '${data.voucher.code}': Diskon Rp ${data.discount_amount.toLocaleString('id-ID')}`;
+                document.getElementById('bill-net-text').innerText = `SPP Net Baru: Rp ${data.net_amount.toLocaleString('id-ID')}`;
+                infoBox.classList.remove('hidden');
+
+                showToast(data.message);
+            } catch (err) {
+                console.error(err);
+                showToast(err.message || 'Gagal menerapkan voucher.', 'error');
+            }
+        }
+
         function closeBillModal() {
             const modal = document.getElementById('bill-modal');
             modal.classList.add('opacity-0'); modal.querySelector('div').classList.add('scale-95');
             setTimeout(() => {
                 modal.classList.add('hidden');
                 document.getElementById('bill-form').reset();
+                if (document.getElementById('bill-voucher-id')) document.getElementById('bill-voucher-id').value = '';
+                if (document.getElementById('bill-discount-amount')) document.getElementById('bill-discount-amount').value = '0';
+                if (document.getElementById('bill-voucher-info')) document.getElementById('bill-voucher-info').classList.add('hidden');
                 editBillModeId = null;
                 const hiddenIdEl = document.getElementById('editInvoiceId');
                 if (hiddenIdEl) hiddenIdEl.value = '';
@@ -1939,6 +2092,8 @@
                     nominal: parseInt(document.getElementById('bill-nominal').value, 10),
                     bulan_tagihan: document.getElementById('bill-bulan').value,
                     jatuh_tempo: document.getElementById('bill-jatuh-tempo').value,
+                    voucher_id: document.getElementById('bill-voucher-id')?.value || null,
+                    discount_amount: parseFloat(document.getElementById('bill-discount-amount')?.value || '0'),
                     status: 'Tertagih'
                 };
 
@@ -2076,16 +2231,26 @@
                     metode: document.getElementById('form-metode').value,
                     status: document.getElementById('form-status').value,
                     tanggal: document.getElementById('form-tanggal').value,
-                    notes: document.getElementById('form-notes').value || ''
+                    notes: document.getElementById('form-notes').value || '',
+                    voucher_id: document.getElementById('form-voucher-id')?.value || null,
+                    voucher_code: document.getElementById('form-voucher-code')?.value || null,
+                    discount_amount: parseFloat(document.getElementById('form-discount-amount')?.value || '0')
                 };
 
                 const res = await fetch(url, {
                     method: method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                     body: JSON.stringify(payload)
                 });
+                if (!res.ok) {
+                    let errMsg = `Error HTTP ${res.status}: Server gagal memproses transaksi.`;
+                    try {
+                        const errData = await res.json();
+                        errMsg = errData.message || errData.error || errMsg;
+                    } catch (e) {}
+                    throw new Error(errMsg);
+                }
                 const resData = await res.json();
-                if (!res.ok || resData.error) throw new Error(resData.error || 'Server error');
                 showToast(editPaymentModeId ? `Transaksi "${editPaymentModeId}" berhasil diperbarui.` : 'Transaksi pembayaran baru berhasil disimpan.');
                 closePaymentModal();
                 await fetchBills();
@@ -2094,7 +2259,7 @@
                 await fetchFinancialSummary();
             } catch (err) {
                 console.error(err);
-                showToast(editPaymentModeId ? 'Gagal memperbarui transaksi.' : 'Gagal menyimpan transaksi pembayaran.', 'error');
+                showToast(err.message || (editPaymentModeId ? 'Gagal memperbarui transaksi.' : 'Gagal menyimpan transaksi pembayaran.'), 'error');
             } finally {
                 if (btn) {
                     btn.disabled = false;
@@ -2105,19 +2270,41 @@
         }
 
         // --- TAB 2: PEMBAYARAN & KUITANSI (KAS BESAR) ---
+        function handlePayPeriodChange() {
+            const periodSelect = document.getElementById('filter-pay-period');
+            const container = document.getElementById('pay-custom-date-container');
+            if (periodSelect && container) {
+                if (periodSelect.value === 'custom') {
+                    container.classList.remove('hidden');
+                } else {
+                    container.classList.add('hidden');
+                }
+            }
+            fetchPayments();
+        }
+
         async function fetchPayments() {
+            const unitSelect = document.getElementById('filter-pay-unit');
             const programSelect = document.getElementById('filter-pay-program');
+            const kategoriSelect = document.getElementById('filter-pay-kategori');
             const metodeSelect = document.getElementById('filter-pay-metode');
-            const statusSelect = document.getElementById('filter-pay-status');
+            const periodSelect = document.getElementById('filter-pay-period');
+            const startDateInput = document.getElementById('filter-pay-start-date');
+            const endDateInput = document.getElementById('filter-pay-end-date');
             const searchInput = document.getElementById('search-pay-data') || document.getElementById('search-data');
 
+            const unit = unitSelect ? unitSelect.value : 'Semua';
             const program = programSelect ? programSelect.value : 'Semua';
+            const kategori = kategoriSelect ? kategoriSelect.value : 'Semua';
             const metode = metodeSelect ? metodeSelect.value : 'Semua';
-            const status = statusSelect ? statusSelect.value : 'Semua';
+            const period_type = periodSelect ? periodSelect.value : 'Semua';
+            const start_date = startDateInput ? startDateInput.value : '';
+            const end_date = endDateInput ? endDateInput.value : '';
             const search = searchInput ? searchInput.value : '';
 
             try {
-                const res = await fetch(`${API_BASE}/api/payments?program=${program}&metode=${metode}&status=${status}&search=${encodeURIComponent(search)}`);
+                const url = `${API_BASE}/api/payments?unit=${encodeURIComponent(unit)}&program=${encodeURIComponent(program)}&kategori=${encodeURIComponent(kategori)}&metode=${encodeURIComponent(metode)}&period_type=${encodeURIComponent(period_type)}&start_date=${start_date}&end_date=${end_date}&search=${encodeURIComponent(search)}`;
+                const res = await fetch(url);
                 paymentsList = await res.json();
                 renderPaymentsTable(paymentsList);
             } catch (err) {
@@ -2514,7 +2701,7 @@
                 let nis = pay ? (pay.student_id || pay.nis || '-') : '-';
 
                 try {
-                    const res = await fetch(`${API_BASE}/api/payments/receipt/${id}`);
+                    const res = await fetch(`${API_BASE}/api/finance/payments/receipt/${id}`);
                     if (res.ok) {
                         const data = await res.json();
                         const r = data.receipt || data;
@@ -2525,7 +2712,10 @@
                                 student_id: r.siswa?.id || nis,
                                 program: r.siswa?.program || pay?.program || 'KBEC',
                                 kategori: r.transaksi?.kategori || pay?.kategori || 'SPP Bulanan',
-                                jumlah: r.transaksi?.jumlah || pay?.jumlah || 0,
+                                jumlah: r.transaksi?.jumlah !== undefined ? r.transaksi.jumlah : (pay?.jumlah || 0),
+                                subtotal: r.transaksi?.subtotal,
+                                discount_amount: r.transaksi?.discount_amount !== undefined ? r.transaksi.discount_amount : (pay?.discount_amount || 0),
+                                voucher_code: r.transaksi?.voucher_code || pay?.voucher_code || null,
                                 metode: r.transaksi?.metode || pay?.metode || 'Tunai',
                                 tanggal: r.transaksi?.tanggal || pay?.tanggal || '-'
                             };
@@ -2539,14 +2729,49 @@
                     return;
                 }
 
+                const discountAmount = parseFloat(pay.discount_amount || 0);
+                const netAmount = parseFloat(pay.jumlah || 0);
+                const subtotalAmount = pay.subtotal !== undefined && pay.subtotal !== null 
+                    ? parseFloat(pay.subtotal) 
+                    : (netAmount + discountAmount);
+
                 document.getElementById('rc-no').innerText = pay.id || id;
                 document.getElementById('rc-nama').innerText = pay.nama || 'Siswa KBEC';
                 document.getElementById('rc-nis').innerText = `ID: ${pay.student_id || nis}`;
                 document.getElementById('rc-tanggal').innerText = pay.tanggal || new Date().toISOString().slice(0, 10);
                 document.getElementById('rc-metode').innerText = `Metode: ${pay.metode || 'Tunai'}`;
-                document.getElementById('rc-kategori').innerText = `Pembayaran ${pay.kategori || 'SPP Bulanan'}`;
-                document.getElementById('rc-program').innerText = pay.program || pay.unit || 'KBEC';
-                document.getElementById('rc-jumlah').innerText = `Rp ${parseInt(pay.jumlah || 0, 10).toLocaleString('id-ID')}`;
+
+                const tbody = document.getElementById('rc-table-body');
+                if (tbody) {
+                    tbody.innerHTML = '';
+                    if (discountAmount > 0) {
+                        const voucherLabel = pay.voucher_code ? ` (Kode: ${pay.voucher_code})` : '';
+                        tbody.innerHTML = `
+                            <tr>
+                                <td class="py-2.5 font-bold text-slate-800">${pay.kategori || 'Pembayaran SPP Bulanan'}</td>
+                                <td class="py-2.5 text-center font-semibold text-slate-600">${pay.program || pay.unit || 'KBEC'}</td>
+                                <td class="py-2.5 text-right font-bold text-slate-700">Rp ${parseInt(subtotalAmount, 10).toLocaleString('id-ID')}</td>
+                            </tr>
+                            <tr class="bg-emerald-50/60">
+                                <td class="py-2.5 font-bold text-emerald-700">🏷️ Potongan Diskon${voucherLabel}</td>
+                                <td class="py-2.5 text-center font-mono text-[11px] font-bold text-emerald-600">Diskon</td>
+                                <td class="py-2.5 text-right font-bold text-emerald-700">- Rp ${parseInt(discountAmount, 10).toLocaleString('id-ID')}</td>
+                            </tr>
+                            <tr class="border-t-2 border-slate-800 bg-slate-50">
+                                <td colspan="2" class="py-3 font-extrabold text-slate-900 uppercase tracking-wider text-right pr-4">Total Akhir Dibayar:</td>
+                                <td class="py-3 text-right font-black text-slate-900 text-sm">Rp ${parseInt(netAmount, 10).toLocaleString('id-ID')}</td>
+                            </tr>
+                        `;
+                    } else {
+                        tbody.innerHTML = `
+                            <tr>
+                                <td id="rc-kategori" class="py-3 font-bold text-slate-800">Pembayaran ${pay.kategori || 'SPP Bulanan'}</td>
+                                <td id="rc-program" class="py-3 text-center font-semibold text-slate-600">${pay.program || pay.unit || 'KBEC'}</td>
+                                <td id="rc-jumlah" class="py-3 text-right font-extrabold text-slate-900">Rp ${parseInt(netAmount, 10).toLocaleString('id-ID')}</td>
+                            </tr>
+                        `;
+                    }
+                }
 
                 const modal = document.getElementById('receipt-modal');
                 modal.classList.remove('hidden');

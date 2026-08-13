@@ -1,5 +1,26 @@
 // global-user.js - Integrasi User Session, Dynamic Responsive Tree Submenu Sidebar, Auth Guard & Global Search KBEC Admin
 
+// Global Toast Z-Index Elevation (99999)
+(function() {
+    const style = document.createElement('style');
+    style.id = 'global-toast-elevation-style';
+    style.textContent = `
+        #toast-container, 
+        .toast-container,
+        [id*="toast-container"] {
+            z-index: 99999 !important;
+            position: fixed !important;
+        }
+    `;
+    if (document.head) {
+        document.head.appendChild(style);
+    } else {
+        window.addEventListener('DOMContentLoaded', () => {
+            if (document.head) document.head.appendChild(style);
+        });
+    }
+})();
+
 // Intercept Global Fetch untuk melampirkan Token Autentikasi secara otomatis
 (function() {
     const originalFetch = window.fetch;
@@ -113,7 +134,7 @@ function renderDynamicGlobalSidebar() {
     // Tentukan Submenu mana yang harus terbuka secara otomatis
     let openSiswa = currentPath === 'siswa.html';
     let openAkademik = ['pengajar.html', 'kelas.html', 'absensi.html', 'jadwal.html'].includes(currentPath);
-    let openKeuangan = ['pembayaran.html'].includes(currentPath);
+    let openKeuangan = ['pembayaran.html', 'biaya-lain.html', 'voucher.html'].includes(currentPath);
     let openInventaris = currentPath === 'inventaris.html' || fullHash.includes('inventaris');
     let openLaporan = currentPath === 'laporan.html' || currentPath === 'rekap-kehadiran.html';
     let openUnitProgram = currentPath === 'program.html';
@@ -263,6 +284,8 @@ function renderDynamicGlobalSidebar() {
                     </button>
                     <div id="menu-keuangan" class="${openKeuangan ? '' : 'hidden'} pl-8 pr-2 py-1 space-y-1 text-xs">
                         <a href="pembayaran.html#bills" onclick="if(typeof window.switchTab === 'function') window.switchTab('bills');" class="${getSubmenuItemClass(isTagihanActive)}">Tagihan SPP</a>
+                        <a href="biaya-lain.html" class="${getSubmenuItemClass(currentPath === 'biaya-lain.html')}">Tagihan Non-SPP</a>
+                        <a href="voucher.html" class="${getSubmenuItemClass(currentPath === 'voucher.html')}">Manajemen Voucher</a>
                         <a href="pembayaran.html#payments" onclick="if(typeof window.switchTab === 'function') window.switchTab('payments');" class="${getSubmenuItemClass(isPembayaranActive)}">Pembayaran & Kuitansi</a>
                         <a href="pembayaran.html#deposits" onclick="if(typeof window.switchTab === 'function') window.switchTab('deposits');" class="${getSubmenuItemClass(isSetoranActive)}">Setoran Kasir</a>
                         <a href="pembayaran.html#petty" onclick="if(typeof window.switchTab === 'function') window.switchTab('petty');" class="${getSubmenuItemClass(isKasKecilActive)}">Kas Kecil</a>

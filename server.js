@@ -22,6 +22,7 @@ const programRoutes = require('./src/routes/program.routes');
 const financeRoutes = require('./src/routes/finance.routes');
 const attendanceRoutes = require('./src/routes/attendance.routes');
 const inventoryRoutes = require('./src/routes/inventory.routes');
+const voucherRoutes = require('./src/routes/voucher.routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -95,12 +96,23 @@ app.use('/api/classes', classRoutes);
 
 app.use('/api/programs', programRoutes);
 
-const { getStudentBillsSummary } = require('./src/controllers/finance.controller');
+const { getStudentBillsSummary, getBills, createBill, updateBill, deleteBill, getPayments, getReceipt, createPayment, updatePayment, deletePayment } = require('./src/controllers/finance.controller');
+const { validate, paymentSchema } = require('./src/middlewares/validate.middleware');
+
 app.get(['/api/finance/bills/per-student', '/api/bills/per-student'], requireAuth, getStudentBillsSummary);
+app.get(['/api/finance/bills', '/api/bills'], requireAuth, getBills);
+app.post(['/api/finance/bills', '/api/bills'], requireAuth, requireRole('Super Admin', 'Admin'), createBill);
+app.put(['/api/finance/bills/:id', '/api/bills/:id'], requireAuth, requireRole('Super Admin', 'Admin'), updateBill);
+app.delete(['/api/finance/bills/:id', '/api/bills/:id'], requireAuth, requireRole('Super Admin'), deleteBill);
+
+app.get(['/api/finance/payments', '/api/payments'], requireAuth, getPayments);
+app.get(['/api/finance/payments/receipt/:id', '/api/payments/receipt/:id'], requireAuth, getReceipt);
+app.post(['/api/finance/payments', '/api/payments'], requireAuth, requireRole('Super Admin', 'Admin'), validate(paymentSchema), createPayment);
+app.put(['/api/finance/payments/:id', '/api/payments/:id'], requireAuth, requireRole('Super Admin', 'Admin'), updatePayment);
+app.delete(['/api/finance/payments/:id', '/api/payments/:id'], requireAuth, requireRole('Super Admin'), deletePayment);
 
 app.use('/api/finance', financeRoutes);
-app.use('/api/bills', (req, res, next) => { req.url = '/bills' + req.url; financeRoutes(req, res, next); });
-app.use('/api/payments', (req, res, next) => { req.url = '/payments' + req.url; financeRoutes(req, res, next); });
+app.use('/api/vouchers', voucherRoutes);
 
 app.use('/api/attendance', attendanceRoutes);
 
@@ -245,15 +257,14 @@ function getLocalIpAddress() {
     return '127.0.0.1';
 }
 
-if (require.main === module && !process.env.VERCEL) {
-    app.listen(PORT, '0.0.0.0', () => {
+if (require.main === module || !process.env.VERCEL) {
+    app.listen(PORT, () => {
         const localIp = getLocalIpAddress();
-        console.log(`🚀 Server berjalan di:`);
+        console.log(`🚀 KBEC Admin Server running on port ${PORT}`);
         console.log(`   - Local:   http://localhost:${PORT}`);
         console.log(`   - Network: http://${localIp}:${PORT}`);
     });
 }
 
 module.exports = app;
-
 

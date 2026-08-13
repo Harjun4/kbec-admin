@@ -29,7 +29,7 @@
     const rolePermissions = {
         'Pengajar': ['/absensi.html', '/jadwal.html', '/profile.html', 'absensi.html', 'jadwal.html', 'profile.html'],
         'Guru': ['/absensi.html', '/jadwal.html', '/profile.html', 'absensi.html', 'jadwal.html', 'profile.html'],
-        'Admin': ['/dashboard.html', '/laporan.html', '/rekap-kehadiran.html', '/pembayaran.html', '/siswa.html', '/jadwal.html', '/kelas.html', '/inventaris.html', '/program.html', '/profile.html', 'dashboard.html', 'laporan.html', 'rekap-kehadiran.html', 'pembayaran.html', 'siswa.html', 'jadwal.html', 'kelas.html', 'inventaris.html', 'program.html', 'profile.html'],
+        'Admin': ['/dashboard.html', '/laporan.html', '/rekap-kehadiran.html', '/pembayaran.html', '/biaya-lain.html', '/voucher.html', '/siswa.html', '/jadwal.html', '/kelas.html', '/inventaris.html', '/program.html', '/profile.html', 'dashboard.html', 'laporan.html', 'rekap-kehadiran.html', 'pembayaran.html', 'biaya-lain.html', 'voucher.html', 'siswa.html', 'jadwal.html', 'kelas.html', 'inventaris.html', 'program.html', 'profile.html'],
         'Super Admin': ['*'] // Akses ke semua halaman
     };
 
