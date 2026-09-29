@@ -80,6 +80,33 @@ async function runApiTests() {
     assert.strictEqual(res.body.attendance_type, 'sesi_mengajar');
     console.log('✅ Sesi mengajar test passed:', res.body.message);
 
+    // 2b. Test checkinTeacher FAILS when GPS is missing or 0 for offline presence
+    const reqNoGps = {
+        user: {
+            id: 'USER-T001',
+            teacher_id: 'KBEC-T001',
+            name: 'Ms. Sarah Johnson',
+            role: 'Pengajar'
+        },
+        body: {
+            attendance_type: 'checkin_harian',
+            lat: null,
+            lng: null,
+            is_online: 0,
+            proof_image: 'data:image/jpeg;base64,mockphoto123',
+            notes: 'Mencoba absen tanpa GPS'
+        }
+    };
+
+    res = createMockRes();
+    await teacherController.checkinTeacher(reqNoGps, res, (err) => {
+        if (err) throw err;
+    });
+
+    assert.strictEqual(res.statusCode, 400, 'Checkin without GPS must return 400');
+    assert.strictEqual(res.body.success, false, 'Checkin without GPS must have success: false');
+    console.log('✅ Check-in rejection without GPS passed:', res.body.message);
+
     // 3. Test getCheckinLogs as Super Admin
     const reqAdminLogs = {
         user: {

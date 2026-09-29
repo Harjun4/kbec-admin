@@ -446,10 +446,19 @@ function detectGPSLocation() {
     if (!navigator.geolocation) {
         if (titleEl) titleEl.innerText = 'GPS Tidak Didukung';
         if (detailEl) detailEl.innerText = 'Peramban ini tidak mendukung layanan geolokasi GPS.';
+        document.getElementById('form-lat').value = '';
+        document.getElementById('form-lng').value = '';
+        if (iconContainer) iconContainer.className = 'p-2 rounded-lg bg-rose-100 text-rose-600';
+        if (badgeEl) {
+            badgeEl.classList.remove('hidden');
+            badgeEl.innerText = 'GPS Tidak Didukung';
+            badgeEl.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-100 text-rose-700';
+        }
         return;
     }
 
     if (titleEl) titleEl.innerText = 'Mendeteksi Koordinat GPS...';
+    if (detailEl) detailEl.innerText = 'Mohon izinkan akses lokasi jika peramban meminta konfirmasi...';
 
     navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -480,9 +489,16 @@ function detectGPSLocation() {
         },
         (err) => {
             console.warn('Geolocation Error:', err.message);
-            if (titleEl) titleEl.innerText = 'Gagal Mengakses GPS';
-            if (detailEl) detailEl.innerText = 'Izin lokasi belum diberikan atau sinyal GPS lemah. Presensi tetap dapat dilanjutkan.';
+            document.getElementById('form-lat').value = '';
+            document.getElementById('form-lng').value = '';
+            if (titleEl) titleEl.innerText = 'GPS Belum Diizinkan / Mati';
+            if (detailEl) detailEl.innerText = 'Akses lokasi wajib diaktifkan & diizinkan pada peramban/HP Anda agar presensi dapat diproses. Klik "Perbarui Lokasi" setelah mengaktifkan izin lokasi.';
             if (iconContainer) iconContainer.className = 'p-2 rounded-lg bg-rose-100 text-rose-600';
+            if (badgeEl) {
+                badgeEl.classList.remove('hidden');
+                badgeEl.innerText = 'GPS Wajib Aktif';
+                badgeEl.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-rose-100 text-rose-700';
+            }
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -520,6 +536,20 @@ async function handleAttendanceSubmit(event) {
     } else if (type === 'izin' || type === 'sakit') {
         const izinType = document.getElementById('form-izin-type').value;
         topic_material = izinType === 'sakit' ? 'Sakit' : 'Izin';
+    }
+
+    // Validasi WAJIB Lokasi GPS untuk presensi tatap muka (Check-in Datang, Check-out Pulang, dan Sesi Mengajar Tatap Muka)
+    const isOfflinePresence = type === 'checkin_harian' || type === 'checkout_harian' || (type === 'sesi_mengajar' && !is_online);
+    if (isOfflinePresence) {
+        const parsedLat = parseFloat(lat);
+        const parsedLng = parseFloat(lng);
+        if (!lat || !lng || isNaN(parsedLat) || isNaN(parsedLng) || (parsedLat === 0 && parsedLng === 0)) {
+            showToast('Akses lokasi GPS belum terdeteksi atau tidak diizinkan! Silakan aktifkan GPS dan izinkan akses lokasi di peramban/ponsel Anda, lalu klik "Perbarui Lokasi".', 'error');
+            detectGPSLocation();
+            const gpsCard = document.getElementById('gps-status-card');
+            if (gpsCard) gpsCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
     }
 
     // Validasi Foto Bukti:

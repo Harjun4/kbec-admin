@@ -201,18 +201,29 @@ async function checkinTeacher(req, res, next) {
             });
         }
 
+        // Validasi wajib koordinat lokasi GPS untuk presensi tatap muka (checkin harian, checkout harian, sesi mengajar tatap muka)
+        const isOfflinePresence = type === 'checkin_harian' || type === 'checkout_harian' || (type === 'sesi_mengajar' && !is_online);
+        if (isOfflinePresence) {
+            const parsedLat = parseFloat(lat);
+            const parsedLng = parseFloat(lng);
+            if (lat === undefined || lat === null || lat === '' || lng === undefined || lng === null || lng === '' || isNaN(parsedLat) || isNaN(parsedLng) || (parsedLat === 0 && parsedLng === 0)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Akses lokasi GPS wajib diaktifkan dan diizinkan pada perangkat Anda untuk melakukan presensi!'
+                });
+            }
+        }
+
         if (type === 'izin') {
             status = 'Izin';
         } else if (type === 'sakit') {
             status = 'Sakit';
         } else if (type === 'checkout_harian') {
+            distanceMeters = calculateHaversineDistance(parseFloat(lat), parseFloat(lng), KBEC_LAT, KBEC_LNG);
             status = 'Check-out (Selesai)';
-            if (!is_online && lat && lng) {
-                distanceMeters = calculateHaversineDistance(parseFloat(lat), parseFloat(lng), KBEC_LAT, KBEC_LNG);
-            }
         } else {
             // checkin_harian atau sesi_mengajar
-            if (!is_online && lat && lng) {
+            if (!is_online) {
                 distanceMeters = calculateHaversineDistance(parseFloat(lat), parseFloat(lng), KBEC_LAT, KBEC_LNG);
                 if (distanceMeters > KBEC_ALLOWED_RADIUS) {
                     isValid = false;
@@ -220,10 +231,8 @@ async function checkinTeacher(req, res, next) {
                 } else {
                     status = 'Terverifikasi (Hadir)';
                 }
-            } else if (is_online) {
-                status = 'Terverifikasi (Online)';
             } else {
-                status = 'Hadir (Tanpa GPS)';
+                status = 'Terverifikasi (Online)';
             }
         }
 
