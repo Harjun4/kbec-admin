@@ -18,7 +18,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Auto refresh logs setiap 60 detik jika halaman terbuka
     setInterval(() => {
-        loadAttendanceSummary();
+        const rawUser = localStorage.getItem('currentUser');
+        const user = JSON.parse(rawUser || '{}');
+        const role = (user.role || user.role_name || user.type || 'Pengajar').trim().toLowerCase();
+        const isTeacher = role.includes('pengajar') || role.includes('guru') || role.includes('teacher');
+        if (!isTeacher) {
+            loadAttendanceSummary();
+        }
     }, 60000);
 });
 
@@ -43,7 +49,11 @@ function initUserSession() {
     }
 
     // Penyesuaian antarmuka berdasarkan role
+    const statsSection = document.getElementById('section-stats-cards');
     if (isTeacher) {
+        // Pengajar: Bagian card statistik TIDAK PERLU TERLIHAT (pengajar fokus melihat riwayat presensinya sendiri)
+        if (statsSection) statsSection.classList.add('hidden');
+
         // Pengajar: Form langsung terbuka siap absen
         const formSection = document.getElementById('section-form-absensi');
         if (formSection) formSection.classList.remove('hidden');
@@ -56,6 +66,9 @@ function initUserSession() {
         const tableTitle = document.getElementById('table-title');
         if (tableTitle) tableTitle.innerText = 'Riwayat Presensi Saya';
     } else {
+        // Admin / Super Admin / Staff: Tampilkan bagian card statistik
+        if (statsSection) statsSection.classList.remove('hidden');
+
         // Admin / Super Admin: Sembunyikan form awal, tampilkan dropdown pilih pengajar jika admin entry
         const wrapperSelectTeacher = document.getElementById('wrapper-select-teacher');
         if (wrapperSelectTeacher) wrapperSelectTeacher.classList.remove('hidden');
@@ -64,12 +77,21 @@ function initUserSession() {
 
 // 2. Load Data Awal
 async function loadInitialData() {
-    await Promise.all([
-        loadAttendanceSummary(),
+    const rawUser = localStorage.getItem('currentUser');
+    const user = JSON.parse(rawUser || '{}');
+    const role = (user.role || user.role_name || user.type || 'Pengajar').trim().toLowerCase();
+    const isTeacher = role.includes('pengajar') || role.includes('guru') || role.includes('teacher');
+
+    const tasks = [
         loadTeachersDropdown(),
         loadTeacherClasses(),
         loadCheckinLogs()
-    ]);
+    ];
+    if (!isTeacher) {
+        tasks.push(loadAttendanceSummary());
+    }
+
+    await Promise.all(tasks);
     if (typeof lucide !== 'undefined' && lucide.createIcons) {
         lucide.createIcons();
     }
@@ -129,7 +151,6 @@ function switchFormTab(type) {
     const photoTitle = document.getElementById('photo-label-title');
     const photoNotice = document.getElementById('photo-rule-notice');
     const containerUpload = document.getElementById('container-upload-file');
-    const btnNativeCamera = document.getElementById('btn-native-camera');
 
     const inactiveClass = 'px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all';
     const activeClass = 'px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-white text-[#0A58CA] shadow-xs';
@@ -147,7 +168,6 @@ function switchFormTab(type) {
         if (photoTitle) photoTitle.innerHTML = 'Bukti Foto Datang (Wajib Kamera Langsung) <span class="text-rose-500">*</span>';
         if (photoNotice) photoNotice.innerHTML = '<i data-lucide="shield-alert" class="w-4 h-4 text-amber-600 flex-shrink-0"></i><span>Presensi datang <b>wajib foto kamera langsung saat ini</b> (menghindari penggunaan foto lama dari galeri).</span>';
         if (containerUpload) containerUpload.classList.add('hidden');
-        if (btnNativeCamera) btnNativeCamera.classList.remove('hidden');
         if (!isPhotoFromLiveCamera && currentCapturedPhoto) retakePhoto();
     } else if (type === 'sesi_mengajar') {
         if (tabBtnSesi) tabBtnSesi.className = activeClass;
@@ -156,14 +176,12 @@ function switchFormTab(type) {
         if (photoTitle) photoTitle.innerHTML = 'Bukti Foto Sesi Mengajar (Kamera / Berkas) <span class="text-rose-500">*</span>';
         if (photoNotice) photoNotice.innerHTML = '<i data-lucide="info" class="w-4 h-4 text-blue-600 flex-shrink-0"></i><span>Untuk Sesi Mengajar, diperbolehkan foto langsung ataupun <b>mengunggah dokumentasi berkas foto kegiatan mengajar</b>.</span>';
         if (containerUpload) containerUpload.classList.remove('hidden');
-        if (btnNativeCamera) btnNativeCamera.classList.remove('hidden');
     } else if (type === 'checkout_harian') {
         if (tabBtnCheckout) tabBtnCheckout.className = activeClass;
         if (submitBtnText) submitBtnText.innerText = 'Kirim Check-out Pulang';
         if (photoTitle) photoTitle.innerHTML = 'Bukti Foto Pulang (Wajib Kamera Langsung) <span class="text-rose-500">*</span>';
         if (photoNotice) photoNotice.innerHTML = '<i data-lucide="shield-alert" class="w-4 h-4 text-amber-600 flex-shrink-0"></i><span>Presensi pulang <b>wajib foto kamera langsung saat ini</b> (menghindari penggunaan foto lama dari galeri).</span>';
         if (containerUpload) containerUpload.classList.add('hidden');
-        if (btnNativeCamera) btnNativeCamera.classList.remove('hidden');
         if (!isPhotoFromLiveCamera && currentCapturedPhoto) retakePhoto();
     } else if (type === 'izin' || type === 'sakit') {
         if (tabBtnIzin) tabBtnIzin.className = activeClass;
@@ -172,7 +190,6 @@ function switchFormTab(type) {
         if (photoTitle) photoTitle.innerHTML = 'Bukti Surat Izin / Sakit (Berkas / Foto)';
         if (photoNotice) photoNotice.innerHTML = '<i data-lucide="info" class="w-4 h-4 text-amber-600 flex-shrink-0"></i><span>Unggah berkas surat keterangan dokter atau dokumen pendukung perizinan.</span>';
         if (containerUpload) containerUpload.classList.remove('hidden');
-        if (btnNativeCamera) btnNativeCamera.classList.remove('hidden');
     }
 
     if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
@@ -337,15 +354,13 @@ function retakePhoto() {
         statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold';
     }
 
-    // Reset input file elements jika ada
+    // Reset input file jika ada
     const fileInput = document.getElementById('file-photo-input');
-    const directInput = document.getElementById('camera-direct-input');
     if (fileInput) fileInput.value = '';
-    if (directInput) directInput.value = '';
 }
 
-// 5. Pemrosesan Foto Bersama (Kamera Langsung vs Berkas Unggahan)
-function handlePhotoProcessing(event, isLiveCamera = false) {
+// 5. Unggah Berkas Foto (Khusus Sesi Mengajar & Izin)
+function handleFileUpload(event) {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
 
@@ -381,7 +396,7 @@ function handlePhotoProcessing(event, isLiveCamera = false) {
 
             const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
             currentCapturedPhoto = compressedDataUrl;
-            isPhotoFromLiveCamera = isLiveCamera; // Validasi asal foto
+            isPhotoFromLiveCamera = false; // Dari berkas unggahan, bukan kamera langsung
 
             const preview = document.getElementById('photo-preview');
             const placeholder = document.getElementById('camera-placeholder');
@@ -398,30 +413,15 @@ function handlePhotoProcessing(event, isLiveCamera = false) {
             if (btnRetake) btnRetake.classList.remove('hidden');
 
             if (statusBadge) {
-                if (isLiveCamera) {
-                    statusBadge.innerText = 'Foto Kamera HP Siap';
-                    statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold';
-                } else {
-                    statusBadge.innerText = 'Berkas Terunggah';
-                    statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold';
-                }
+                statusBadge.innerText = 'Berkas Terunggah';
+                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold';
             }
 
-            showToast(isLiveCamera ? 'Foto kamera HP berhasil diambil!' : 'Foto dokumentasi sesi berhasil diunggah.', 'success');
+            showToast('Foto dokumentasi sesi berhasil diunggah.', 'success');
         };
         img.src = e.target.result;
     };
     reader.readAsDataURL(file);
-}
-
-// Handler jepret langsung dari kamera ponsel (capture="user")
-function handleLiveCameraFile(event) {
-    handlePhotoProcessing(event, true);
-}
-
-// Handler unggah berkas dari galeri (khusus sesi mengajar / izin)
-function handleFileUpload(event) {
-    handlePhotoProcessing(event, false);
 }
 
 // 6. Deteksi Lokasi GPS & Perhitungan Radius Haversine

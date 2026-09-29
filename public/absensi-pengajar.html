@@ -257,12 +257,7 @@
                                         <i data-lucide="video" class="w-3.5 h-3.5"></i>
                                         <span>Buka Kamera</span>
                                     </button>
-                                    <!-- Tombol Jepret Kamera HP Langsung (Native Capture Langsung ke App Kamera HP) -->
-                                    <label id="btn-native-camera" class="px-3.5 py-2 text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl transition-all cursor-pointer flex items-center gap-1.5" title="Jepret langsung menggunakan kamera ponsel">
-                                        <i data-lucide="camera" class="w-3.5 h-3.5"></i>
-                                        <span>Kamera HP Langsung</span>
-                                        <input type="file" id="camera-direct-input" accept="image/*" capture="user" onchange="handleLiveCameraFile(event)" class="hidden">
-                                    </label>
+
                                     <button type="button" id="btn-take-photo" onclick="takePhoto()" class="hidden px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5">
                                         <i data-lucide="aperture" class="w-3.5 h-3.5"></i>
                                         <span>Ambil Foto</span>
@@ -343,8 +338,8 @@
                 </div>
             </section>
 
-            <!-- SECTION 2: STATISTIK KPI (ADMIN & PENGAJAR) -->
-            <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <!-- SECTION 2: STATISTIK KPI (KHUSUS ADMIN / STAFF) -->
+            <section id="section-stats-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <!-- Card 1 -->
                 <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
                     <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
