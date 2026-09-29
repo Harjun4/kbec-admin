@@ -1,8 +1,10 @@
 const db = require('../config/db');
-const { escapeHTML } = require('../utils/helpers');
+const { escapeHTML, getWIBDate, getWIBMonth } = require('../utils/helpers');
 
-const KBEC_LAT = -7.8123;
-const KBEC_LNG = 112.0123;
+// Koordinat Resmi Yayasan Ar-Rasyid Bintaro — KBEC Jakarta (https://maps.app.goo.gl/gjiAmuJcTriC3VX49)
+const KBEC_LAT = -6.2545644;
+const KBEC_LNG = 106.7340093;
+const KBEC_ALLOWED_RADIUS = parseInt(process.env.KBEC_RADIUS_METERS || '150', 10); // Toleransi radius GPS (150 meter)
 
 function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
     const R = 6371000;
@@ -191,6 +193,14 @@ async function checkinTeacher(req, res, next) {
         let isValid = true;
         let status = 'Terverifikasi (Hadir)';
 
+        // Validasi wajib foto bukti langsung untuk presensi datang & pulang
+        if ((type === 'checkin_harian' || type === 'checkout_harian') && !proof_image) {
+            return res.status(400).json({
+                success: false,
+                message: 'Foto bukti kamera langsung wajib disertakan untuk presensi datang dan pulang (tidak boleh foto lama).'
+            });
+        }
+
         if (type === 'izin') {
             status = 'Izin';
         } else if (type === 'sakit') {
@@ -204,7 +214,7 @@ async function checkinTeacher(req, res, next) {
             // checkin_harian atau sesi_mengajar
             if (!is_online && lat && lng) {
                 distanceMeters = calculateHaversineDistance(parseFloat(lat), parseFloat(lng), KBEC_LAT, KBEC_LNG);
-                if (distanceMeters > 100) {
+                if (distanceMeters > KBEC_ALLOWED_RADIUS) {
                     isValid = false;
                     status = `Hadir (Luar Radius - ${Math.round(distanceMeters)}m)`;
                 } else {
@@ -299,24 +309,24 @@ async function getCheckinLogs(req, res, next) {
             params.push(`%${req.query.status}%`);
         }
 
-        // Filter by date range or single date
+        // Filter by date range or single date (Menggunakan Timezone Asia/Jakarta - WIB)
         if (req.query.date) {
-            conditions.push("TO_CHAR(COALESCE(check_time, created_at)::timestamp, 'YYYY-MM-DD') = ?");
+            conditions.push("TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') = ?");
             params.push(req.query.date);
         } else {
             if (req.query.startDate) {
-                conditions.push("COALESCE(check_time, created_at)::date >= ?::date");
+                conditions.push("(COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta')::date >= ?::date");
                 params.push(req.query.startDate);
             }
             if (req.query.endDate) {
-                conditions.push("COALESCE(check_time, created_at)::date <= ?::date");
+                conditions.push("(COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta')::date <= ?::date");
                 params.push(req.query.endDate);
             }
         }
 
-        // Filter by month & year
+        // Filter by month & year (WIB)
         if (req.query.month && req.query.year) {
-            conditions.push("EXTRACT(MONTH FROM COALESCE(check_time, created_at)) = ? AND EXTRACT(YEAR FROM COALESCE(check_time, created_at)) = ?");
+            conditions.push("EXTRACT(MONTH FROM (COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta')) = ? AND EXTRACT(YEAR FROM (COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta')) = ?");
             params.push(parseInt(req.query.month, 10), parseInt(req.query.year, 10));
         }
 
@@ -339,9 +349,9 @@ async function getCheckinLogs(req, res, next) {
                 proof_image,
                 topic_material,
                 notes,
-                TO_CHAR(COALESCE(check_time, created_at)::timestamp, 'DD Mon YYYY HH24:MI') AS waktu,
-                TO_CHAR(COALESCE(check_time, created_at)::timestamp, 'YYYY-MM-DD') AS tanggal,
-                TO_CHAR(COALESCE(check_time, created_at)::timestamp, 'HH24:MI') AS jam
+                TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'DD Mon YYYY HH24:MI') AS waktu,
+                TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') AS tanggal,
+                TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'HH24:MI') AS jam
             FROM teacher_checkins
             ${whereClause}
             ORDER BY COALESCE(check_time, created_at) DESC
@@ -360,13 +370,13 @@ async function getAttendanceSummary(req, res, next) {
     try {
         const userRole = (req.user && req.user.role ? req.user.role : '').trim().toLowerCase();
         const isTeacher = userRole.includes('pengajar') || userRole.includes('guru') || userRole.includes('teacher');
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getWIBDate();
 
-        // Overall stats
+        // Overall stats (WIB)
         const [[totalTeachersRow]] = await db.query("SELECT COUNT(*) AS total FROM teachers WHERE status != 'Nonaktif' AND status != 'Non-Aktif'");
-        const [[todayCheckinsRow]] = await db.query("SELECT COUNT(DISTINCT teacher_id) AS total FROM teacher_checkins WHERE TO_CHAR(COALESCE(check_time, created_at)::timestamp, 'YYYY-MM-DD') = ? AND attendance_type = 'checkin_harian'", [todayStr]);
-        const [[todaySessionsRow]] = await db.query("SELECT COUNT(*) AS total FROM teacher_checkins WHERE TO_CHAR(COALESCE(check_time, created_at)::timestamp, 'YYYY-MM-DD') = ? AND attendance_type = 'sesi_mengajar'", [todayStr]);
-        const [[todayLeaveRow]] = await db.query("SELECT COUNT(DISTINCT teacher_id) AS total FROM teacher_checkins WHERE TO_CHAR(COALESCE(check_time, created_at)::timestamp, 'YYYY-MM-DD') = ? AND attendance_type IN ('izin', 'sakit')", [todayStr]);
+        const [[todayCheckinsRow]] = await db.query("SELECT COUNT(DISTINCT teacher_id) AS total FROM teacher_checkins WHERE TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') = ? AND attendance_type = 'checkin_harian'", [todayStr]);
+        const [[todaySessionsRow]] = await db.query("SELECT COUNT(*) AS total FROM teacher_checkins WHERE TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') = ? AND attendance_type = 'sesi_mengajar'", [todayStr]);
+        const [[todayLeaveRow]] = await db.query("SELECT COUNT(DISTINCT teacher_id) AS total FROM teacher_checkins WHERE TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') = ? AND attendance_type IN ('izin', 'sakit')", [todayStr]);
 
         let teacherStats = null;
         if (isTeacher) {
@@ -375,10 +385,10 @@ async function getAttendanceSummary(req, res, next) {
             const tName = (req.user.name || '').trim();
 
             const [myTodayCheckin] = await db.query(`
-                SELECT id, attendance_type, status, TO_CHAR(COALESCE(check_time, created_at)::timestamp, 'HH24:MI') AS jam
+                SELECT id, attendance_type, status, TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'HH24:MI') AS jam
                 FROM teacher_checkins
                 WHERE (teacher_id = ? OR teacher_id = ? OR LOWER(teacher_name) = LOWER(?))
-                  AND TO_CHAR(COALESCE(check_time, created_at)::timestamp, 'YYYY-MM-DD') = ?
+                  AND TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') = ?
                 ORDER BY COALESCE(check_time, created_at) DESC
             `, [tId, uId, tName, todayStr]);
 
@@ -387,17 +397,17 @@ async function getAttendanceSummary(req, res, next) {
                 FROM teacher_checkins
                 WHERE (teacher_id = ? OR teacher_id = ? OR LOWER(teacher_name) = LOWER(?))
                   AND attendance_type = 'sesi_mengajar'
-                  AND EXTRACT(MONTH FROM COALESCE(check_time, created_at)) = EXTRACT(MONTH FROM CURRENT_DATE)
-                  AND EXTRACT(YEAR FROM COALESCE(check_time, created_at)) = EXTRACT(YEAR FROM CURRENT_DATE)
+                  AND EXTRACT(MONTH FROM (COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta')) = EXTRACT(MONTH FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta'))
+                  AND EXTRACT(YEAR FROM (COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta')) = EXTRACT(YEAR FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta'))
             `, [tId, uId, tName]);
 
             const [[myMonthDays]] = await db.query(`
-                SELECT COUNT(DISTINCT TO_CHAR(COALESCE(check_time, created_at)::timestamp, 'YYYY-MM-DD')) AS total
+                SELECT COUNT(DISTINCT TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD')) AS total
                 FROM teacher_checkins
                 WHERE (teacher_id = ? OR teacher_id = ? OR LOWER(teacher_name) = LOWER(?))
                   AND attendance_type IN ('checkin_harian', 'sesi_mengajar')
-                  AND EXTRACT(MONTH FROM COALESCE(check_time, created_at)) = EXTRACT(MONTH FROM CURRENT_DATE)
-                  AND EXTRACT(YEAR FROM COALESCE(check_time, created_at)) = EXTRACT(YEAR FROM CURRENT_DATE)
+                  AND EXTRACT(MONTH FROM (COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta')) = EXTRACT(MONTH FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta'))
+                  AND EXTRACT(YEAR FROM (COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta')) = EXTRACT(YEAR FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta'))
             `, [tId, uId, tName]);
 
             teacherStats = {

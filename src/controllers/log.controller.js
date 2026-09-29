@@ -15,7 +15,7 @@ exports.getLatestLogs = async (req, res, next) => {
                 COALESCE(program, '-') AS program,
                 COALESCE(status, 'Berhasil') AS status,
                 COALESCE(status_color, 'text-emerald-600 bg-emerald-50') AS "statusColor",
-                COALESCE(TO_CHAR(created_at::timestamp, 'DD Mon HH24:MI'), '-') AS waktu,
+                COALESCE(TO_CHAR((created_at AT TIME ZONE 'Asia/Jakarta'), 'DD Mon HH24:MI'), '-') AS waktu,
                 created_at
             FROM activity_logs
             ORDER BY created_at DESC NULLS LAST, id DESC
@@ -46,7 +46,7 @@ exports.getAllLogs = async (req, res, next) => {
                 COALESCE(program, '-') AS program,
                 COALESCE(status, 'Berhasil') AS status,
                 COALESCE(status_color, 'text-emerald-600 bg-emerald-50') AS "statusColor",
-                COALESCE(TO_CHAR(created_at::timestamp, 'DD Mon HH24:MI'), '-') AS waktu,
+                COALESCE(TO_CHAR((created_at AT TIME ZONE 'Asia/Jakarta'), 'DD Mon HH24:MI'), '-') AS waktu,
                 created_at
             FROM activity_logs
             ORDER BY created_at DESC NULLS LAST, id DESC

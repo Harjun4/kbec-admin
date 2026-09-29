@@ -209,10 +209,16 @@
                                 <label class="text-xs font-bold text-slate-700 flex items-center justify-between">
                                     <span class="flex items-center gap-1.5">
                                         <i data-lucide="camera" class="w-4 h-4 text-blue-600"></i>
-                                        <span>Bukti Foto Absensi (Kamera / File) <span class="text-rose-500">*</span></span>
+                                        <span id="photo-label-title">Bukti Foto Absensi (Wajib Kamera Langsung) <span class="text-rose-500">*</span></span>
                                     </span>
                                     <span id="photo-status-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">Belum Diambil</span>
                                 </label>
+
+                                <!-- Pesan Aturan Foto -->
+                                <div id="photo-rule-notice" class="p-2.5 bg-amber-50/80 border border-amber-200/70 rounded-xl text-[11px] text-amber-800 flex items-center gap-2">
+                                    <i data-lucide="shield-alert" class="w-4 h-4 text-amber-600 flex-shrink-0"></i>
+                                    <span>Presensi datang & pulang <b>wajib foto kamera langsung saat ini</b> (menghindari penggunaan foto lama dari galeri).</span>
+                                </div>
 
                                 <!-- Box Pratinjau / Kamera -->
                                 <div class="relative w-full aspect-video bg-slate-900 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-200 shadow-inner group">
@@ -231,7 +237,7 @@
                                             <i data-lucide="camera" class="w-6 h-6"></i>
                                         </div>
                                         <p class="text-xs font-medium">Kamera belum aktif</p>
-                                        <p class="text-[10px] text-slate-500">Gunakan tombol kamera atau unggah foto dari berkas</p>
+                                        <p class="text-[10px] text-slate-500" id="camera-instruction-text">Gunakan tombol kamera di bawah untuk mengambil foto langsung</p>
                                     </div>
 
                                     <!-- Overlay Tombol Switch Kamera & Close -->
@@ -247,10 +253,16 @@
 
                                 <!-- Action Buttons Kamera -->
                                 <div class="flex items-center gap-2 flex-wrap">
-                                    <button type="button" id="btn-start-camera" onclick="startCamera()" class="px-3.5 py-2 text-xs font-bold bg-blue-50 text-[#0A58CA] hover:bg-blue-100 rounded-xl transition-all flex items-center gap-1.5">
+                                    <button type="button" id="btn-start-camera" onclick="startCamera()" class="px-3.5 py-2 text-xs font-bold bg-blue-50 text-[#0A58CA] hover:bg-blue-100 rounded-xl transition-all flex items-center gap-1.5" title="Buka Kamera di Layar Browser">
                                         <i data-lucide="video" class="w-3.5 h-3.5"></i>
                                         <span>Buka Kamera</span>
                                     </button>
+                                    <!-- Tombol Jepret Kamera HP Langsung (Native Capture Langsung ke App Kamera HP) -->
+                                    <label id="btn-native-camera" class="px-3.5 py-2 text-xs font-bold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl transition-all cursor-pointer flex items-center gap-1.5" title="Jepret langsung menggunakan kamera ponsel">
+                                        <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                                        <span>Kamera HP Langsung</span>
+                                        <input type="file" id="camera-direct-input" accept="image/*" capture="user" onchange="handleLiveCameraFile(event)" class="hidden">
+                                    </label>
                                     <button type="button" id="btn-take-photo" onclick="takePhoto()" class="hidden px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5">
                                         <i data-lucide="aperture" class="w-3.5 h-3.5"></i>
                                         <span>Ambil Foto</span>
@@ -259,7 +271,8 @@
                                         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                                         <span>Foto Ulang</span>
                                     </button>
-                                    <label class="px-3.5 py-2 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5">
+                                    <!-- Opsi Unggah Berkas: Hanya Muncul Khusus Sesi Mengajar & Izin -->
+                                    <label id="container-upload-file" class="hidden px-3.5 py-2 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5" title="Unggah dokumentasi sesi mengajar dari galeri/berkas">
                                         <i data-lucide="upload" class="w-3.5 h-3.5"></i>
                                         <span>Pilih Berkas Foto</span>
                                         <input type="file" id="file-photo-input" accept="image/*" onchange="handleFileUpload(event)" class="hidden">
@@ -293,6 +306,12 @@
                                                 <span id="gps-radius-badge" class="hidden text-[10px] px-2 py-0.5 rounded-full font-bold"></span>
                                             </div>
                                             <p id="gps-detail" class="text-slate-500 text-[11px]">Klik tombol perbarui lokasi di atas untuk mendeteksi koordinat Anda.</p>
+                                            <div class="pt-1.5 flex items-center gap-1.5">
+                                                <a href="https://maps.app.goo.gl/gjiAmuJcTriC3VX49" target="_blank" rel="noopener noreferrer" class="text-[11px] font-bold text-[#0A58CA] hover:underline flex items-center gap-1">
+                                                    <i data-lucide="external-link" class="w-3 h-3"></i>
+                                                    <span>Titik Lokasi KBEC di Google Maps</span>
+                                                </a>
+                                            </div>
                                         </div>
                                     </div>
                                     <input type="hidden" id="form-lat" value="0">

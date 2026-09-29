@@ -31,8 +31,8 @@ async function runApiTests() {
         },
         body: {
             attendance_type: 'checkin_harian',
-            lat: -7.8123,
-            lng: 112.0123,
+            lat: -6.2545644,
+            lng: 106.7340093,
             is_online: 0,
             proof_image: 'data:image/jpeg;base64,mockphoto123',
             notes: 'Masuk tepat waktu'
@@ -62,8 +62,8 @@ async function runApiTests() {
             class_id: 1,
             class_name: 'Kelas Bahasa Inggris Dasar',
             topic_material: 'Simple Present Tense & Grammar Drills',
-            lat: -7.8123,
-            lng: 112.0123,
+            lat: -6.2545644,
+            lng: 106.7340093,
             is_online: 0,
             proof_image: 'data:image/jpeg;base64,mocksessionphoto',
             notes: 'Semua siswa antusias mengikuti materi'

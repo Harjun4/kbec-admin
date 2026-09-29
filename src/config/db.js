@@ -25,6 +25,12 @@ if (isPostgres) {
         max: 20
     });
 
+    pgPool.on('connect', (client) => {
+        client.query("SET timezone = 'Asia/Jakarta'").catch((err) => {
+            console.warn('[DB] Set timezone Asia/Jakarta notice:', err.message);
+        });
+    });
+
     pgPool.on('error', (err) => {
         console.error('PostgreSQL Idle Pool Client Error:', err.message);
     });

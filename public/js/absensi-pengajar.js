@@ -3,10 +3,13 @@
 let currentCameraStream = null;
 let currentFacingMode = 'user'; // 'user' (selfie) atau 'environment' (belakang)
 let currentCapturedPhoto = null;
+let isPhotoFromLiveCamera = false; // Flag penanda foto langsung dari kamera (bukan upload foto lama)
 let currentAttendanceLogs = [];
 
-const KBEC_LAT = -7.8123;
-const KBEC_LNG = 112.0123;
+// Koordinat Resmi Yayasan Ar-Rasyid Bintaro — KBEC Jakarta (https://maps.app.goo.gl/gjiAmuJcTriC3VX49)
+const KBEC_LAT = -6.2545644;
+const KBEC_LNG = 106.7340093;
+const KBEC_ALLOWED_RADIUS = 150; // Radius toleransi (150 meter)
 
 document.addEventListener('DOMContentLoaded', async () => {
     initUserSession();
@@ -123,6 +126,11 @@ function switchFormTab(type) {
     const fieldsIzin = document.getElementById('fields-izin-sakit');
     const submitBtnText = document.getElementById('submit-btn-text');
 
+    const photoTitle = document.getElementById('photo-label-title');
+    const photoNotice = document.getElementById('photo-rule-notice');
+    const containerUpload = document.getElementById('container-upload-file');
+    const btnNativeCamera = document.getElementById('btn-native-camera');
+
     const inactiveClass = 'px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all';
     const activeClass = 'px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-white text-[#0A58CA] shadow-xs';
 
@@ -136,18 +144,38 @@ function switchFormTab(type) {
     if (type === 'checkin_harian') {
         if (tabBtnHarian) tabBtnHarian.className = activeClass;
         if (submitBtnText) submitBtnText.innerText = 'Kirim Check-in Datang';
+        if (photoTitle) photoTitle.innerHTML = 'Bukti Foto Datang (Wajib Kamera Langsung) <span class="text-rose-500">*</span>';
+        if (photoNotice) photoNotice.innerHTML = '<i data-lucide="shield-alert" class="w-4 h-4 text-amber-600 flex-shrink-0"></i><span>Presensi datang <b>wajib foto kamera langsung saat ini</b> (menghindari penggunaan foto lama dari galeri).</span>';
+        if (containerUpload) containerUpload.classList.add('hidden');
+        if (btnNativeCamera) btnNativeCamera.classList.remove('hidden');
+        if (!isPhotoFromLiveCamera && currentCapturedPhoto) retakePhoto();
     } else if (type === 'sesi_mengajar') {
         if (tabBtnSesi) tabBtnSesi.className = activeClass;
         if (fieldsSesi) fieldsSesi.classList.remove('hidden');
         if (submitBtnText) submitBtnText.innerText = 'Kirim Absensi Sesi Mengajar';
+        if (photoTitle) photoTitle.innerHTML = 'Bukti Foto Sesi Mengajar (Kamera / Berkas) <span class="text-rose-500">*</span>';
+        if (photoNotice) photoNotice.innerHTML = '<i data-lucide="info" class="w-4 h-4 text-blue-600 flex-shrink-0"></i><span>Untuk Sesi Mengajar, diperbolehkan foto langsung ataupun <b>mengunggah dokumentasi berkas foto kegiatan mengajar</b>.</span>';
+        if (containerUpload) containerUpload.classList.remove('hidden');
+        if (btnNativeCamera) btnNativeCamera.classList.remove('hidden');
     } else if (type === 'checkout_harian') {
         if (tabBtnCheckout) tabBtnCheckout.className = activeClass;
         if (submitBtnText) submitBtnText.innerText = 'Kirim Check-out Pulang';
+        if (photoTitle) photoTitle.innerHTML = 'Bukti Foto Pulang (Wajib Kamera Langsung) <span class="text-rose-500">*</span>';
+        if (photoNotice) photoNotice.innerHTML = '<i data-lucide="shield-alert" class="w-4 h-4 text-amber-600 flex-shrink-0"></i><span>Presensi pulang <b>wajib foto kamera langsung saat ini</b> (menghindari penggunaan foto lama dari galeri).</span>';
+        if (containerUpload) containerUpload.classList.add('hidden');
+        if (btnNativeCamera) btnNativeCamera.classList.remove('hidden');
+        if (!isPhotoFromLiveCamera && currentCapturedPhoto) retakePhoto();
     } else if (type === 'izin' || type === 'sakit') {
         if (tabBtnIzin) tabBtnIzin.className = activeClass;
         if (fieldsIzin) fieldsIzin.classList.remove('hidden');
         if (submitBtnText) submitBtnText.innerText = 'Kirim Pengajuan Izin/Sakit';
+        if (photoTitle) photoTitle.innerHTML = 'Bukti Surat Izin / Sakit (Berkas / Foto)';
+        if (photoNotice) photoNotice.innerHTML = '<i data-lucide="info" class="w-4 h-4 text-amber-600 flex-shrink-0"></i><span>Unggah berkas surat keterangan dokter atau dokumen pendukung perizinan.</span>';
+        if (containerUpload) containerUpload.classList.remove('hidden');
+        if (btnNativeCamera) btnNativeCamera.classList.remove('hidden');
     }
+
+    if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
 }
 
 function toggleAbsensiForm(forceOpen = null) {
@@ -271,6 +299,7 @@ function takePhoto() {
     // Kompresi JPEG kualitas 75%
     const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
     currentCapturedPhoto = dataUrl;
+    isPhotoFromLiveCamera = true; // Ditandai diambil langsung dari kamera
 
     // Tampilkan preview foto
     preview.src = dataUrl;
@@ -280,31 +309,43 @@ function takePhoto() {
     if (btnTake) btnTake.classList.add('hidden');
     if (btnRetake) btnRetake.classList.remove('hidden');
     if (statusBadge) {
-        statusBadge.innerText = 'Foto Siap';
+        statusBadge.innerText = 'Foto Kamera Siap';
         statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold';
     }
 
-    showToast('Foto bukti berhasil diambil!', 'success');
+    showToast('Foto kamera langsung berhasil diambil!', 'success');
 }
 
 function retakePhoto() {
     currentCapturedPhoto = null;
+    isPhotoFromLiveCamera = false;
     const preview = document.getElementById('photo-preview');
     const placeholder = document.getElementById('camera-placeholder');
     const statusBadge = document.getElementById('photo-status-badge');
+    const btnStart = document.getElementById('btn-start-camera');
+    const btnRetake = document.getElementById('btn-retake-photo');
+    const btnTake = document.getElementById('btn-take-photo');
 
     if (preview) preview.classList.add('hidden');
     if (placeholder) placeholder.classList.remove('hidden');
+    if (btnRetake) btnRetake.classList.add('hidden');
+    if (btnTake) btnTake.classList.add('hidden');
+    if (btnStart) btnStart.classList.remove('hidden');
+
     if (statusBadge) {
         statusBadge.innerText = 'Belum Diambil';
         statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold';
     }
 
-    startCamera();
+    // Reset input file elements jika ada
+    const fileInput = document.getElementById('file-photo-input');
+    const directInput = document.getElementById('camera-direct-input');
+    if (fileInput) fileInput.value = '';
+    if (directInput) directInput.value = '';
 }
 
-// 5. Unggah Berkas Gambar dari Galeri (dengan Kompresi Canvas)
-function handleFileUpload(event) {
+// 5. Pemrosesan Foto Bersama (Kamera Langsung vs Berkas Unggahan)
+function handlePhotoProcessing(event, isLiveCamera = false) {
     const file = event.target.files && event.target.files[0];
     if (!file) return;
 
@@ -340,6 +381,7 @@ function handleFileUpload(event) {
 
             const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
             currentCapturedPhoto = compressedDataUrl;
+            isPhotoFromLiveCamera = isLiveCamera; // Validasi asal foto
 
             const preview = document.getElementById('photo-preview');
             const placeholder = document.getElementById('camera-placeholder');
@@ -354,16 +396,32 @@ function handleFileUpload(event) {
             if (placeholder) placeholder.classList.add('hidden');
             if (btnStart) btnStart.classList.add('hidden');
             if (btnRetake) btnRetake.classList.remove('hidden');
+
             if (statusBadge) {
-                statusBadge.innerText = 'Foto Terunggah';
-                statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold';
+                if (isLiveCamera) {
+                    statusBadge.innerText = 'Foto Kamera HP Siap';
+                    statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold';
+                } else {
+                    statusBadge.innerText = 'Berkas Terunggah';
+                    statusBadge.className = 'text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold';
+                }
             }
 
-            showToast('Foto bukti berhasil diunggah & dioptimasi.', 'success');
+            showToast(isLiveCamera ? 'Foto kamera HP berhasil diambil!' : 'Foto dokumentasi sesi berhasil diunggah.', 'success');
         };
         img.src = e.target.result;
     };
     reader.readAsDataURL(file);
+}
+
+// Handler jepret langsung dari kamera ponsel (capture="user")
+function handleLiveCameraFile(event) {
+    handlePhotoProcessing(event, true);
+}
+
+// Handler unggah berkas dari galeri (khusus sesi mengajar / izin)
+function handleFileUpload(event) {
+    handlePhotoProcessing(event, false);
 }
 
 // 6. Deteksi Lokasi GPS & Perhitungan Radius Haversine
@@ -409,7 +467,7 @@ function detectGPSLocation() {
 
             if (badgeEl) {
                 badgeEl.classList.remove('hidden');
-                if (dist <= 100) {
+                if (dist <= KBEC_ALLOWED_RADIUS) {
                     badgeEl.innerText = `Dalam Radius (${distRound}m)`;
                     badgeEl.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-700';
                     if (iconContainer) iconContainer.className = 'p-2 rounded-lg bg-emerald-100 text-emerald-600';
@@ -464,10 +522,23 @@ async function handleAttendanceSubmit(event) {
         topic_material = izinType === 'sakit' ? 'Sakit' : 'Izin';
     }
 
-    // Validasi Foto Bukti (wajib untuk check-in, sesi mengajar, dan izin)
-    if (!currentCapturedPhoto && type !== 'checkout_harian') {
-        showToast('Foto bukti kehadiran wajib diambil atau diunggah.', 'warning');
-        return;
+    // Validasi Foto Bukti:
+    // Khusus Check-in Datang & Check-out Pulang: WAJIB foto kamera langsung (bukan berkas lama)
+    // Kecuali Sesi Mengajar: Boleh foto langsung ataupun unggah berkas dokumentasi
+    if (type === 'checkin_harian' || type === 'checkout_harian') {
+        if (!currentCapturedPhoto) {
+            showToast('Foto selfie kamera langsung wajib diambil sebelum mengirim presensi!', 'warning');
+            return;
+        }
+        if (!isPhotoFromLiveCamera) {
+            showToast('Presensi datang/pulang wajib foto kamera langsung saat ini (tidak boleh dari berkas foto lama).', 'warning');
+            return;
+        }
+    } else if (type === 'sesi_mengajar') {
+        if (!currentCapturedPhoto) {
+            showToast('Foto dokumentasi sesi mengajar (kamera langsung atau berkas foto) wajib disertakan.', 'warning');
+            return;
+        }
     }
 
     const teacherSelect = document.getElementById('form-teacher-id');
@@ -710,7 +781,7 @@ function renderLogsTable(logs) {
         return `
             <tr class="hover:bg-slate-50/80 transition-colors">
                 <td class="py-3.5 px-4 whitespace-nowrap">
-                    <div class="font-bold text-slate-900">${log.waktu || '-'}</div>
+                    <div class="font-bold text-slate-900">${log.waktu ? `${log.waktu} WIB` : '-'}</div>
                     <div class="text-[10px] text-slate-400 font-medium">${log.tanggal || ''}</div>
                 </td>
                 <td class="py-3.5 px-4 whitespace-nowrap">

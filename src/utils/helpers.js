@@ -119,9 +119,44 @@ function escapeHTML(str) {
     })[m]);
 }
 
+/**
+ * Returns current or given date formatted as YYYY-MM-DD in Western Indonesia Time (WIB / Asia/Jakarta)
+ */
+function getWIBDate(date = new Date()) {
+    const d = date instanceof Date ? date : new Date(date);
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(d);
+}
+
+/**
+ * Returns current or given date formatted as YYYY-MM in Western Indonesia Time (WIB / Asia/Jakarta)
+ */
+function getWIBMonth(date = new Date()) {
+    return getWIBDate(date).slice(0, 7);
+}
+
+/**
+ * Formats a timestamp into Indonesian human-readable WIB datetime string
+ */
+function formatWIBTime(date = new Date()) {
+    const d = date instanceof Date ? date : new Date(date);
+    return new Intl.DateTimeFormat('id-ID', {
+        timeZone: 'Asia/Jakarta',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+    }).format(d);
+}
+
 module.exports = {
     resolveStudentUnit,
     generateUniqueStudentId,
     generateUniqueUserId,
-    escapeHTML
+    escapeHTML,
+    getWIBDate,
+    getWIBMonth,
+    formatWIBTime
 };
+
