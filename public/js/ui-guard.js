@@ -15,15 +15,17 @@
 
     function applyRoleGuards() {
         const role = getRole();
-        const isAdmin = role === 'Admin';
-        const isTeacher = role === 'Pengajar' || role === 'Guru';
+        const roleLower = String(role).toLowerCase();
+        const isSuperAdmin = roleLower.includes('super');
+        const isTeacher = roleLower.includes('pengajar') || roleLower.includes('guru') || roleLower.includes('teacher');
+        const isStaff = roleLower.includes('staff') || roleLower.includes('staf');
+        const isAdmin = !isSuperAdmin && !isTeacher && !isStaff;
         const currentPath = window.location.pathname.toLowerCase();
 
         // 1. Filter elemen dengan data-role-allow
         document.querySelectorAll('[data-role-allow]').forEach(el => {
             const allowedRoles = el.getAttribute('data-role-allow').split(',').map(r => r.trim().toLowerCase());
-            const currentRoleLower = role.toLowerCase();
-            const allowed = allowedRoles.includes('*') || allowedRoles.some(r => currentRoleLower.includes(r));
+            const allowed = isSuperAdmin || allowedRoles.includes('*') || allowedRoles.some(r => roleLower.includes(r));
             if (!allowed) {
                 el.style.display = 'none';
                 el.classList.add('hidden');
@@ -33,15 +35,14 @@
         // 2. Filter elemen dengan data-role-deny
         document.querySelectorAll('[data-role-deny]').forEach(el => {
             const deniedRoles = el.getAttribute('data-role-deny').split(',').map(r => r.trim().toLowerCase());
-            const currentRoleLower = role.toLowerCase();
-            const denied = deniedRoles.some(r => currentRoleLower.includes(r));
+            const denied = !isSuperAdmin && deniedRoles.some(r => roleLower.includes(r));
             if (denied) {
                 el.style.display = 'none';
                 el.classList.add('hidden');
             }
         });
 
-        // 3. Admin Suppression: Tombol Hapus/Verifikasi di pembayaran.html & Tab Kinerja di laporan.html
+        // 3. Admin Suppression: Tombol Hapus/Verifikasi di pembayaran.html
         if (isAdmin) {
             if (currentPath.endsWith('pembayaran.html')) {
                 document.querySelectorAll('button, a, [role="button"]').forEach(btn => {
@@ -53,7 +54,20 @@
                     }
                 });
             }
+        }
 
+        // 4. Staff Suppression: Sembunyikan tombol Hapus (Delete) pada master data yang dilindungi Super Admin
+        if (isStaff) {
+            if (currentPath.endsWith('pengajar.html') || currentPath.endsWith('kelas.html') || currentPath.endsWith('inventaris.html') || currentPath.endsWith('siswa.html')) {
+                document.querySelectorAll('button, a, [role="button"]').forEach(btn => {
+                    const txt = (btn.textContent || btn.innerText || '').trim().toLowerCase();
+                    const onclickAttr = btn.getAttribute('onclick') || '';
+                    if (txt.includes('hapus') || onclickAttr.includes('delete') || onclickAttr.includes('hapus')) {
+                        btn.style.display = 'none';
+                        btn.classList.add('hidden');
+                    }
+                });
+            }
         }
 
         // 4. Pengajar Suppression: Sembunyikan tombol CRUD non-absensi & modal triggers

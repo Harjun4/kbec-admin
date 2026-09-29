@@ -55,30 +55,44 @@ async function login(req, res) {
             });
         }
 
-        let resolvedRole = user.role || user.role_name || user.type || 'Admin';
+        let rawUserRole = String(user.role || user.role_name || user.type || '').trim();
+        let normalizedRoleLower = rawUserRole.toLowerCase();
+        let resolvedRole = 'Admin';
+
+        if (normalizedRoleLower.includes('super')) {
+            resolvedRole = 'Super Admin';
+        } else if (normalizedRoleLower === 'staff' || normalizedRoleLower === 'staf') {
+            resolvedRole = 'Staff';
+        } else if (normalizedRoleLower.includes('pengajar') || normalizedRoleLower.includes('guru') || normalizedRoleLower.includes('teacher')) {
+            resolvedRole = 'Pengajar';
+        } else if (normalizedRoleLower === 'admin') {
+            resolvedRole = 'Admin';
+        }
+
         let resolvedName = user.name;
         let resolvedTeacherId = user.teacher_id || null;
 
-        try {
-            let teachers = [];
-            if (user.teacher_id) {
-                const [tRows] = await db.query('SELECT id, nama, email FROM teachers WHERE id = ?', [user.teacher_id]);
-                teachers = tRows;
-            }
-            if (teachers.length === 0) {
-                const [tRows] = await db.query('SELECT id, nama, email FROM teachers WHERE LOWER(email) = LOWER(?) OR id = ?', [cleanEmail, user.id]);
-                teachers = tRows;
-            }
-            if (teachers.length > 0) {
-                resolvedRole = 'Pengajar';
-                resolvedTeacherId = teachers[0].id;
-                if (teachers[0].nama) {
-                    resolvedName = teachers[0].nama;
+        // Hanya cari data pengajar jika role memang Pengajar atau belum ada role eksplisit
+        if (resolvedRole === 'Pengajar' || (!rawUserRole && !user.teacher_id)) {
+            try {
+                let teachers = [];
+                if (user.teacher_id) {
+                    const [tRows] = await db.query('SELECT id, nama, email FROM teachers WHERE id = ?', [user.teacher_id]);
+                    teachers = tRows;
                 }
-            } else if (user.role && (user.role.toLowerCase().includes('pengajar') || user.role.toLowerCase().includes('guru'))) {
-                resolvedRole = 'Pengajar';
-            }
-        } catch (tErr) {}
+                if (teachers.length === 0) {
+                    const [tRows] = await db.query('SELECT id, nama, email FROM teachers WHERE LOWER(email) = LOWER(?) OR id = ?', [cleanEmail, user.id]);
+                    teachers = tRows;
+                }
+                if (teachers.length > 0) {
+                    resolvedRole = 'Pengajar';
+                    resolvedTeacherId = teachers[0].id;
+                    if (teachers[0].nama) {
+                        resolvedName = teachers[0].nama;
+                    }
+                }
+            } catch (tErr) {}
+        }
 
         const token = generateToken({ ...user, role: resolvedRole, name: resolvedName, teacher_id: resolvedTeacherId });
         

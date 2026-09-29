@@ -418,9 +418,47 @@ async function saveStudentGrade(req, res, next) {
 }
 
 async function getPerformanceReport(req, res, next) {
-    const { class_id, bulan } = req.query;
+    let { class_id, bulan } = req.query;
     const targetBulan = bulan || new Date().toISOString().slice(0, 7);
     try {
+        const userRole = (req.user && req.user.role ? req.user.role : '').trim();
+        const isTeacher = userRole.toLowerCase().includes('pengajar') || userRole.toLowerCase().includes('guru') || userRole.toLowerCase().includes('teacher');
+
+        if (isTeacher && req.user) {
+            const uId = req.user.id || '';
+            const tId = req.user.teacher_id || '';
+            const tEmail = (req.user.email || '').trim().toLowerCase();
+            const tName = (req.user.name || '').trim();
+
+            const [teacherClasses] = await db.query(
+                'SELECT id, nama FROM classes WHERE (teacher_id IS NOT NULL AND teacher_id = (SELECT teacher_id FROM users WHERE id = ? OR nis = ? LIMIT 1))' +
+                ' OR (teacher_id IS NOT NULL AND teacher_id = ?)' +
+                ' OR (teacher_id IS NOT NULL AND teacher_id IN (SELECT id FROM teachers WHERE LOWER(email) = LOWER(?)))' +
+                ' OR (LOWER(pengajar) = LOWER(?))' +
+                ' OR (pengajar ILIKE ?)',
+                [uId, uId, tId, tEmail, tName, `%${tName}%`]
+            );
+
+            const allowedClassIds = teacherClasses.map(c => String(c.id));
+            if (class_id) {
+                if (!allowedClassIds.includes(String(class_id))) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Akses dilarang. Anda hanya dapat melihat laporan kinerja untuk kelas yang Anda ajar.'
+                    });
+                }
+            } else if (teacherClasses.length > 0) {
+                class_id = teacherClasses[0].id;
+            } else {
+                return res.json({
+                    class: { nama: 'Belum Ada Kelas', pengajar: tName || 'Pengajar KBEC' },
+                    bulan: targetBulan,
+                    dates: getAllDaysInMonth(targetBulan),
+                    report: []
+                });
+            }
+        }
+
         let classObj = null;
         if (class_id) {
             const [[cRow]] = await db.query('SELECT * FROM classes WHERE id = ?', [class_id]);
@@ -451,6 +489,15 @@ async function getPerformanceReport(req, res, next) {
         }
 
         const dates = getAllDaysInMonth(targetBulan);
+
+        if (!students || students.length === 0) {
+            return res.json({
+                class: classObj,
+                bulan: targetBulan,
+                dates,
+                report: []
+            });
+        }
 
         const [gradeRows] = await db.query(
             "SELECT student_id, TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') AS tgl, presensi, sb_page, wb_page, grade, lesson, material_tambahan, notes, keterangan FROM student_grades WHERE tanggal::text LIKE ?",

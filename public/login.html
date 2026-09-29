@@ -231,9 +231,12 @@
                 }
                 localStorage.setItem('userRole', role || 'Pending');
 
-                if (role === 'Pengajar' || role === 'Guru') {
-                    window.location.href = 'absensi.html';
-                } else if (role === 'Admin' || role === 'Super Admin') {
+                const roleLower = String(role || '').toLowerCase();
+                if (roleLower.includes('pengajar') || roleLower.includes('guru') || roleLower.includes('teacher')) {
+                    window.location.href = 'jadwal.html';
+                } else if (roleLower.includes('staff') || roleLower.includes('staf')) {
+                    window.location.href = 'siswa.html';
+                } else if (roleLower === 'admin' || roleLower.includes('super')) {
                     window.location.href = 'dashboard.html';
                 } else {
                     alert('Akun Anda belum disetujui atau role belum ditentukan oleh Super Admin.');
@@ -248,10 +251,6 @@
             }
         }
     </script>
-</body>
-
-</html>
-</script>
 </body>
 
 </html>

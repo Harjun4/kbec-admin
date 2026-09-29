@@ -157,6 +157,7 @@
                                 <select id="approval-role" onchange="toggleTeacherLinkingSection()" required class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none cursor-pointer">
                                     <option value="Admin">Admin</option>
                                     <option value="Super Admin">Super Admin</option>
+                                    <option value="Staff">Staff</option>
                                     <option value="Pengajar">Pengajar</option>
                                 </select>
                             </div>
@@ -219,7 +220,7 @@
                             </div>
                             <input type="text" id="user-modal-nis" required placeholder="Contoh: 2607000001-ADM"
                                 class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-700 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors">
-                            <p class="text-[9px] text-slate-400 mt-1">Format: <code>[YY][MM][000001][SUFFIX]</code> (-SA: Super Admin, -ADM: Admin, -TCH: Pengajar). Bebas diedit manual.</p>
+                            <p class="text-[9px] text-slate-400 mt-1">Format: <code>[YY][MM][000001][SUFFIX]</code> (-SA: Super Admin, -ADM: Admin, -STF: Staff, -TCH: Pengajar). Bebas diedit manual.</p>
                         </div>
                         <div>
                             <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Nama Lengkap *</label>
@@ -238,6 +239,7 @@
                                     class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none cursor-pointer">
                                     <option value="Admin">Admin</option>
                                     <option value="Super Admin">Super Admin</option>
+                                    <option value="Staff">Staff</option>
                                     <option value="Pengajar">Pengajar</option>
                                 </select>
                             </div>
@@ -371,10 +373,13 @@
                 const userStatus = u.status || 'Approved';
                 const isPending = userStatus.toLowerCase() === 'pending';
 
-                const roleBadge = (u.role || 'Admin').toLowerCase().includes('super')
+                const roleLower = (u.role || 'Admin').toLowerCase();
+                const roleBadge = roleLower.includes('super')
                     ? 'text-purple-600 bg-purple-50'
-                    : (u.role || '').toLowerCase().includes('pengajar')
+                    : roleLower.includes('pengajar') || roleLower.includes('guru') || roleLower.includes('teacher')
                     ? 'text-cyan-600 bg-cyan-50'
+                    : (roleLower.includes('staff') || roleLower.includes('staf'))
+                    ? 'text-indigo-600 bg-indigo-50 border border-indigo-200'
                     : isPending
                     ? 'text-amber-600 bg-amber-50'
                     : 'text-blue-600 bg-blue-50';

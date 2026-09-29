@@ -27,9 +27,11 @@
 
     // 2. Pemetaan Hak Akses Halaman Terkini
     const rolePermissions = {
-        'Pengajar': ['/absensi.html', '/jadwal.html', '/profile.html', 'absensi.html', 'jadwal.html', 'profile.html'],
-        'Guru': ['/absensi.html', '/jadwal.html', '/profile.html', 'absensi.html', 'jadwal.html', 'profile.html'],
-        'Admin': ['/dashboard.html', '/laporan.html', '/rekap-kehadiran.html', '/pembayaran.html', '/biaya-lain.html', '/voucher.html', '/siswa.html', '/jadwal.html', '/kelas.html', '/inventaris.html', '/program.html', '/profile.html', 'dashboard.html', 'laporan.html', 'rekap-kehadiran.html', 'pembayaran.html', 'biaya-lain.html', 'voucher.html', 'siswa.html', 'jadwal.html', 'kelas.html', 'inventaris.html', 'program.html', 'profile.html'],
+        'Pengajar': ['/jadwal.html', '/absensi.html', '/absensi-pengajar.html', '/profile.html', 'jadwal.html', 'absensi.html', 'absensi-pengajar.html', 'profile.html'],
+        'Guru': ['/jadwal.html', '/absensi.html', '/absensi-pengajar.html', '/profile.html', 'jadwal.html', 'absensi.html', 'absensi-pengajar.html', 'profile.html'],
+        'Staff': ['/siswa.html', '/pengajar.html', '/kelas.html', '/jadwal.html', '/absensi-pengajar.html', '/inventaris.html', '/profile.html', 'siswa.html', 'pengajar.html', 'kelas.html', 'jadwal.html', 'absensi-pengajar.html', 'inventaris.html', 'profile.html'],
+        'Staf': ['/siswa.html', '/pengajar.html', '/kelas.html', '/jadwal.html', '/absensi-pengajar.html', '/inventaris.html', '/profile.html', 'siswa.html', 'pengajar.html', 'kelas.html', 'jadwal.html', 'absensi-pengajar.html', 'inventaris.html', 'profile.html'],
+        'Admin': ['/dashboard.html', '/siswa.html', '/pembayaran.html', '/biaya-lain.html', '/voucher.html', '/laporan.html', '/rekap-kehadiran.html', '/absensi-pengajar.html', '/profile.html', 'dashboard.html', 'siswa.html', 'pembayaran.html', 'biaya-lain.html', 'voucher.html', 'laporan.html', 'rekap-kehadiran.html', 'absensi-pengajar.html', 'profile.html'],
         'Super Admin': ['*'] // Akses ke semua halaman
     };
 
@@ -43,7 +45,13 @@
 
         if (!isAllowed) {
             alert('Akses Ditolak: Anda tidak memiliki izin mengakses halaman ini.');
-            const fallbackUrl = (effectiveRole === 'Pengajar' || effectiveRole === 'Guru') ? 'absensi.html' : 'dashboard.html';
+            let fallbackUrl = 'dashboard.html';
+            const roleLower = String(effectiveRole).toLowerCase();
+            if (roleLower.includes('pengajar') || roleLower.includes('guru') || roleLower.includes('teacher')) {
+                fallbackUrl = 'jadwal.html';
+            } else if (roleLower.includes('staff') || roleLower.includes('staf')) {
+                fallbackUrl = 'siswa.html';
+            }
             window.location.href = fallbackUrl;
         }
     }

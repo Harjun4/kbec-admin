@@ -45,11 +45,14 @@ function requireAuth(req, res, next) {
     }
 }
 
-const ROLE_HIERARCHY = {
-    'super admin': 3,
-    'admin': 2,
-    'pengajar': 1,
-    'teacher': 1
+const ROLE_ALIASES = {
+    'super admin': ['super admin'],
+    'admin': ['admin'],
+    'staff': ['staff', 'staf'],
+    'staf': ['staff', 'staf'],
+    'pengajar': ['pengajar', 'guru', 'teacher'],
+    'guru': ['pengajar', 'guru', 'teacher'],
+    'teacher': ['pengajar', 'guru', 'teacher']
 };
 
 function requireRole(...allowedRoles) {
@@ -57,13 +60,18 @@ function requireRole(...allowedRoles) {
         if (!req.user || !req.user.role) {
             return res.status(401).json({ success: false, message: 'Akses ditolak. Pengguna belum terautentikasi.' });
         }
-        const userRoleLower = req.user.role.toLowerCase();
-        const userLevel = ROLE_HIERARCHY[userRoleLower] || 0;
+        const userRoleLower = String(req.user.role).trim().toLowerCase();
 
-        const allowedLevels = allowedRoles.map(r => ROLE_HIERARCHY[r.toLowerCase()] || 0);
-        const minRequiredLevel = Math.min(...allowedLevels);
+        // Super Admin memiliki akses universal untuk seluruh resource
+        if (userRoleLower === 'super admin') {
+            return next();
+        }
 
-        if (userLevel < minRequiredLevel) {
+        const normalizedAllowed = allowedRoles.map(r => String(r).trim().toLowerCase());
+        const userEquivalents = ROLE_ALIASES[userRoleLower] || [userRoleLower];
+        const isAllowed = userEquivalents.some(alias => normalizedAllowed.includes(alias));
+
+        if (!isAllowed) {
             return res.status(403).json({ success: false, message: 'Akses dilarang. Anda tidak memiliki hak akses untuk tindakan ini.' });
         }
         next();

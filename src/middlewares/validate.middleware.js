@@ -36,8 +36,8 @@ const paymentSchema = z.object({
 const userSchema = z.object({
     name: z.string().min(2, 'Nama minimal 2 karakter'),
     email: z.string().email('Format email tidak valid'),
-    role: z.enum(['Super Admin', 'Admin', 'Pengajar', 'Staf'], {
-        errorMap: () => ({ message: 'Role harus Super Admin, Admin, Pengajar, atau Staf' })
+    role: z.enum(['Super Admin', 'Admin', 'Staff', 'Staf', 'Pengajar'], {
+        errorMap: () => ({ message: 'Role harus Super Admin, Admin, Staff, atau Pengajar' })
     })
 }).passthrough();
 
@@ -86,6 +86,18 @@ const inventorySchema = z.object({
     )
 }).passthrough();
 
+const teacherAttendanceSchema = z.object({
+    attendance_type: z.enum(['checkin_harian', 'checkout_harian', 'sesi_mengajar', 'izin', 'sakit']).optional().default('checkin_harian'),
+    class_id: z.union([z.string(), z.number()]).optional().nullable(),
+    class_name: z.string().optional().nullable(),
+    topic_material: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+    lat: z.union([z.number(), z.string()]).optional().nullable(),
+    lng: z.union([z.number(), z.string()]).optional().nullable(),
+    is_online: z.union([z.boolean(), z.number(), z.string()]).optional().nullable(),
+    proof_image: z.string().optional().nullable()
+}).passthrough();
+
 module.exports = {
     validate,
     loginSchema,
@@ -95,5 +107,6 @@ module.exports = {
     teacherSchema,
     classSchema,
     attendanceSchema,
-    inventorySchema
+    inventorySchema,
+    teacherAttendanceSchema
 };

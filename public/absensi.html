@@ -13,6 +13,7 @@
     <script src="js/route-guard.js"></script>
     <script src="global-user.js"></script>
     <script src="js/ui-guard.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         body {
             font-family: 'Plus Jakarta Sans', sans-serif;
@@ -310,15 +311,18 @@
                             <h3 id="excel-report-title" class="text-lg font-extrabold text-slate-900 mt-1">LAPORAN KINERJA SISWA BULAN JULI</h3>
                             <p id="excel-report-subtitle" class="text-xs text-slate-500 font-semibold">-</p>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <button onclick="openFullscreenReport()" class="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3.5 py-2 rounded-xl transition-all">
-                                <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Pop-up Window Fullscreen
-                            </button>
-                            <button onclick="openPerformanceEvalModal()" class="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-xl shadow-sm transition-all">
+                        <div class="flex items-center flex-wrap gap-2">
+                            <button onclick="openPerformanceEvalModal()" class="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-xl shadow-sm transition-all cursor-pointer">
                                 <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Input Catatan SB/WB
                             </button>
-                            <button onclick="exportExcelReport()" class="flex items-center gap-1.5 text-xs font-bold text-white bg-[#0A58CA] hover:bg-blue-700 px-4 py-2 rounded-xl shadow-sm transition-all">
-                                <i data-lucide="download" class="w-3.5 h-3.5"></i> Export Excel (.csv)
+                            <button onclick="exportExcelReport()" class="flex items-center gap-1.5 text-xs font-bold text-white bg-[#0A58CA] hover:bg-blue-700 px-3.5 py-2 rounded-xl shadow-sm transition-all cursor-pointer" title="Simpan sebagai file Microsoft Excel (.xlsx)">
+                                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i> Simpan Excel (.xlsx)
+                            </button>
+                            <button onclick="exportPDFReport()" class="flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3.5 py-2 rounded-xl shadow-sm transition-all cursor-pointer" title="Simpan atau Cetak Laporan ke PDF">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Simpan / Cetak PDF
+                            </button>
+                            <button onclick="openFullscreenReport()" class="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl transition-all cursor-pointer" title="Lihat Tampilan Layar Penuh">
+                                <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Fullscreen
                             </button>
                         </div>
                     </div>
@@ -447,11 +451,11 @@
             document.getElementById('filter-bulan').value = thisMonth;
             document.getElementById('eval-tanggal').value = today;
 
-            await fetchClasses();
-
             if (reqMode === 'excel' || reqMode === 'kinerja') {
                 switchMode('excel');
             }
+
+            await fetchClasses();
         };
 
         async function fetchClasses() {
@@ -461,6 +465,16 @@
                 renderClassGrid(classesData);
                 if (classesData.length > 0) {
                     selectClass(classesData[0].id);
+                } else {
+                    activeClass = null;
+                    const grid = document.getElementById('class-grid');
+                    if (grid) {
+                        grid.innerHTML = '<div class="col-span-full py-8 text-center text-slate-400 font-semibold text-xs bg-slate-50 rounded-2xl border border-dashed border-slate-200">Tidak ada kelas yang ditemukan atau ditugaskan untuk akun Anda.</div>';
+                    }
+                    const tbody = document.getElementById('excel-table-body');
+                    if (tbody) {
+                        tbody.innerHTML = '<tr><td colspan="20" class="text-center py-12 text-slate-400 font-bold">Tidak ada kelas yang ditugaskan untuk akun Anda.</td></tr>';
+                    }
                 }
             } catch (err) {
                 console.error(err);
@@ -679,13 +693,28 @@
         async function loadExcelPerformanceReport() {
             if (!activeClass) return;
             const bulan = document.getElementById('filter-bulan').value;
+            const tbody = document.getElementById('excel-table-body');
             try {
+                if (tbody && (!currentMonthReport || !currentMonthReport.report)) {
+                    tbody.innerHTML = '<tr><td colspan="25" class="text-center py-12 text-slate-400"><span class="inline-block animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent mr-2 align-middle"></span> Memuat data laporan kinerja...</td></tr>';
+                }
                 const res = await fetch(`${API_BASE}/api/attendance/performance-report?class_id=${activeClass.id}&bulan=${bulan}`);
                 const data = await res.json();
+                if (!res.ok || !data || !Array.isArray(data.dates)) {
+                    if (tbody) {
+                        tbody.innerHTML = `<tr><td colspan="25" class="text-center py-12 text-rose-500 font-semibold text-xs">${data && data.message ? data.message : 'Gagal memuat laporan kinerja.'}</td></tr>`;
+                    }
+                    showToast(data && data.message ? data.message : 'Gagal memuat laporan kinerja.', 'error');
+                    return;
+                }
                 currentMonthReport = data;
                 renderExcelTable(data);
             } catch (err) {
                 console.error(err);
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="25" class="text-center py-12 text-rose-500 font-semibold text-xs">Terjadi kesalahan memuat laporan kinerja: ${err.message}</td></tr>`;
+                }
+                showToast('Terjadi kesalahan memuat laporan kinerja.', 'error');
             }
         }
 
@@ -700,6 +729,7 @@
         }
 
         function renderExcelTable(data) {
+            if (!data || !Array.isArray(data.dates)) return;
             const bulanTitle = data.bulan ? data.bulan.toUpperCase() : new Date().toISOString().slice(0, 7);
             document.getElementById('excel-report-title').innerText = `LAPORAN KINERJA SISWA BULAN ${bulanTitle}`;
             
@@ -709,6 +739,7 @@
 
             const header = document.getElementById('excel-table-header');
             const tbody = document.getElementById('excel-table-body');
+            if (!header || !tbody) return;
 
             let dateColsHtml = '';
             data.dates.forEach(d => {
@@ -750,7 +781,7 @@
 
             tbody.innerHTML = '';
             if (!data.report || data.report.length === 0) {
-                const totalCols = 10 + (data.dates ? data.dates.length * 3 : 0);
+                const totalCols = 14 + (data.dates ? data.dates.length * 3 : 0);
                 tbody.innerHTML = `<tr><td colspan="${totalCols}" class="text-center py-12 text-slate-400 font-bold">Belum ada siswa pada kelas ini.</td></tr>`;
                 return;
             }
@@ -946,6 +977,10 @@
             const pName = (currentMonthReport.class && currentMonthReport.class.pengajar) ? currentMonthReport.class.pengajar : (activeClass && activeClass.pengajar ? activeClass.pengajar : 'Pengajar KBEC');
             const kName = (currentMonthReport.class && currentMonthReport.class.nama) ? currentMonthReport.class.nama : (activeClass && activeClass.nama ? activeClass.nama : 'Kelas KBEC');
             const w = window.open('', '_blank');
+            if (!w) {
+                showToast('Pop-up window diblokir browser. Izinkan pop-up untuk membuka fullscreen.', 'error');
+                return;
+            }
             const html = `
                 <!DOCTYPE html>
                 <html>
@@ -953,13 +988,27 @@
                     <title>Laporan Kinerja Siswa - KBEC</title>
                     <script src="https://cdn.tailwindcss.com"><\/script>
                     <style>
-                        body { font-family: sans-serif; padding: 20px; font-size: 11px; }
-                        table, th, td { border: 1px solid #cbd5e1; border-collapse: collapse; padding: 6px 8px; }
+                        body { font-family: sans-serif; padding: 20px; font-size: 10px; background: white; }
+                        table, th, td { border: 1px solid #cbd5e1; border-collapse: collapse; padding: 5px 6px; }
+                        th { background-color: #f1f5f9; font-weight: bold; }
+                        @media print {
+                            .no-print { display: none !important; }
+                            body { padding: 0 !important; }
+                        }
                     </style>
                 </head>
                 <body>
-                    <h2 class="text-xl font-bold text-slate-900">LAPORAN KINERJA SISWA BULAN ${(currentMonthReport.bulan || '').toUpperCase()}</h2>
-                    <p class="text-sm font-semibold text-slate-600 mb-4">${pName.toUpperCase()} • ${kName.toUpperCase()}</p>
+                    <div class="no-print flex items-center justify-between pb-3 mb-3 border-b border-slate-200">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-900">LAPORAN KINERJA SISWA BULAN ${(currentMonthReport.bulan || '').toUpperCase()}</h2>
+                            <p class="text-xs font-semibold text-slate-600">${pName.toUpperCase()} • ${kName.toUpperCase()}</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="if(window.opener && window.opener.exportExcelReport) window.opener.exportExcelReport();" class="bg-[#0A58CA] text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700">Simpan Excel (.xlsx)</button>
+                            <button onclick="window.print()" class="bg-rose-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-rose-700">Cetak / Simpan PDF</button>
+                            <button onclick="window.close()" class="bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-300">Tutup</button>
+                        </div>
+                    </div>
                     <table class="w-full">
                         ${document.getElementById('excel-table-header').innerHTML}
                         ${document.getElementById('excel-table-body').innerHTML}
@@ -1012,15 +1061,43 @@
         }
 
         function exportExcelReport() {
-            if (!currentMonthReport) {
+            if (!currentMonthReport || !currentMonthReport.report || currentMonthReport.report.length === 0) {
                 showToast('Tidak ada data laporan kinerja untuk diekspor!', 'error');
                 return;
             }
 
+            const className = activeClass ? (activeClass.nama || 'Kelas') : 'Kelas';
+            const teacherName = activeClass ? (activeClass.pengajar || 'Pengajar KBEC') : 'Pengajar KBEC';
+            const monthStr = currentMonthReport.bulan || new Date().toISOString().slice(0, 7);
+            const fileName = `Laporan_Kinerja_${className.replace(/\s+/g, '_')}_${monthStr}`;
+
+            if (typeof XLSX !== 'undefined') {
+                try {
+                    const origTable = document.querySelector('.excel-table');
+                    if (origTable) {
+                        const clonedTable = origTable.cloneNode(true);
+                        // Bersihkan kolom aksi / catatan pada excel
+                        clonedTable.querySelectorAll('.print\\:hidden').forEach(el => el.remove());
+
+                        const wb = XLSX.utils.table_to_book(clonedTable, { 
+                            sheet: `Kinerja ${monthStr}`,
+                            raw: true 
+                        });
+                        XLSX.writeFile(wb, `${fileName}.xlsx`);
+                        showToast(`Sukses menyimpan Laporan Kinerja ke Excel (.xlsx)!`);
+                        return;
+                    }
+                } catch (xlsxErr) {
+                    console.warn('SheetJS table_to_book warning, fallback ke XML:', xlsxErr);
+                }
+            }
+
+            // Fallback ke formatted XML Excel (.xls) jika SheetJS tidak tersedia
             const headerHtml = document.getElementById('excel-table-header')?.innerHTML || '';
             const bodyHtml = document.getElementById('excel-table-body')?.innerHTML || '';
-            const className = activeClass ? activeClass.nama : 'Kelas';
-            const monthStr = currentMonthReport.bulan || new Date().toISOString().slice(0, 7);
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = `<table><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table>`;
+            tempDiv.querySelectorAll('.print\\:hidden').forEach(el => el.remove());
 
             const excelContent = `
                 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -1031,10 +1108,8 @@
                         <x:ExcelWorkbook>
                             <x:ExcelWorksheets>
                                 <x:ExcelWorksheet>
-                                    <x:Name>Laporan Kinerja</x:Name>
-                                    <x:WorksheetOptions>
-                                        <x:DisplayGridlines/>
-                                    </x:WorksheetOptions>
+                                    <x:Name>Laporan Kinerja ${monthStr}</x:Name>
+                                    <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
                                 </x:ExcelWorksheet>
                             </x:ExcelWorksheets>
                         </x:ExcelWorkbook>
@@ -1042,18 +1117,15 @@
                     <![endif]-->
                     <style>
                         table { border-collapse: collapse; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 11px; }
-                        th, td { border: 1px solid #cbd5e1; padding: 8px 12px; text-align: center; }
+                        th, td { border: 1px solid #cbd5e1; padding: 6px 10px; text-align: center; }
                         th { background-color: #f1f5f9; font-weight: bold; color: #0f172a; }
                         tr:nth-child(even) { background-color: #f8fafc; }
                     </style>
                 </head>
                 <body>
                     <h2 style="color: #0a58ca; font-family: sans-serif;">LAPORAN KINERJA SISWA BULAN ${monthStr.toUpperCase()}</h2>
-                    <p style="font-family: sans-serif; font-size: 12px;"><b>Kelas:</b> ${className} | <b>Pengajar:</b> ${activeClass ? (activeClass.pengajar || '-') : '-'}</p>
-                    <table>
-                        ${headerHtml}
-                        ${bodyHtml}
-                    </table>
+                    <p style="font-family: sans-serif; font-size: 12px;"><b>Kelas:</b> ${className} | <b>Pengajar:</b> ${teacherName} | <b>Diunduh:</b> ${new Date().toLocaleString('id-ID')}</p>
+                    ${tempDiv.innerHTML}
                 </body>
                 </html>
             `;
@@ -1061,11 +1133,229 @@
             const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.setAttribute('download', `Laporan_Kinerja_Siswa_${className.replace(/\s+/g, '_')}_${monthStr}.xls`);
+            link.setAttribute('download', `${fileName}.xls`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            showToast(`Sukses mengunduh Laporan Kinerja Siswa ke Excel (.xls)!`);
+            showToast(`Sukses menyimpan Laporan Kinerja ke Excel (.xls)!`);
+        }
+
+        function exportPDFReport() {
+            if (!currentMonthReport || !currentMonthReport.report || currentMonthReport.report.length === 0) {
+                showToast('Tidak ada data laporan kinerja untuk disimpan ke PDF!', 'error');
+                return;
+            }
+
+            const className = activeClass ? (activeClass.nama || 'Kelas KBEC') : 'Kelas KBEC';
+            const teacherName = activeClass ? (activeClass.pengajar || 'Pengajar KBEC') : 'Pengajar KBEC';
+            const monthStr = (currentMonthReport.bulan || new Date().toISOString().slice(0, 7)).toUpperCase();
+
+            // Clone tabel tanpa kolom tombol aksi
+            const origTable = document.querySelector('.excel-table');
+            if (!origTable) return;
+            const tableClone = origTable.cloneNode(true);
+            tableClone.querySelectorAll('.print\\:hidden').forEach(el => el.remove());
+
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                showToast('Pop-up window diblokir oleh browser. Izinkan pop-up untuk mencetak PDF.', 'error');
+                return;
+            }
+
+            const printContent = `
+                <!DOCTYPE html>
+                <html lang="id">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Laporan Kinerja Siswa - ${className} - ${monthStr}</title>
+                    <style>
+                        @page {
+                            size: landscape;
+                            margin: 8mm 6mm;
+                        }
+                        * {
+                            box-sizing: border-box;
+                            -webkit-print-color-adjust: exact !important;
+                            print-color-adjust: exact !important;
+                        }
+                        body {
+                            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                            font-size: 10px;
+                            color: #0f172a;
+                            margin: 0;
+                            padding: 16px;
+                            background: white;
+                        }
+                        .no-print-bar {
+                            background: #f8fafc;
+                            border: 1px solid #e2e8f0;
+                            padding: 10px 16px;
+                            border-radius: 8px;
+                            margin-bottom: 16px;
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                        }
+                        .btn-print {
+                            background: #0a58ca;
+                            color: white;
+                            border: none;
+                            padding: 8px 18px;
+                            border-radius: 6px;
+                            font-weight: bold;
+                            font-size: 12px;
+                            cursor: pointer;
+                        }
+                        .btn-close {
+                            background: #e2e8f0;
+                            color: #475569;
+                            border: none;
+                            padding: 8px 14px;
+                            border-radius: 6px;
+                            font-weight: bold;
+                            font-size: 12px;
+                            cursor: pointer;
+                            margin-left: 8px;
+                        }
+                        .report-header {
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: flex-start;
+                            border-bottom: 2px solid #0a58ca;
+                            padding-bottom: 10px;
+                            margin-bottom: 12px;
+                        }
+                        .brand-title {
+                            font-size: 16px;
+                            font-weight: 800;
+                            color: #0a58ca;
+                            letter-spacing: -0.02em;
+                        }
+                        .brand-sub {
+                            font-size: 11px;
+                            color: #475569;
+                            font-weight: 600;
+                            margin-top: 2px;
+                        }
+                        .report-title {
+                            font-size: 13px;
+                            font-weight: 800;
+                            color: #0f172a;
+                            margin-top: 4px;
+                        }
+                        .meta-box {
+                            text-align: right;
+                            font-size: 10px;
+                            color: #64748b;
+                            line-height: 1.5;
+                        }
+                        .meta-box b {
+                            color: #1e293b;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-top: 10px;
+                            font-size: 8.5px;
+                        }
+                        th, td {
+                            border: 1px solid #cbd5e1;
+                            padding: 4px 5px;
+                            text-align: center;
+                        }
+                        th {
+                            background-color: #f1f5f9;
+                            color: #0f172a;
+                            font-weight: bold;
+                        }
+                        tr:nth-child(even) td {
+                            background-color: #f8fafc;
+                        }
+                        .signature-section {
+                            margin-top: 28px;
+                            display: flex;
+                            justify-content: space-between;
+                            page-break-inside: avoid;
+                            font-size: 11px;
+                        }
+                        .signature-box {
+                            width: 240px;
+                            text-align: center;
+                        }
+                        .signature-space {
+                            height: 60px;
+                        }
+                        .signature-name {
+                            font-weight: bold;
+                            border-bottom: 1px solid #0f172a;
+                            padding-bottom: 2px;
+                        }
+                        @media print {
+                            .no-print-bar {
+                                display: none !important;
+                            }
+                            body {
+                                padding: 0 !important;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="no-print-bar">
+                        <div>
+                            <strong style="color: #0a58ca; font-size: 13px;">Pratinjau Cetak / Simpan PDF Laporan Kinerja</strong>
+                            <p style="margin: 2px 0 0 0; color: #64748b; font-size: 11px;">Gunakan opsi <b>"Save as PDF"</b> pada jendela cetak browser untuk menyimpan file PDF.</p>
+                        </div>
+                        <div>
+                            <button class="btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+                            <button class="btn-close" onclick="window.close()">Tutup</button>
+                        </div>
+                    </div>
+
+                    <div class="report-header">
+                        <div>
+                            <div class="brand-title">YAYASAN AR-RASYID BINTARO — KBEC</div>
+                            <div class="brand-sub">KURSUS BAHASA INGGRIS & BIMBINGAN BELAJAR</div>
+                            <div class="report-title">LAPORAN KINERJA SISWA BULAN ${monthStr}</div>
+                        </div>
+                        <div class="meta-box">
+                            <div>Kelas: <b>${className}</b></div>
+                            <div>Pengajar: <b>${teacherName}</b></div>
+                            <div>Waktu Cetak: <b>${new Date().toLocaleString('id-ID')}</b></div>
+                        </div>
+                    </div>
+
+                    ${tableClone.outerHTML}
+
+                    <div class="signature-section">
+                        <div class="signature-box">
+                            <div>Mengetahui,</div>
+                            <div>Penanggung Jawab Akademik</div>
+                            <div class="signature-space"></div>
+                            <div class="signature-name">( ........................................ )</div>
+                        </div>
+                        <div class="signature-box">
+                            <div>Tangerang Selatan, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</div>
+                            <div>Pengajar Kelas</div>
+                            <div class="signature-space"></div>
+                            <div class="signature-name">${teacherName}</div>
+                        </div>
+                    </div>
+
+                    <script>
+                        window.onload = function() {
+                            setTimeout(() => {
+                                window.print();
+                            }, 400);
+                        };
+                    <\/script>
+                </body>
+                </html>
+            `;
+
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            showToast('Membuka pratinjau cetak / simpan PDF...');
         }
 
         function openSubmitModal() {

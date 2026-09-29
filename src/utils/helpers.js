@@ -86,8 +86,10 @@ async function generateUniqueUserId(db, role = 'Admin') {
     const roleLower = (role || '').toLowerCase();
     if (roleLower.includes('super')) {
         suffix = '-SA';
-    } else if (roleLower.includes('pengajar') || roleLower.includes('teacher')) {
+    } else if (roleLower.includes('pengajar') || roleLower.includes('teacher') || roleLower.includes('guru')) {
         suffix = '-TCH';
+    } else if (roleLower.includes('staff') || roleLower.includes('staf')) {
+        suffix = '-STF';
     }
 
     let isUnique = false;

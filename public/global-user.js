@@ -115,6 +115,7 @@ function renderDynamicGlobalSidebar() {
         const key = String(roleKey).toLowerCase().trim();
         if (key.includes('super')) return 'SUPER ADMINISTRATOR';
         if (key.includes('pengajar') || key.includes('guru') || key.includes('teacher')) return 'PENGAJAR';
+        if (key.includes('staff') || key.includes('staf')) return 'STAFF';
         return 'ADMIN'; // Default fallback jika role biasa / 'admin'
     }
     window.getFormattedRoleText = getFormattedRoleText;
@@ -125,6 +126,8 @@ function renderDynamicGlobalSidebar() {
     const userRole = (user.role || user.role_name || user.type || 'Admin').toLowerCase();
     const isSuperAdmin = userRole.includes('super');
     const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
+    const isStaff = userRole.includes('staff') || userRole.includes('staf');
+    const isAdmin = !isSuperAdmin && !isTeacher && !isStaff;
 
     const currentPath = window.location.pathname.split('/').pop().toLowerCase() || 'dashboard.html';
     const fullSearch = window.location.search || '';
@@ -133,10 +136,10 @@ function renderDynamicGlobalSidebar() {
 
     // Tentukan Submenu mana yang harus terbuka secara otomatis
     let openSiswa = currentPath === 'siswa.html';
-    let openAkademik = ['pengajar.html', 'kelas.html', 'absensi.html', 'jadwal.html'].includes(currentPath);
+    let openAkademik = ['pengajar.html', 'kelas.html', 'absensi.html', 'jadwal.html', 'absensi-pengajar.html'].includes(currentPath);
     let openKeuangan = ['pembayaran.html', 'biaya-lain.html', 'voucher.html'].includes(currentPath);
     let openInventaris = currentPath === 'inventaris.html' || fullHash.includes('inventaris');
-    let openLaporan = currentPath === 'laporan.html' || currentPath === 'rekap-kehadiran.html';
+    let openLaporan = currentPath === 'laporan.html' || currentPath === 'rekap-kehadiran.html' || (currentPath === 'absensi-pengajar.html' && (isSuperAdmin || isAdmin));
     let openUnitProgram = currentPath === 'program.html';
     let openUsers = currentPath === 'profile.html' && (fullHash.includes('users') || fullHash.includes('roles') || fullHash.includes('reset'));
     let openSettings = (currentPath === 'profile.html' && fullHash.includes('backup'));
@@ -163,6 +166,7 @@ function renderDynamicGlobalSidebar() {
     const isPengajarActive = currentPath === 'pengajar.html';
     const isKelasActive = currentPath === 'kelas.html';
     const isAbsensiActive = currentPath === 'absensi.html';
+    const isAbsensiPengajarActive = currentPath === 'absensi-pengajar.html';
 
     const isTagihanActive = currentPath === 'pembayaran.html' && (!fullHash || fullHash.includes('bills'));
     const isPembayaranActive = currentPath === 'pembayaran.html' && fullHash.includes('payments');
@@ -203,11 +207,11 @@ function renderDynamicGlobalSidebar() {
             <div class="p-5 flex items-center justify-between border-b border-slate-100/60">
                 <div class="flex items-center gap-3">
                     <div class="bg-[#0A58CA] text-white p-2.5 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/20">
-                        <i data-lucide="${isTeacher ? 'award' : 'shield-check'}" class="w-5 h-5"></i>
+                        <i data-lucide="${isTeacher ? 'award' : (isStaff ? 'briefcase' : 'shield-check')}" class="w-5 h-5"></i>
                     </div>
                     <div>
                         <h1 class="font-extrabold text-slate-900 text-sm leading-tight">KBEC System</h1>
-                        <span class="text-[9px] font-extrabold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md uppercase tracking-wider">${userRole}</span>
+                        <span class="text-[9px] font-extrabold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md uppercase tracking-wider">${getFormattedRoleText(userRole)}</span>
                     </div>
                 </div>
                 <button onclick="window.toggleSidebar(false)" class="lg:hidden text-slate-400 hover:text-slate-600">
@@ -218,8 +222,8 @@ function renderDynamicGlobalSidebar() {
             <!-- Navigasi Tree Menu -->
             <nav class="px-3 py-3 space-y-1.5 overflow-y-auto max-h-[calc(100vh-140px)]">
                 
-                <!-- 🏠 Dashboard -->
-                ${!isTeacher ? `
+                <!-- 🏠 Dashboard (Hanya Super Admin & Admin) -->
+                ${(isSuperAdmin || isAdmin) ? `
                 <a href="dashboard.html"
                     class="relative w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-bold rounded-xl ${currentPath === 'dashboard.html' ? 'bg-[#0A58CA]/10 text-[#0A58CA] shadow-xs' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'} transition-all">
                     ${currentPath === 'dashboard.html' ? '<span class="absolute left-0 top-2 bottom-2 w-1 bg-[#0A58CA] rounded-r-md"></span>' : ''}
@@ -228,8 +232,8 @@ function renderDynamicGlobalSidebar() {
                 </a>
                 ` : ''}
 
-                <!-- 👨🎓 Data Siswa -->
-                ${!isTeacher ? `
+                <!-- 👨🎓 Data Siswa (Super Admin, Admin, Staff) -->
+                ${(isSuperAdmin || isAdmin || isStaff) ? `
                 <div>
                     <button onclick="window.toggleMenu('menu-siswa')"
                         class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs ${openSiswa ? 'bg-blue-50/80 text-[#0A58CA] font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-50 font-semibold'} rounded-xl transition-all">
@@ -253,7 +257,8 @@ function renderDynamicGlobalSidebar() {
                 </div>
                 ` : ''}
 
-                <!-- 📚 Akademik -->
+                <!-- 📚 Akademik (Super Admin, Staff, Pengajar — Disembunyikan dari Admin) -->
+                ${(isSuperAdmin || isStaff || isTeacher) ? `
                 <div>
                     <button onclick="window.toggleMenu('menu-akademik')"
                         class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs ${openAkademik ? 'bg-blue-50/80 text-[#0A58CA] font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-50 font-semibold'} rounded-xl transition-all">
@@ -264,15 +269,17 @@ function renderDynamicGlobalSidebar() {
                         <i data-lucide="chevron-down" id="arrow-menu-akademik" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openAkademik ? 'rotate-180 text-[#0A58CA]' : ''}"></i>
                     </button>
                     <div id="menu-akademik" class="${openAkademik ? '' : 'hidden'} pl-8 pr-2 py-1 space-y-1 text-xs">
-                        ${isSuperAdmin ? `<a href="pengajar.html" class="${getSubmenuItemClass(isPengajarActive)}">Guru / Pengajar</a>` : ''}
-                        ${!isTeacher ? `<a href="kelas.html" class="${getSubmenuItemClass(isKelasActive)}">Kelas & Jadwal</a>` : ''}
-                        ${isTeacher ? `<a href="jadwal.html" class="${getSubmenuItemClass(currentPath === 'jadwal.html')}">Jadwal Kursus</a>` : ''}
-                        ${isTeacher || isSuperAdmin ? `<a href="absensi.html?mode=excel" class="${getSubmenuItemClass(isAbsensiActive)}">Absensi & Matrik Kinerja</a>` : ''}
+                        ${(isSuperAdmin || isStaff) ? `<a href="pengajar.html" class="${getSubmenuItemClass(isPengajarActive)}">Guru / Pengajar</a>` : ''}
+                        ${(isSuperAdmin || isStaff) ? `<a href="kelas.html" class="${getSubmenuItemClass(isKelasActive)}">Kelas & Jadwal</a>` : ''}
+                        ${(isSuperAdmin || isStaff || isTeacher) ? `<a href="jadwal.html" class="${getSubmenuItemClass(currentPath === 'jadwal.html')}">Jadwal Kursus</a>` : ''}
+                        ${(isSuperAdmin || isStaff || isTeacher) ? `<a href="absensi-pengajar.html" class="${getSubmenuItemClass(isAbsensiPengajarActive)} flex items-center justify-between"><span>Absensi Pengajar</span>${isTeacher ? '<span class="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">Presensi</span>' : ''}</a>` : ''}
+                        ${(isSuperAdmin || isTeacher) ? `<a href="absensi.html?mode=excel" class="${getSubmenuItemClass(isAbsensiActive)}">Absensi Siswa & Matrik</a>` : ''}
                     </div>
                 </div>
+                ` : ''}
 
-                <!-- 💰 Keuangan -->
-                ${!isTeacher ? `
+                <!-- 💰 Keuangan (Hanya Super Admin & Admin — Disembunyikan dari Staff & Pengajar) -->
+                ${(isSuperAdmin || isAdmin) ? `
                 <div>
                     <button onclick="window.toggleMenu('menu-keuangan')"
                         class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs ${openKeuangan ? 'bg-blue-50/80 text-[#0A58CA] font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-50 font-semibold'} rounded-xl transition-all">
@@ -293,8 +300,8 @@ function renderDynamicGlobalSidebar() {
                 </div>
                 ` : ''}
 
-                <!-- 🏫 Pengelolaan Unit & Program -->
-                ${!isTeacher ? `
+                <!-- 🏫 Pengelolaan Unit & Program (Hanya Super Admin) -->
+                ${isSuperAdmin ? `
                 <div>
                     <button onclick="window.toggleMenu('menu-pendaftaran')"
                         class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs ${openUnitProgram ? 'bg-blue-50/80 text-[#0A58CA] font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-50 font-semibold'} rounded-xl transition-all">
@@ -314,8 +321,8 @@ function renderDynamicGlobalSidebar() {
                 </div>
                 ` : ''}
 
-                <!-- 📦 Inventaris -->
-                ${!isTeacher ? `
+                <!-- 📦 Inventaris (Super Admin & Staff — Disembunyikan dari Admin & Pengajar) -->
+                ${(isSuperAdmin || isStaff) ? `
                 <div>
                     <button onclick="window.toggleMenu('menu-inventaris')"
                         class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs ${openInventaris ? 'bg-blue-50/80 text-[#0A58CA] font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-50 font-semibold'} rounded-xl transition-all">
@@ -334,8 +341,8 @@ function renderDynamicGlobalSidebar() {
                 </div>
                 ` : ''}
 
-                <!-- 📊 Laporan -->
-                ${!isTeacher ? `
+                <!-- 📊 Laporan (Hanya Super Admin & Admin — Disembunyikan dari Staff & Pengajar) -->
+                ${(isSuperAdmin || isAdmin) ? `
                 <div>
                     <button onclick="window.toggleMenu('menu-laporan')"
                         class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs ${openLaporan ? 'bg-blue-50/80 text-[#0A58CA] font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-50 font-semibold'} rounded-xl transition-all">
@@ -350,6 +357,7 @@ function renderDynamicGlobalSidebar() {
                         <a href="laporan.html?type=setoran#setoran" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('setoran'); return false; }" class="${getSubmenuItemClass(isLaporanSetoranActive)}">Laporan Setoran</a>
                         <a href="laporan.html?type=kas#kas" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kas'); return false; }" class="${getSubmenuItemClass(isLaporanKasActive)}">Laporan Kas Besar</a>
                         <a href="rekap-kehadiran.html" class="${getSubmenuItemClass(isLaporanKehadiranActive)}">Laporan Kehadiran</a>
+                        <a href="absensi-pengajar.html" class="${getSubmenuItemClass(isAbsensiPengajarActive)}">Rekap Absensi Pengajar</a>
                         <a href="laporan.html?type=kas_kecil#kas_kecil" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kas_kecil'); return false; }" class="${getSubmenuItemClass(isLaporanKasKecilActive)}">Laporan Kas Kecil</a>
                         <a href="laporan.html?type=kinerja#kinerja" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kinerja'); return false; }" class="${getSubmenuItemClass(isLaporanKinerjaActive)}">Laporan Kinerja Siswa</a>
                     </div>
@@ -453,11 +461,15 @@ function renderDynamicGlobalSidebar() {
             return;
         }
 
-        if (role && (role === 'Admin' || role === 'Super Admin' || role === 'Pengajar' || role === 'Guru')) {
-            const targetPage = (role === 'Pengajar' || role === 'Guru') ? 'absensi.html' : 'dashboard.html';
-            window.location.href = targetPage;
-            return;
+        const roleLower = String(role || '').toLowerCase();
+        let targetPage = 'dashboard.html';
+        if (roleLower.includes('pengajar') || roleLower.includes('guru') || roleLower.includes('teacher')) {
+            targetPage = 'jadwal.html';
+        } else if (roleLower.includes('staff') || roleLower.includes('staf')) {
+            targetPage = 'siswa.html';
         }
+        window.location.href = targetPage;
+        return;
     }
 
     if (rawUser && !isAuthPage && window.location.protocol !== 'file:') {

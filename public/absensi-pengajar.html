@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="KBEC Course Management Admin System - Absensi & Tracking Pengajar">
+    <title>KBEC Admin - Absensi & Rekap Kehadiran Pengajar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/route-guard.js"></script>
+    <script src="global-user.js"></script>
+    <script src="js/ui-guard.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #F8FAFC;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+
+        .camera-video {
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        .camera-video.environment {
+            transform: scaleX(1);
+        }
+    </style>
+</head>
+
+<body class="text-slate-700 flex min-h-screen select-none">
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-3 pointer-events-none"></div>
+
+    <!-- MAIN CONTENT WRAPPER -->
+    <div class="flex-1 pl-0 lg:pl-64 flex flex-col min-h-screen w-full min-w-0 transition-all duration-300">
+
+        <!-- TOPBAR NAVBAR -->
+        <header class="h-20 bg-white/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 border-b border-slate-100 shadow-xs">
+            <div class="flex items-center gap-3">
+                <button onclick="window.toggleSidebar(true)" class="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <div class="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                    <span class="flex items-center gap-1">
+                        <i data-lucide="home" class="w-3.5 h-3.5"></i>
+                        <a href="dashboard.html" class="hover:text-[#0A58CA] transition-colors">Dashboard</a>
+                    </span>
+                    <span>/</span>
+                    <span class="text-slate-400">Akademik</span>
+                    <span>/</span>
+                    <span class="text-[#0A58CA] font-bold">Absensi Pengajar</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <div class="text-right hidden sm:block">
+                    <h4 id="user-display-name" class="text-xs font-bold text-slate-900 leading-tight">Memuat...</h4>
+                    <p id="user-display-role" class="text-[9px] text-blue-600 font-extrabold uppercase tracking-wider">ROLE</p>
+                </div>
+                <div id="user-display-avatar" class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-sm shadow-blue-500/20">
+                    KB
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN CONTENT AREA -->
+        <main class="px-4 sm:px-6 lg:px-8 pb-10 flex-1 flex flex-col">
+
+            <!-- HEADER PAGE & REFRESH -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 mb-6">
+                <div>
+                    <h2 class="text-2xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2.5">
+                        <span class="p-2 rounded-xl bg-blue-50 text-[#0A58CA]">
+                            <i data-lucide="user-check" class="w-6 h-6"></i>
+                        </span>
+                        <span>Absensi & Tracking Pengajar</span>
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-1">
+                        Catat kehadiran pengajar, sesi mengajar kelas, bukti foto kegiatan langsung, dan tracking kehadiran terpadu.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2.5">
+                    <button onclick="refreshData()" class="px-4 py-2.5 text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-xl shadow-xs transition-all flex items-center gap-2">
+                        <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                        <span>Muat Ulang</span>
+                    </button>
+                    <!-- Tombol Form Absen Mandiri (Untuk Pengajar atau Super Admin) -->
+                    <button id="btn-toggle-form" onclick="toggleAbsensiForm()" class="px-4 py-2.5 text-xs font-bold bg-[#0A58CA] hover:bg-blue-700 text-white rounded-xl shadow-md shadow-blue-500/20 transition-all flex items-center gap-2">
+                        <i data-lucide="camera" class="w-4 h-4"></i>
+                        <span id="btn-form-label">Buka Presensi Mandiri</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- SECTION 1: FORMULIR ABSENSI PENGAJAR (KAMERA & GPS) -->
+            <section id="section-form-absensi" class="mb-8 hidden transition-all">
+                <div class="bg-white border border-slate-200/80 rounded-2xl p-5 sm:p-6 shadow-sm">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 mb-5 border-b border-slate-100 gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-50 text-[#0A58CA] flex items-center justify-center font-bold">
+                                <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-base font-extrabold text-slate-900">Formulir Presensi Pengajar</h3>
+                                <p class="text-xs text-slate-400 font-medium">Lakukan Check-in Harian atau Presensi Sesi Mengajar Kelas</p>
+                            </div>
+                        </div>
+                        <!-- Tab Jenis Presensi -->
+                        <div class="flex items-center p-1 bg-slate-100 rounded-xl self-start sm:self-auto">
+                            <button type="button" onclick="switchFormTab('checkin_harian')" id="tab-btn-harian" class="px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all bg-white text-[#0A58CA] shadow-xs">
+                                Check-in Harian
+                            </button>
+                            <button type="button" onclick="switchFormTab('sesi_mengajar')" id="tab-btn-sesi" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all">
+                                Sesi Mengajar
+                            </button>
+                            <button type="button" onclick="switchFormTab('checkout_harian')" id="tab-btn-checkout" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all">
+                                Check-out
+                            </button>
+                            <button type="button" onclick="switchFormTab('izin')" id="tab-btn-izin" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-600 hover:text-slate-900 transition-all">
+                                Izin / Sakit
+                            </button>
+                        </div>
+                    </div>
+
+                    <form id="attendance-form" onsubmit="handleAttendanceSubmit(event)" class="space-y-6">
+                        <input type="hidden" id="form-attendance-type" value="checkin_harian">
+
+                        <!-- FIELD KHUSUS SUPER ADMIN: PILIH PENGAJAR JIKA ADMIN ENTRY -->
+                        <div id="wrapper-select-teacher" class="hidden space-y-1.5">
+                            <label class="text-xs font-bold text-slate-600 flex items-center gap-1.5">
+                                <i data-lucide="user" class="w-3.5 h-3.5 text-blue-600"></i>
+                                <span>Pilih Pengajar (Entri Khusus Admin)</span>
+                            </label>
+                            <select id="form-teacher-id" onchange="onAdminTeacherSelectChange()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-blue-500 focus:outline-none transition-all">
+                                <option value="">-- Pilih Pengajar --</option>
+                            </select>
+                        </div>
+
+                        <!-- FIELD KHUSUS SESI MENGAJAR -->
+                        <div id="fields-sesi-mengajar" class="hidden space-y-4 p-4 bg-blue-50/40 border border-blue-100 rounded-xl">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-1.5">
+                                    <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                        <i data-lucide="book-open" class="w-3.5 h-3.5 text-blue-600"></i>
+                                        <span>Kelas yang Diajar <span class="text-rose-500">*</span></span>
+                                    </label>
+                                    <select id="form-class-select" onchange="onClassSelectChange()" class="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:border-blue-500 focus:outline-none transition-all">
+                                        <option value="">Pilih Kelas Hari Ini...</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1.5">
+                                    <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                        <i data-lucide="wifi" class="w-3.5 h-3.5 text-blue-600"></i>
+                                        <span>Metode Pertemuan</span>
+                                    </label>
+                                    <select id="form-is-online" class="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:border-blue-500 focus:outline-none transition-all">
+                                        <option value="0">Tatap Muka di Kelas (GPS Wajib)</option>
+                                        <option value="1">Daring / Online (Zoom / Meet)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5 text-blue-600"></i>
+                                    <span>Topik / Materi Pembelajaran Hari Ini <span class="text-rose-500">*</span></span>
+                                </label>
+                                <input type="text" id="form-topic-material" placeholder="Contoh: Unit 4 - Simple Past Tense & Latihan Soal Hal 42" class="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium focus:border-blue-500 focus:outline-none transition-all">
+                            </div>
+                        </div>
+
+                        <!-- FIELD KHUSUS IZIN / SAKIT -->
+                        <div id="fields-izin-sakit" class="hidden space-y-4 p-4 bg-amber-50/50 border border-amber-200/60 rounded-xl">
+                            <div class="space-y-1.5">
+                                <label class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                                    <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-amber-600"></i>
+                                    <span>Alasan Ketidakhadiran</span>
+                                </label>
+                                <select id="form-izin-type" class="w-full px-4 py-2.5 bg-white border border-amber-200 rounded-xl text-xs font-medium focus:outline-none">
+                                    <option value="izin">Izin (Urusan Mendesak / Keluarga)</option>
+                                    <option value="sakit">Sakit (Disertai Surat Dokter / Resep)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- SECTION KAMERA & BUKTI FOTO + GPS (2 KOLOM GRID) -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                            <!-- KOLOM 1: KAMERA & BUKTI FOTO -->
+                            <div class="space-y-3">
+                                <label class="text-xs font-bold text-slate-700 flex items-center justify-between">
+                                    <span class="flex items-center gap-1.5">
+                                        <i data-lucide="camera" class="w-4 h-4 text-blue-600"></i>
+                                        <span>Bukti Foto Absensi (Kamera / File) <span class="text-rose-500">*</span></span>
+                                    </span>
+                                    <span id="photo-status-badge" class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 font-semibold">Belum Diambil</span>
+                                </label>
+
+                                <!-- Box Pratinjau / Kamera -->
+                                <div class="relative w-full aspect-video bg-slate-900 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-200 shadow-inner group">
+                                    <!-- Video Element -->
+                                    <video id="camera-stream" autoplay playsinline class="w-full h-full camera-video hidden"></video>
+
+                                    <!-- Canvas untuk Capture Foto -->
+                                    <canvas id="photo-canvas" class="hidden"></canvas>
+
+                                    <!-- Gambar Hasil Jepretan / Upload -->
+                                    <img id="photo-preview" src="" alt="Pratinjau Foto" class="w-full h-full object-cover hidden">
+
+                                    <!-- Placeholder Jika Kamera Belum Dibuka -->
+                                    <div id="camera-placeholder" class="text-center p-6 text-slate-400 space-y-2">
+                                        <div class="w-12 h-12 mx-auto rounded-full bg-slate-800/80 flex items-center justify-center text-slate-400">
+                                            <i data-lucide="camera" class="w-6 h-6"></i>
+                                        </div>
+                                        <p class="text-xs font-medium">Kamera belum aktif</p>
+                                        <p class="text-[10px] text-slate-500">Gunakan tombol kamera atau unggah foto dari berkas</p>
+                                    </div>
+
+                                    <!-- Overlay Tombol Switch Kamera & Close -->
+                                    <div id="camera-controls-overlay" class="absolute top-3 right-3 hidden flex items-center gap-2">
+                                        <button type="button" onclick="flipCamera()" title="Balik Kamera Depan/Belakang" class="p-2 bg-black/60 hover:bg-black/80 text-white rounded-xl backdrop-blur-md transition-all">
+                                            <i data-lucide="switch-camera" class="w-4 h-4"></i>
+                                        </button>
+                                        <button type="button" onclick="stopCamera()" title="Tutup Kamera" class="p-2 bg-rose-600/80 hover:bg-rose-700 text-white rounded-xl backdrop-blur-md transition-all">
+                                            <i data-lucide="x" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Action Buttons Kamera -->
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <button type="button" id="btn-start-camera" onclick="startCamera()" class="px-3.5 py-2 text-xs font-bold bg-blue-50 text-[#0A58CA] hover:bg-blue-100 rounded-xl transition-all flex items-center gap-1.5">
+                                        <i data-lucide="video" class="w-3.5 h-3.5"></i>
+                                        <span>Buka Kamera</span>
+                                    </button>
+                                    <button type="button" id="btn-take-photo" onclick="takePhoto()" class="hidden px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5">
+                                        <i data-lucide="aperture" class="w-3.5 h-3.5"></i>
+                                        <span>Ambil Foto</span>
+                                    </button>
+                                    <button type="button" id="btn-retake-photo" onclick="retakePhoto()" class="hidden px-3.5 py-2 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl transition-all flex items-center gap-1.5">
+                                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                                        <span>Foto Ulang</span>
+                                    </button>
+                                    <label class="px-3.5 py-2 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl transition-all cursor-pointer flex items-center gap-1.5">
+                                        <i data-lucide="upload" class="w-3.5 h-3.5"></i>
+                                        <span>Pilih Berkas Foto</span>
+                                        <input type="file" id="file-photo-input" accept="image/*" onchange="handleFileUpload(event)" class="hidden">
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- KOLOM 2: DETEKSI GPS & CATATAN -->
+                            <div class="space-y-4">
+                                <!-- Lokasi GPS -->
+                                <div class="space-y-2">
+                                    <label class="text-xs font-bold text-slate-700 flex items-center justify-between">
+                                        <span class="flex items-center gap-1.5">
+                                            <i data-lucide="map-pin" class="w-4 h-4 text-emerald-600"></i>
+                                            <span>Deteksi Lokasi GPS Anda</span>
+                                        </span>
+                                        <button type="button" onclick="detectGPSLocation()" class="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-1">
+                                            <i data-lucide="locate-fixed" class="w-3 h-3"></i>
+                                            <span>Perbarui Lokasi</span>
+                                        </button>
+                                    </label>
+
+                                    <!-- Status Box GPS -->
+                                    <div id="gps-status-card" class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-3">
+                                        <div id="gps-icon-container" class="p-2 rounded-lg bg-slate-200 text-slate-500">
+                                            <i data-lucide="navigation" class="w-4 h-4"></i>
+                                        </div>
+                                        <div class="space-y-0.5 text-xs flex-1">
+                                            <div class="flex items-center justify-between">
+                                                <h4 id="gps-title" class="font-bold text-slate-800">Menunggu Deteksi GPS...</h4>
+                                                <span id="gps-radius-badge" class="hidden text-[10px] px-2 py-0.5 rounded-full font-bold"></span>
+                                            </div>
+                                            <p id="gps-detail" class="text-slate-500 text-[11px]">Klik tombol perbarui lokasi di atas untuk mendeteksi koordinat Anda.</p>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="form-lat" value="0">
+                                    <input type="hidden" id="form-lng" value="0">
+                                </div>
+
+                                <!-- Catatan Pengajar -->
+                                <div class="space-y-1.5">
+                                    <label class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                                        <i data-lucide="message-square" class="w-3.5 h-3.5 text-blue-600"></i>
+                                        <span>Catatan Tambahan (Opsional)</span>
+                                    </label>
+                                    <textarea id="form-notes" rows="3" placeholder="Tuliskan catatan kondisi kelas, siswa yang tidak hadir, kendala, atau pesan untuk admin..." class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-blue-500 focus:outline-none transition-all"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TOMBOL SUBMIT -->
+                        <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                            <button type="button" onclick="toggleAbsensiForm(false)" class="px-5 py-2.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">
+                                Batal
+                            </button>
+                            <button type="submit" id="btn-submit-attendance" class="px-6 py-2.5 text-xs font-bold bg-[#0A58CA] hover:bg-blue-700 text-white rounded-xl shadow-lg shadow-blue-500/25 transition-all flex items-center gap-2">
+                                <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                <span id="submit-btn-text">Kirim Absensi Sekarang</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- SECTION 2: STATISTIK KPI (ADMIN & PENGAJAR) -->
+            <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <!-- Card 1 -->
+                <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="user-check" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Hadir Hari Ini</p>
+                        <h3 id="stat-today-checkins" class="text-2xl font-extrabold text-slate-900 leading-tight">0</h3>
+                        <p class="text-[10px] text-emerald-600 font-semibold mt-0.5">Pengajar aktif hadir</p>
+                    </div>
+                </div>
+
+                <!-- Card 2 -->
+                <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="book-open" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Sesi Kelas</p>
+                        <h3 id="stat-today-sessions" class="text-2xl font-extrabold text-slate-900 leading-tight">0</h3>
+                        <p class="text-[10px] text-indigo-600 font-semibold mt-0.5">Sesi mengajar terlaksana</p>
+                    </div>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="calendar-x" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Izin / Sakit</p>
+                        <h3 id="stat-today-leave" class="text-2xl font-extrabold text-slate-900 leading-tight">0</h3>
+                        <p class="text-[10px] text-amber-600 font-semibold mt-0.5">Pengajar berhalangan</p>
+                    </div>
+                </div>
+
+                <!-- Card 4 -->
+                <div class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                        <i data-lucide="users" class="w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Guru Terdaftar</p>
+                        <h3 id="stat-total-teachers" class="text-2xl font-extrabold text-slate-900 leading-tight">0</h3>
+                        <p class="text-[10px] text-slate-500 font-semibold mt-0.5">Instruktur KBEC</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION 3: TABEL TRACKING & LOGS ABSENSI -->
+            <section class="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1">
+                <!-- Toolbar Filter -->
+                <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50/40">
+                    <div class="flex items-center gap-2.5">
+                        <h3 id="table-title" class="text-sm font-extrabold text-slate-900">Rekap Riwayat Presensi Pengajar</h3>
+                        <span id="log-count-badge" class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-[#0A58CA]">0 Catatan</span>
+                    </div>
+
+                    <div class="flex items-center gap-2.5 flex-wrap">
+                        <!-- Filter Pengajar (Super Admin / Admin / Staff Only) -->
+                        <div id="filter-teacher-container" class="relative">
+                            <select id="filter-teacher" onchange="loadCheckinLogs()" class="pl-3 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-medium">
+                                <option value="all">Semua Pengajar</option>
+                            </select>
+                        </div>
+
+                        <!-- Filter Tipe Presensi -->
+                        <div class="relative">
+                            <select id="filter-type" onchange="loadCheckinLogs()" class="pl-3 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-medium">
+                                <option value="all">Semua Tipe Presensi</option>
+                                <option value="checkin_harian">Check-in Harian</option>
+                                <option value="sesi_mengajar">Sesi Mengajar Kelas</option>
+                                <option value="checkout_harian">Check-out Pulang</option>
+                                <option value="izin">Izin</option>
+                                <option value="sakit">Sakit</option>
+                            </select>
+                        </div>
+
+                        <!-- Filter Tanggal -->
+                        <div class="relative flex items-center">
+                            <input type="date" id="filter-date" onchange="loadCheckinLogs()" class="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 font-medium text-slate-700">
+                        </div>
+
+                        <!-- Export Button -->
+                        <button onclick="exportToExcel()" class="px-3.5 py-2 text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all flex items-center gap-1.5 shadow-xs">
+                            <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-600"></i>
+                            <span>Export Excel</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="overflow-x-auto flex-1">
+                    <table class="w-full text-left text-xs text-slate-600">
+                        <thead class="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100">
+                            <tr>
+                                <th class="py-3 px-4">Waktu & Tanggal</th>
+                                <th class="py-3 px-4">Pengajar</th>
+                                <th class="py-3 px-4">Tipe Kehadiran</th>
+                                <th class="py-3 px-4">Kelas & Topik Materi</th>
+                                <th class="py-3 px-4">Lokasi & GPS</th>
+                                <th class="py-3 px-4 text-center">Bukti Foto</th>
+                                <th class="py-3 px-4 text-center">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body" class="divide-y divide-slate-100">
+                            <tr>
+                                <td colspan="7" class="text-center py-12 text-slate-400">
+                                    <div class="flex flex-col items-center justify-center gap-2">
+                                        <div class="w-8 h-8 rounded-full border-2 border-blue-600 border-t-transparent animate-spin"></div>
+                                        <p class="text-xs font-medium">Memuat data absensi pengajar...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Empty State -->
+                <div id="logs-empty-state" class="hidden p-12 text-center text-slate-400 space-y-2">
+                    <div class="w-12 h-12 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                        <i data-lucide="inbox" class="w-6 h-6"></i>
+                    </div>
+                    <h4 class="text-sm font-bold text-slate-700">Belum Ada Catatan Presensi</h4>
+                    <p class="text-xs text-slate-400">Belum ada data presensi yang sesuai dengan filter yang dipilih.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MODAL VIEWER BUKTI ABSENSI (FULL RESOLUTION LIGHTBOX) -->
+    <div id="modal-proof-viewer" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4">
+        <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden border border-slate-100 flex flex-col max-h-[90vh] transform scale-95 transition-transform duration-300">
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 rounded-xl bg-blue-50 text-[#0A58CA]">
+                        <i data-lucide="image" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h3 id="modal-proof-teacher" class="text-sm font-extrabold text-slate-900">Bukti Presensi Pengajar</h3>
+                        <p id="modal-proof-time" class="text-[11px] text-slate-400 font-medium">Waktu presensi</p>
+                    </div>
+                </div>
+                <button onclick="closeProofModal()" class="p-2 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body (Image & Details) -->
+            <div class="p-6 overflow-y-auto space-y-4">
+                <!-- Large Image Preview -->
+                <div class="relative w-full aspect-video bg-slate-900 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-200 shadow-sm">
+                    <img id="modal-proof-img" src="" alt="Bukti Foto Absensi" class="w-full h-full object-contain">
+                    <div id="modal-proof-no-img" class="hidden text-center text-slate-400 p-6 space-y-1">
+                        <i data-lucide="image-off" class="w-8 h-8 mx-auto text-slate-500"></i>
+                        <p class="text-xs font-semibold">Tidak Ada Lampiran Foto</p>
+                    </div>
+                </div>
+
+                <!-- Info Grid -->
+                <div class="grid grid-cols-2 gap-3 text-xs bg-slate-50 p-4 rounded-xl border border-slate-100">
+                    <div>
+                        <span class="text-[10px] uppercase font-bold text-slate-400">Tipe Presensi</span>
+                        <p id="modal-proof-type" class="font-extrabold text-slate-800 mt-0.5">-</p>
+                    </div>
+                    <div>
+                        <span class="text-[10px] uppercase font-bold text-slate-400">Status GPS / Verifikasi</span>
+                        <p id="modal-proof-status" class="font-extrabold text-slate-800 mt-0.5">-</p>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="text-[10px] uppercase font-bold text-slate-400">Kelas & Topik Materi</span>
+                        <p id="modal-proof-material" class="font-medium text-slate-800 mt-0.5">-</p>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="text-[10px] uppercase font-bold text-slate-400">Catatan Pengajar</span>
+                        <p id="modal-proof-notes" class="font-normal text-slate-600 mt-0.5 italic">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <a id="modal-proof-map-link" href="#" target="_blank" class="px-4 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-all flex items-center gap-1.5">
+                    <i data-lucide="map" class="w-3.5 h-3.5 text-emerald-600"></i>
+                    <span>Buka Lokasi di Google Maps</span>
+                </a>
+                <button onclick="closeProofModal()" class="px-5 py-2 text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl transition-all">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script src="js/absensi-pengajar.js"></script>
+</body>
+
+</html>

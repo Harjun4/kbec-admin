@@ -162,6 +162,11 @@ if (require.main === module && !process.env.VERCEL) {
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(255) DEFAULT 'Pending';
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS teacher_id VARCHAR(255);
                 ALTER TABLE classes ADD COLUMN IF NOT EXISTS teacher_id VARCHAR(255);
+                ALTER TABLE teacher_checkins ADD COLUMN IF NOT EXISTS attendance_type VARCHAR(50) DEFAULT 'checkin_harian';
+                ALTER TABLE teacher_checkins ADD COLUMN IF NOT EXISTS proof_image TEXT;
+                ALTER TABLE teacher_checkins ADD COLUMN IF NOT EXISTS topic_material TEXT;
+                ALTER TABLE teacher_checkins ADD COLUMN IF NOT EXISTS notes TEXT;
+                ALTER TABLE teacher_checkins ADD COLUMN IF NOT EXISTS check_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
             `);
 
             // Synchronize & backfill existing approved teacher users into teachers table
@@ -235,9 +240,9 @@ if (process.env.SEED_ON_STARTUP === 'true') {
     const { seedDatabase } = require('./scripts/seed');
     seedDatabase().then(async () => {
         await syncPostgresSequences();
-        console.log('🚀 Database initial seeding finished.');
+        console.log('Database initial seeding finished.');
     }).catch(err => {
-        console.error('❌ Failed seeding database:', err);
+        console.error('Failed seeding database:', err);
     });
 }
 
@@ -260,7 +265,7 @@ function getLocalIpAddress() {
 if (require.main === module || !process.env.VERCEL) {
     app.listen(PORT, () => {
         const localIp = getLocalIpAddress();
-        console.log(`🚀 KBEC Admin Server running on port ${PORT}`);
+        console.log(`KBEC Admin Server running on port ${PORT}`);
         console.log(`   - Local:   http://localhost:${PORT}`);
         console.log(`   - Network: http://${localIp}:${PORT}`);
     });

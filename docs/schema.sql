@@ -227,6 +227,11 @@ CREATE TABLE IF NOT EXISTS teacher_checkins (
     distance_meters NUMERIC,
     is_online BIGINT DEFAULT 0,
     status VARCHAR(255),
+    attendance_type VARCHAR(50) DEFAULT 'checkin_harian',
+    proof_image TEXT,
+    topic_material TEXT,
+    notes TEXT,
+    check_time TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
