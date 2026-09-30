@@ -53,15 +53,28 @@ async function ensureTeacherProfile(userIdOrNis, role, status, emailInput, nameI
 async function getSelfProfile(req, res, next) {
     try {
         const userId = req.user.id;
-        const [[user]] = await db.query(`
-            SELECT u.id, u.nis, u.name, u.email, u.role, u.status, u.teacher_id,
-                   COALESCE(u.avatar, t.avatar) as avatar,
-                   t.expertise, t.joined,
-                   COALESCE(u.phone, t.kontak) as phone
-            FROM users u
-            LEFT JOIN teachers t ON u.teacher_id = t.id
-            WHERE u.id = ? OR u.nis = ?
-        `, [userId, userId]);
+        let user;
+        try {
+            const [[foundUser]] = await db.query(`
+                SELECT u.id, u.nis, u.name, u.email, u.role, u.status, u.teacher_id,
+                       COALESCE(u.avatar, t.avatar) as avatar,
+                       t.expertise, t.joined,
+                       COALESCE(u.phone, t.kontak) as phone
+                FROM users u
+                LEFT JOIN teachers t ON u.teacher_id::text = t.id::text
+                WHERE u.id = ? OR u.nis = ?
+            `, [userId, userId]);
+            user = foundUser;
+        } catch (errQuery) {
+            console.warn('[getSelfProfile] Fallback due to query error:', errQuery.message);
+            const [[fallbackUser]] = await db.query(`
+                SELECT id, nis, name, email, role, status, teacher_id
+                FROM users
+                WHERE id = ? OR nis = ?
+            `, [userId, userId]);
+            user = fallbackUser;
+        }
+
         if (!user) {
             return res.status(404).json({ success: false, message: 'User tidak ditemukan.' });
         }
@@ -113,22 +126,22 @@ async function updateSelfProfile(req, res, next) {
         const isTeacherRole = (req.user.role || '').toLowerCase().includes('pengajar') || (req.user.role || '').toLowerCase().includes('guru');
 
         if (teacherId || isTeacherRole) {
-            if (hasAvatar) {
-                await conn.query(
-                    `UPDATE teachers 
-                     SET nama = ?, email = ?, kontak = ?, avatar = ? 
-                     WHERE (id = ?::text AND ?::text IS NOT NULL AND ?::text != '') 
-                        OR (LOWER(email) = LOWER(?::text) AND email IS NOT NULL AND email != '')`,
-                    [safeName, safeEmail, safePhone, safeAvatar, teacherId, teacherId, teacherId, userEmail]
-                );
-            } else {
-                await conn.query(
-                    `UPDATE teachers 
-                     SET nama = ?, email = ?, kontak = ? 
-                     WHERE (id = ?::text AND ?::text IS NOT NULL AND ?::text != '') 
-                        OR (LOWER(email) = LOWER(?::text) AND email IS NOT NULL AND email != '')`,
-                    [safeName, safeEmail, safePhone, teacherId, teacherId, teacherId, userEmail]
-                );
+            try {
+                if (hasAvatar) {
+                    if (teacherId) {
+                        await conn.query('UPDATE teachers SET nama = ?, email = ?, kontak = ?, avatar = ? WHERE id = ?::text', [safeName, safeEmail, safePhone, safeAvatar, teacherId]);
+                    } else if (userEmail) {
+                        await conn.query('UPDATE teachers SET nama = ?, email = ?, kontak = ?, avatar = ? WHERE LOWER(email) = LOWER(?::text)', [safeName, safeEmail, safePhone, safeAvatar, userEmail]);
+                    }
+                } else {
+                    if (teacherId) {
+                        await conn.query('UPDATE teachers SET nama = ?, email = ?, kontak = ? WHERE id = ?::text', [safeName, safeEmail, safePhone, teacherId]);
+                    } else if (userEmail) {
+                        await conn.query('UPDATE teachers SET nama = ?, email = ?, kontak = ? WHERE LOWER(email) = LOWER(?::text)', [safeName, safeEmail, safePhone, userEmail]);
+                    }
+                }
+            } catch (tErr) {
+                console.warn('[updateSelfProfile] Could not sync teacher profile:', tErr.message);
             }
         }
 
@@ -177,13 +190,15 @@ async function updateAvatar(req, res, next) {
         const isTeacherRole = (req.user.role || '').toLowerCase().includes('pengajar') || (req.user.role || '').toLowerCase().includes('guru');
 
         if (teacherId || isTeacherRole) {
-            await conn.query(
-                `UPDATE teachers 
-                 SET avatar = ? 
-                 WHERE (id = ?::text AND ?::text IS NOT NULL AND ?::text != '') 
-                    OR (LOWER(email) = LOWER(?::text) AND email IS NOT NULL AND email != '')`,
-                [safeAvatar, teacherId, teacherId, teacherId, userEmail]
-            );
+            try {
+                if (teacherId) {
+                    await conn.query('UPDATE teachers SET avatar = ? WHERE id = ?::text', [safeAvatar, teacherId]);
+                } else if (userEmail) {
+                    await conn.query('UPDATE teachers SET avatar = ? WHERE LOWER(email) = LOWER(?::text)', [safeAvatar, userEmail]);
+                }
+            } catch (tErr) {
+                console.warn('[updateAvatar] Could not sync teacher avatar:', tErr.message);
+            }
         }
 
         await conn.commit();
