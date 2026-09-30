@@ -139,7 +139,7 @@ function renderDynamicGlobalSidebar() {
     let openAkademik = ['pengajar.html', 'kelas.html', 'absensi.html', 'jadwal.html', 'absensi-pengajar.html'].includes(currentPath);
     let openKeuangan = ['pembayaran.html', 'biaya-lain.html', 'voucher.html'].includes(currentPath);
     let openInventaris = currentPath === 'inventaris.html' || fullHash.includes('inventaris');
-    let openLaporan = currentPath === 'laporan.html' || currentPath === 'rekap-kehadiran.html' || (currentPath === 'absensi-pengajar.html' && (isSuperAdmin || isAdmin));
+    let openLaporan = currentPath === 'laporan.html' || currentPath === 'rekap-kehadiran.html';
     let openUnitProgram = currentPath === 'program.html';
     let openUsers = currentPath === 'profile.html' && (fullHash.includes('users') || fullHash.includes('roles') || fullHash.includes('reset'));
     let openSettings = (currentPath === 'profile.html' && fullHash.includes('backup'));
@@ -257,8 +257,8 @@ function renderDynamicGlobalSidebar() {
                 </div>
                 ` : ''}
 
-                <!-- 📚 Akademik (Super Admin, Staff, Pengajar — Disembunyikan dari Admin) -->
-                ${(isSuperAdmin || isStaff || isTeacher) ? `
+                <!-- 📚 Akademik (Super Admin, Admin, Staff, Pengajar) -->
+                ${(isSuperAdmin || isAdmin || isStaff || isTeacher) ? `
                 <div>
                     <button onclick="window.toggleMenu('menu-akademik')"
                         class="w-full flex items-center justify-between px-3.5 py-2.5 text-xs ${openAkademik ? 'bg-blue-50/80 text-[#0A58CA] font-bold shadow-xs' : 'text-slate-600 hover:bg-slate-50 font-semibold'} rounded-xl transition-all">
@@ -269,11 +269,11 @@ function renderDynamicGlobalSidebar() {
                         <i data-lucide="chevron-down" id="arrow-menu-akademik" class="w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${openAkademik ? 'rotate-180 text-[#0A58CA]' : ''}"></i>
                     </button>
                     <div id="menu-akademik" class="${openAkademik ? '' : 'hidden'} pl-8 pr-2 py-1 space-y-1 text-xs">
-                        ${(isSuperAdmin || isStaff) ? `<a href="pengajar.html" class="${getSubmenuItemClass(isPengajarActive)}">Guru / Pengajar</a>` : ''}
-                        ${(isSuperAdmin || isStaff) ? `<a href="kelas.html" class="${getSubmenuItemClass(isKelasActive)}">Kelas & Jadwal</a>` : ''}
-                        ${(isSuperAdmin || isStaff || isTeacher) ? `<a href="jadwal.html" class="${getSubmenuItemClass(currentPath === 'jadwal.html')}">Jadwal Kursus</a>` : ''}
-                        ${(isSuperAdmin || isStaff || isTeacher) ? `<a href="absensi-pengajar.html" class="${getSubmenuItemClass(isAbsensiPengajarActive)} flex items-center justify-between"><span>Absensi Pengajar</span>${isTeacher ? '<span class="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">Presensi</span>' : ''}</a>` : ''}
-                        ${(isSuperAdmin || isTeacher) ? `<a href="absensi.html?mode=excel" class="${getSubmenuItemClass(isAbsensiActive)}">Absensi Siswa & Matrik</a>` : ''}
+                        ${(isSuperAdmin || isAdmin || isStaff) ? `<a href="pengajar.html" class="${getSubmenuItemClass(isPengajarActive)}">Guru / Pengajar</a>` : ''}
+                        ${(isSuperAdmin || isAdmin || isStaff) ? `<a href="kelas.html" class="${getSubmenuItemClass(isKelasActive)}">Kelas & Jadwal</a>` : ''}
+                        ${(isSuperAdmin || isAdmin || isStaff || isTeacher) ? `<a href="jadwal.html" class="${getSubmenuItemClass(currentPath === 'jadwal.html')}">Jadwal Kursus</a>` : ''}
+                        ${(isSuperAdmin || isAdmin || isStaff || isTeacher) ? `<a href="absensi-pengajar.html" class="${getSubmenuItemClass(isAbsensiPengajarActive)} flex items-center justify-between"><span>Absensi Pengajar</span>${isTeacher ? '<span class="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">Presensi</span>' : ''}</a>` : ''}
+                        ${(isSuperAdmin || isAdmin || isTeacher) ? `<a href="absensi.html?mode=excel" class="${getSubmenuItemClass(isAbsensiActive)}">Absensi Siswa & Matrik</a>` : ''}
                     </div>
                 </div>
                 ` : ''}
@@ -357,7 +357,6 @@ function renderDynamicGlobalSidebar() {
                         <a href="laporan.html?type=setoran#setoran" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('setoran'); return false; }" class="${getSubmenuItemClass(isLaporanSetoranActive)}">Laporan Setoran</a>
                         <a href="laporan.html?type=kas#kas" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kas'); return false; }" class="${getSubmenuItemClass(isLaporanKasActive)}">Laporan Kas Besar</a>
                         <a href="rekap-kehadiran.html" class="${getSubmenuItemClass(isLaporanKehadiranActive)}">Laporan Kehadiran</a>
-                        <a href="absensi-pengajar.html" class="${getSubmenuItemClass(isAbsensiPengajarActive)}">Rekap Absensi Pengajar</a>
                         <a href="laporan.html?type=kas_kecil#kas_kecil" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kas_kecil'); return false; }" class="${getSubmenuItemClass(isLaporanKasKecilActive)}">Laporan Kas Kecil</a>
                         <a href="laporan.html?type=kinerja#kinerja" onclick="if(typeof window.switchReportTab==='function') { window.switchReportTab('kinerja'); return false; }" class="${getSubmenuItemClass(isLaporanKinerjaActive)}">Laporan Kinerja Siswa</a>
                     </div>
