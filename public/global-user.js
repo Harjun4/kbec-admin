@@ -94,6 +94,9 @@ window.handleLogout = function() {
     if (confirm('Apakah Anda yakin ingin keluar dari sistem?')) {
         localStorage.removeItem('currentUser');
         localStorage.removeItem('authToken');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('lastActivityTime');
+        localStorage.removeItem('loginTime');
         window.location.href = 'login.html';
     }
 };

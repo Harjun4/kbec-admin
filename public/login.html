@@ -81,10 +81,21 @@
             </div>
 
             <!-- Judul Form -->
-            <div class="mb-8">
+            <div class="mb-6">
                 <h3 class="text-xl font-extrabold text-slate-900 tracking-tight">Masuk Akun</h3>
                 <p class="text-xs text-slate-400 font-medium mt-1.5">Silakan masukkan email dan kata sandi Anda untuk
                     mengakses panel.</p>
+            </div>
+
+            <!-- Alert Sesi Berakhir (Ditampilkan jika timeout / auto logout) -->
+            <div id="session-expired-alert" class="hidden p-3.5 mb-5 bg-amber-50 border border-amber-200/90 text-amber-900 rounded-2xl text-xs font-semibold flex items-center gap-3 animate-in fade-in duration-300">
+                <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                    <i data-lucide="clock" class="w-4 h-4"></i>
+                </div>
+                <div class="flex-1 leading-snug">
+                    <p class="font-bold text-amber-950">Sesi Berakhir</p>
+                    <p id="session-expired-message" class="text-[11px] text-amber-800 font-medium mt-0.5">Sesi Anda telah berakhir karena tidak ada aktivitas. Silakan masuk kembali.</p>
+                </div>
             </div>
 
             <!-- Formulir Interaktif -->
@@ -169,6 +180,16 @@
     <!-- SISTEM LOGIC INTERAKSI LOGIN JS -->
     <script>
         window.onload = function () {
+            const reason = sessionStorage.getItem('session_expired_reason');
+            if (reason) {
+                const alertEl = document.getElementById('session-expired-alert');
+                const msgEl = document.getElementById('session-expired-message');
+                if (alertEl && msgEl) {
+                    msgEl.innerText = reason;
+                    alertEl.classList.remove('hidden');
+                }
+                sessionStorage.removeItem('session_expired_reason');
+            }
             lucide.createIcons();
         };
 
@@ -230,6 +251,8 @@
                     localStorage.setItem('authToken', data.token);
                 }
                 localStorage.setItem('userRole', role || 'Pending');
+                localStorage.setItem('lastActivityTime', Date.now().toString());
+                localStorage.setItem('loginTime', Date.now().toString());
 
                 const roleLower = String(role || '').toLowerCase();
                 if (roleLower.includes('pengajar') || roleLower.includes('guru') || roleLower.includes('teacher')) {
