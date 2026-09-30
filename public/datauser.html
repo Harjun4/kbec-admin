@@ -321,7 +321,16 @@
             }
 
             document.getElementById('header-user-name').innerText = currentUser.name;
-            document.getElementById('header-user-badge').innerText = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            const badgeEl = document.getElementById('header-user-badge');
+            if (badgeEl) {
+                badgeEl.classList.add('overflow-hidden');
+                const initials = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                if (currentUser.avatar) {
+                    badgeEl.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name || 'User'}" class="w-full h-full object-cover rounded-xl" onerror="this.onerror=null; this.parentElement.innerText='${initials}';" />`;
+                } else {
+                    badgeEl.innerText = initials;
+                }
+            }
 
             fetchUsers();
             if (window.lucide) lucide.createIcons();

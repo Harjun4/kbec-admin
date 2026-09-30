@@ -44,8 +44,13 @@ function initUserSession() {
     if (nameEl) nameEl.innerText = user.name || 'Pengguna KBEC';
     if (roleEl) roleEl.innerText = (window.getFormattedRoleText ? window.getFormattedRoleText(role) : role);
     if (avatarEl) {
+        avatarEl.classList.add('overflow-hidden');
         const initials = (user.name || 'KB').split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
-        avatarEl.innerText = initials;
+        if (user.avatar) {
+            avatarEl.innerHTML = `<img src="${user.avatar}" alt="${user.name || 'User'}" class="w-full h-full object-cover rounded-xl" onerror="this.onerror=null; this.parentElement.innerText='${initials}';" />`;
+        } else {
+            avatarEl.innerText = initials;
+        }
     }
 
     // Penyesuaian antarmuka berdasarkan role

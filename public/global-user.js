@@ -675,34 +675,27 @@ function renderDynamicGlobalSidebar() {
 
         const headerEl = document.querySelector('header');
         if (headerEl) {
-            const headerParagraphs = headerEl.querySelectorAll('p, div.text-xs, p.text-xs');
-            headerParagraphs.forEach(p => {
-                const txt = p.textContent.trim().toUpperCase();
-                if (txt.includes('SUPER ADMINISTRATOR') || txt.includes('ADMINISTRATOR') || txt.includes('ADMIN') || txt.includes('PENGAJAR') || txt.includes('GURU')) {
-                    // Update Role Text khusus di Header Profile
-                    p.innerText = formattedRole;
+            // Update User Name di Header
+            const nameEls = headerEl.querySelectorAll('#user-display-name, #header-user-name, div.text-right h4');
+            nameEls.forEach(el => {
+                if (currentUser.name) el.innerText = currentUser.name;
+            });
 
-                    const parent = p.parentElement;
-                    if (parent) {
-                        const nameEl = parent.querySelector('h4');
-                        if (nameEl && currentUser.name) nameEl.innerText = currentUser.name;
-                    }
-                    
-                    const container = p.closest('div');
-                    if (container) {
-                        const grandparent = container.parentElement;
-                        if (grandparent) {
-                            const avatarEl = grandparent.querySelector('div.w-9.h-9');
-                            if (avatarEl && currentUser.name) {
-                                const initials = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-                                if (currentUser.avatar) {
-                                    avatarEl.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name}" class="w-full h-full object-cover rounded-xl" onerror="this.onerror=null; this.parentElement.innerText='${initials}';" />`;
-                                } else {
-                                    avatarEl.innerText = initials;
-                                }
-                            }
-                        }
-                    }
+            // Update User Role di Header (Hanya di container profile user, tidak menimpa breadcrumb)
+            const roleEls = headerEl.querySelectorAll('#user-display-role, #header-user-role, div.text-right p');
+            roleEls.forEach(el => {
+                el.innerText = formattedRole;
+            });
+
+            // Update Avatar di Header
+            const initials = (currentUser.name || 'KB').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+            const avatarEls = headerEl.querySelectorAll('div.w-9.h-9, #header-user-badge, #user-display-avatar');
+            avatarEls.forEach(avatarEl => {
+                avatarEl.classList.add('overflow-hidden');
+                if (currentUser.avatar) {
+                    avatarEl.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name || 'User'}" class="w-full h-full object-cover rounded-xl" onerror="this.onerror=null; this.parentElement.innerText='${initials}';" />`;
+                } else {
+                    avatarEl.innerText = initials;
                 }
             });
         }
@@ -716,6 +709,7 @@ function renderDynamicGlobalSidebar() {
                 const initials = (u.name || 'KB').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
                 const avatarEls = document.querySelectorAll('header div.w-9.h-9, #header-user-badge, #user-display-avatar');
                 avatarEls.forEach(el => {
+                    el.classList.add('overflow-hidden');
                     if (u.avatar) {
                         el.innerHTML = `<img src="${u.avatar}" alt="${u.name || 'User'}" class="w-full h-full object-cover rounded-xl" onerror="this.onerror=null; this.parentElement.innerText='${initials}';" />`;
                     } else {

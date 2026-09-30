@@ -563,9 +563,11 @@
                 localStorage.setItem('currentUser', JSON.stringify(currentUser));
 
                 const headerName = document.getElementById('header-user-name');
-                const headerBadge = document.getElementById('header-user-badge');
                 if (headerName) headerName.innerText = currentUser.name;
-                if (headerBadge) headerBadge.innerText = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                renderProfileAvatar(currentUser.avatar);
+                if (typeof window.syncGlobalUserHeaderAvatar === 'function') {
+                    window.syncGlobalUserHeaderAvatar();
+                }
 
                 if (typeof window.renderDynamicGlobalSidebar === 'function') {
                     window.renderDynamicGlobalSidebar();
