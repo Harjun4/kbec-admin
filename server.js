@@ -45,7 +45,8 @@ app.use(cors({
     origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
     credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // CSRF Protection
 app.use('/api', requireCsrf);
@@ -161,6 +162,9 @@ if (require.main === module && !process.env.VERCEL) {
             await db.query(`
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(255) DEFAULT 'Pending';
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS teacher_id VARCHAR(255);
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar TEXT;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(255);
+                ALTER TABLE teachers ADD COLUMN IF NOT EXISTS avatar TEXT;
                 ALTER TABLE classes ADD COLUMN IF NOT EXISTS teacher_id VARCHAR(255);
                 ALTER TABLE teacher_checkins ADD COLUMN IF NOT EXISTS attendance_type VARCHAR(50) DEFAULT 'checkin_harian';
                 ALTER TABLE teacher_checkins ADD COLUMN IF NOT EXISTS proof_image TEXT;

@@ -55,7 +55,9 @@ async function getSelfProfile(req, res, next) {
         const userId = req.user.id;
         const [[user]] = await db.query(`
             SELECT u.id, u.nis, u.name, u.email, u.role, u.status, u.teacher_id,
-                   t.avatar, t.expertise, t.joined, t.kontak
+                   COALESCE(u.avatar, t.avatar) as avatar,
+                   t.expertise, t.joined,
+                   COALESCE(u.phone, t.kontak) as phone
             FROM users u
             LEFT JOIN teachers t ON u.teacher_id = t.id
             WHERE u.id = ? OR u.nis = ?
@@ -73,7 +75,7 @@ async function updateSelfProfile(req, res, next) {
     let conn;
     try {
         const userId = req.user.id;
-        const { name, email, phone } = req.body;
+        const { name, email, phone, avatar } = req.body;
 
         if (!name || !email) {
             return res.status(400).json({ success: false, message: 'Nama dan email wajib diisi.' });
@@ -85,12 +87,22 @@ async function updateSelfProfile(req, res, next) {
         const safeName = escapeHTML(name.trim());
         const safeEmail = email.trim();
         const safePhone = phone ? escapeHTML(phone.trim()) : '';
+        const hasAvatar = avatar !== undefined;
+        const safeAvatar = hasAvatar ? (avatar ? String(avatar).trim() : null) : null;
 
         try {
-            await conn.query('UPDATE users SET name = ?, email = ?, phone = ? WHERE id = ? OR nis = ?', [safeName, safeEmail, safePhone, userId, userId]);
+            if (hasAvatar) {
+                await conn.query('UPDATE users SET name = ?, email = ?, phone = ?, avatar = ? WHERE id = ? OR nis = ?', [safeName, safeEmail, safePhone, safeAvatar, userId, userId]);
+            } else {
+                await conn.query('UPDATE users SET name = ?, email = ?, phone = ? WHERE id = ? OR nis = ?', [safeName, safeEmail, safePhone, userId, userId]);
+            }
         } catch (dbErr) {
             if (dbErr.message && dbErr.message.includes('column "phone"')) {
-                await conn.query('UPDATE users SET name = ?, email = ? WHERE id = ? OR nis = ?', [safeName, safeEmail, userId, userId]);
+                if (hasAvatar) {
+                    await conn.query('UPDATE users SET name = ?, email = ?, avatar = ? WHERE id = ? OR nis = ?', [safeName, safeEmail, safeAvatar, userId, userId]);
+                } else {
+                    await conn.query('UPDATE users SET name = ?, email = ? WHERE id = ? OR nis = ?', [safeName, safeEmail, userId, userId]);
+                }
             } else {
                 throw dbErr;
             }
@@ -101,13 +113,23 @@ async function updateSelfProfile(req, res, next) {
         const isTeacherRole = (req.user.role || '').toLowerCase().includes('pengajar') || (req.user.role || '').toLowerCase().includes('guru');
 
         if (teacherId || isTeacherRole) {
-            await conn.query(
-                `UPDATE teachers 
-                 SET nama = ?, email = ?, kontak = ? 
-                 WHERE (id = ?::text AND ?::text IS NOT NULL AND ?::text != '') 
-                    OR (LOWER(email) = LOWER(?::text) AND email IS NOT NULL AND email != '')`,
-                [safeName, safeEmail, safePhone, teacherId, teacherId, teacherId, userEmail]
-            );
+            if (hasAvatar) {
+                await conn.query(
+                    `UPDATE teachers 
+                     SET nama = ?, email = ?, kontak = ?, avatar = ? 
+                     WHERE (id = ?::text AND ?::text IS NOT NULL AND ?::text != '') 
+                        OR (LOWER(email) = LOWER(?::text) AND email IS NOT NULL AND email != '')`,
+                    [safeName, safeEmail, safePhone, safeAvatar, teacherId, teacherId, teacherId, userEmail]
+                );
+            } else {
+                await conn.query(
+                    `UPDATE teachers 
+                     SET nama = ?, email = ?, kontak = ? 
+                     WHERE (id = ?::text AND ?::text IS NOT NULL AND ?::text != '') 
+                        OR (LOWER(email) = LOWER(?::text) AND email IS NOT NULL AND email != '')`,
+                    [safeName, safeEmail, safePhone, teacherId, teacherId, teacherId, userEmail]
+                );
+            }
         }
 
         await conn.commit();
@@ -118,13 +140,66 @@ async function updateSelfProfile(req, res, next) {
             ...req.user,
             name: safeName,
             email: safeEmail,
-            phone: safePhone
+            phone: safePhone,
+            avatar: hasAvatar ? safeAvatar : (req.user.avatar || null)
         };
         const newToken = generateToken(updatedUser);
 
         res.json({
             success: true,
             message: 'Profil pribadi berhasil diperbarui.',
+            user: updatedUser,
+            token: newToken
+        });
+    } catch (err) {
+        if (conn) {
+            try { await conn.rollback(); conn.release(); } catch(e) {}
+        }
+        next(err);
+    }
+}
+
+async function updateAvatar(req, res, next) {
+    let conn;
+    try {
+        const userId = req.user.id;
+        const { avatar } = req.body;
+
+        conn = await db.getConnection();
+        await conn.beginTransaction();
+
+        const safeAvatar = avatar ? String(avatar).trim() : null;
+
+        await conn.query('UPDATE users SET avatar = ? WHERE id = ? OR nis = ?', [safeAvatar, userId, userId]);
+
+        const teacherId = req.user.teacher_id || null;
+        const userEmail = req.user.email || '';
+        const isTeacherRole = (req.user.role || '').toLowerCase().includes('pengajar') || (req.user.role || '').toLowerCase().includes('guru');
+
+        if (teacherId || isTeacherRole) {
+            await conn.query(
+                `UPDATE teachers 
+                 SET avatar = ? 
+                 WHERE (id = ?::text AND ?::text IS NOT NULL AND ?::text != '') 
+                    OR (LOWER(email) = LOWER(?::text) AND email IS NOT NULL AND email != '')`,
+                [safeAvatar, teacherId, teacherId, teacherId, userEmail]
+            );
+        }
+
+        await conn.commit();
+        conn.release();
+
+        const { generateToken } = require('../middlewares/auth.middleware');
+        const updatedUser = {
+            ...req.user,
+            avatar: safeAvatar
+        };
+        const newToken = generateToken(updatedUser);
+
+        res.json({
+            success: true,
+            message: safeAvatar ? 'Foto profil berhasil diperbarui!' : 'Foto profil berhasil dihapus.',
+            avatar: safeAvatar,
             user: updatedUser,
             token: newToken
         });
@@ -313,6 +388,7 @@ module.exports = {
     ensureTeacherProfile,
     getSelfProfile,
     updateSelfProfile,
+    updateAvatar,
     getNextId,
     getAllUsers,
     approveUser,

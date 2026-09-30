@@ -694,13 +694,37 @@ function renderDynamicGlobalSidebar() {
                         if (grandparent) {
                             const avatarEl = grandparent.querySelector('div.w-9.h-9');
                             if (avatarEl && currentUser.name) {
-                                avatarEl.innerText = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                                const initials = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                                if (currentUser.avatar) {
+                                    avatarEl.innerHTML = `<img src="${currentUser.avatar}" alt="${currentUser.name}" class="w-full h-full object-cover rounded-xl" onerror="this.onerror=null; this.parentElement.innerText='${initials}';" />`;
+                                } else {
+                                    avatarEl.innerText = initials;
+                                }
                             }
                         }
                     }
                 }
             });
         }
+
+        // Global Sync Helper untuk Avatar Header
+        window.syncGlobalUserHeaderAvatar = function() {
+            const raw = localStorage.getItem('currentUser');
+            if (!raw) return;
+            try {
+                const u = JSON.parse(raw);
+                const initials = (u.name || 'KB').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                const avatarEls = document.querySelectorAll('header div.w-9.h-9, #header-user-badge, #user-display-avatar');
+                avatarEls.forEach(el => {
+                    if (u.avatar) {
+                        el.innerHTML = `<img src="${u.avatar}" alt="${u.name || 'User'}" class="w-full h-full object-cover rounded-xl" onerror="this.onerror=null; this.parentElement.innerText='${initials}';" />`;
+                    } else {
+                        el.innerText = initials;
+                    }
+                });
+            } catch (e) {}
+        };
+        window.syncGlobalUserHeaderAvatar();
 
         // 5. Setup Global Header Search Interaktif
         setupGlobalHeaderSearch();

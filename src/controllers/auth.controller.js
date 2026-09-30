@@ -94,7 +94,15 @@ async function login(req, res) {
             } catch (tErr) {}
         }
 
-        const token = generateToken({ ...user, role: resolvedRole, name: resolvedName, teacher_id: resolvedTeacherId });
+        let resolvedAvatar = user.avatar || null;
+        if (!resolvedAvatar && resolvedTeacherId) {
+            try {
+                const [[tRow]] = await db.query('SELECT avatar FROM teachers WHERE id = ?', [resolvedTeacherId]);
+                if (tRow && tRow.avatar) resolvedAvatar = tRow.avatar;
+            } catch (e) {}
+        }
+
+        const token = generateToken({ ...user, role: resolvedRole, name: resolvedName, teacher_id: resolvedTeacherId, avatar: resolvedAvatar });
         
         // Log aktivitas login secara non-blocking
         const { createActivityLog } = require('../utils/logger');
@@ -108,7 +116,16 @@ async function login(req, res) {
         return res.json({
             success: true,
             token,
-            user: { id: user.id, nis: user.nis || user.id, name: resolvedName, email: user.email, role: resolvedRole, teacher_id: resolvedTeacherId }
+            user: { 
+                id: user.id, 
+                nis: user.nis || user.id, 
+                name: resolvedName, 
+                email: user.email, 
+                role: resolvedRole, 
+                teacher_id: resolvedTeacherId,
+                avatar: resolvedAvatar,
+                phone: user.phone || ''
+            }
         });
     } catch (err) {
         console.error('Error during login:', err);

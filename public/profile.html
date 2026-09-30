@@ -83,6 +83,59 @@
                     </div>
                 </div>
 
+                <!-- Card Hero Foto Profil & Status Akun -->
+                <div class="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div class="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
+                        <!-- Container Avatar dengan Pratinjau & Action Hover -->
+                        <div class="relative group">
+                            <div id="profile-avatar-container" class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 ring-4 ring-blue-50 overflow-hidden select-none">
+                                <span id="profile-avatar-initials">KB</span>
+                                <img id="profile-avatar-img" src="" alt="Foto Profil" class="w-full h-full object-cover hidden">
+                            </div>
+
+                            <!-- Tombol Trigger Kamera Langsung di Pojok Avatar -->
+                            <label for="avatar-file-input" class="absolute -bottom-1.5 -right-1.5 w-8 h-8 bg-[#0A58CA] hover:bg-blue-700 text-white rounded-xl shadow-md flex items-center justify-center cursor-pointer transition-all hover:scale-110" title="Ganti Foto Profil">
+                                <i data-lucide="camera" class="w-4 h-4"></i>
+                            </label>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                                <h3 id="display-profile-name" class="text-lg sm:text-xl font-extrabold text-slate-900 leading-tight">Nama Pengguna</h3>
+                                <span id="display-profile-role-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-[#0A58CA] uppercase tracking-wider">
+                                    Role
+                                </span>
+                            </div>
+                            <p id="display-profile-email" class="text-xs text-slate-500 font-medium">user@kbec.com</p>
+                            <div class="flex items-center justify-center sm:justify-start gap-3 text-[11px] text-slate-400 pt-0.5">
+                                <span class="flex items-center gap-1 text-emerald-600 font-semibold">
+                                    <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                                    <span>Akun Terverifikasi</span>
+                                </span>
+                                <span>•</span>
+                                <span id="display-profile-id" class="font-mono text-slate-500">ID: -</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tombol Aksi Pengelolaan Foto -->
+                    <div class="flex items-center gap-2.5 w-full sm:w-auto justify-center flex-wrap">
+                        <input type="file" id="avatar-file-input" accept="image/png, image/jpeg, image/webp" class="hidden" onchange="handleAvatarFileSelect(event)">
+                        
+                        <button type="button" id="btn-upload-avatar" onclick="document.getElementById('avatar-file-input').click()" 
+                            class="px-4 py-2.5 bg-blue-50 text-[#0A58CA] hover:bg-blue-100 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-xs">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                            <span id="btn-upload-avatar-text">Ganti Foto Profil</span>
+                        </button>
+
+                        <button type="button" id="btn-delete-avatar" onclick="deleteProfileAvatar()" 
+                            class="hidden px-4 py-2.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-xs">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            <span>Hapus Foto</span>
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Settings Grid -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <!-- Form 1: Informasi Personal -->
@@ -229,6 +282,99 @@
             }
         }
 
+        function renderProfileAvatar(avatarUrl) {
+            const avatarImg = document.getElementById('profile-avatar-img');
+            const avatarInitials = document.getElementById('profile-avatar-initials');
+            const btnDelete = document.getElementById('btn-delete-avatar');
+            const headerBadge = document.getElementById('header-user-badge');
+
+            const name = currentUser ? currentUser.name || 'User' : 'User';
+            const initials = name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+
+            if (avatarInitials) avatarInitials.innerText = initials;
+
+            if (avatarUrl) {
+                if (avatarImg) {
+                    avatarImg.src = avatarUrl;
+                    avatarImg.classList.remove('hidden');
+                }
+                if (avatarInitials) avatarInitials.classList.add('hidden');
+                if (btnDelete) btnDelete.classList.remove('hidden');
+
+                if (headerBadge) {
+                    headerBadge.innerHTML = `<img src="${avatarUrl}" alt="${name}" class="w-full h-full object-cover rounded-xl" onerror="this.onerror=null; this.parentElement.innerText='${initials}';" />`;
+                }
+            } else {
+                if (avatarImg) {
+                    avatarImg.src = '';
+                    avatarImg.classList.add('hidden');
+                }
+                if (avatarInitials) avatarInitials.classList.remove('hidden');
+                if (btnDelete) btnDelete.classList.add('hidden');
+
+                if (headerBadge) {
+                    headerBadge.innerText = initials;
+                }
+            }
+
+            if (typeof window.syncGlobalUserHeaderAvatar === 'function') {
+                window.syncGlobalUserHeaderAvatar();
+            }
+        }
+
+        async function fetchFreshProfile() {
+            const token = localStorage.getItem('authToken');
+            if (!token) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/users/profile`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.success && data.user) {
+                    currentUser = { ...currentUser, ...data.user };
+                    localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                    updateProfileUI();
+                }
+            } catch (err) {
+                console.warn('Fetch fresh profile error:', err.message);
+            }
+        }
+
+        function updateProfileUI() {
+            if (!currentUser) return;
+
+            const name = currentUser.name || 'Pengguna KBEC';
+            const email = currentUser.email || '-';
+            const phone = currentUser.phone || currentUser.kontak || '';
+            const role = currentUser.role || currentUser.role_name || currentUser.type || 'Admin';
+            const id = currentUser.nis || currentUser.id || '-';
+
+            const headerName = document.getElementById('header-user-name');
+            const headerRole = document.getElementById('header-user-role');
+            if (headerName) headerName.innerText = name;
+            if (headerRole) headerRole.innerText = role;
+
+            const displayName = document.getElementById('display-profile-name');
+            const displayRole = document.getElementById('display-profile-role-badge');
+            const displayEmail = document.getElementById('display-profile-email');
+            const displayId = document.getElementById('display-profile-id');
+
+            if (displayName) displayName.innerText = name;
+            if (displayRole) displayRole.innerText = role;
+            if (displayEmail) displayEmail.innerText = email;
+            if (displayId) displayId.innerText = `ID: ${id}`;
+
+            document.getElementById('profile-name').value = name;
+            document.getElementById('profile-email').value = email;
+            document.getElementById('profile-phone').value = phone;
+
+            renderProfileAvatar(currentUser.avatar);
+
+            if (window.lucide) lucide.createIcons();
+        }
+
         window.onload = function () {
             const userStr = localStorage.getItem('currentUser');
             if (!userStr) {
@@ -238,15 +384,141 @@
             }
 
             currentUser = JSON.parse(userStr);
+            updateProfileUI();
+            fetchFreshProfile(); // Sinkronkan data fresh & avatar dari database
+        }
 
-            document.getElementById('header-user-name').innerText = currentUser.name;
-            document.getElementById('header-user-badge').innerText = currentUser.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+        // Handler Ganti Foto Profil dengan Kompresi Gambar Otomatis
+        async function handleAvatarFileSelect(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
 
-            document.getElementById('profile-name').value = currentUser.name || '';
-            document.getElementById('profile-email').value = currentUser.email || '';
-            document.getElementById('profile-phone').value = currentUser.phone || currentUser.kontak || '';
+            if (!file.type.startsWith('image/')) {
+                showToast('Mohon pilih file gambar yang valid (PNG, JPG, JPEG, WEBP).', 'error');
+                return;
+            }
 
-            if (window.lucide) lucide.createIcons();
+            const btnUpload = document.getElementById('btn-upload-avatar');
+            const btnText = document.getElementById('btn-upload-avatar-text');
+            if (btnUpload) btnUpload.disabled = true;
+            if (btnText) btnText.innerText = 'Mengompres Foto...';
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const img = new Image();
+                img.onload = async function () {
+                    // Kompresi ke dimensi maksimal 400x400 px
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    const maxDim = 400;
+
+                    if (width > maxDim || height > maxDim) {
+                        if (width > height) {
+                            height = Math.round((height * maxDim) / width);
+                            width = maxDim;
+                        } else {
+                            width = Math.round((width * maxDim) / height);
+                            height = maxDim;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.82);
+
+                    // Tampilkan pratinjau instan di UI
+                    renderProfileAvatar(compressedBase64);
+
+                    if (btnText) btnText.innerText = 'Menyimpan Foto...';
+
+                    try {
+                        const token = localStorage.getItem('authToken');
+                        const res = await fetch(`${API_BASE}/api/users/profile/avatar`, {
+                            method: 'PUT',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({ avatar: compressedBase64 })
+                        });
+
+                        const data = await res.json();
+                        if (!res.ok || !data.success) {
+                            throw new Error(data.message || 'Gagal menyimpan foto profil.');
+                        }
+
+                        currentUser.avatar = compressedBase64;
+                        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                        if (data.token) localStorage.setItem('authToken', data.token);
+
+                        renderProfileAvatar(currentUser.avatar);
+
+                        if (typeof window.renderDynamicGlobalSidebar === 'function') {
+                            window.renderDynamicGlobalSidebar();
+                        }
+
+                        showToast('Foto profil berhasil diperbarui!', 'success');
+                    } catch (err) {
+                        console.error('Upload avatar error:', err);
+                        showToast(err.message || 'Gagal mengunggah foto profil.', 'error');
+                        renderProfileAvatar(currentUser ? currentUser.avatar : null);
+                    } finally {
+                        if (btnUpload) btnUpload.disabled = false;
+                        if (btnText) btnText.innerText = 'Ganti Foto Profil';
+                        event.target.value = '';
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Handler Hapus Foto Profil
+        async function deleteProfileAvatar() {
+            if (!confirm('Apakah Anda yakin ingin menghapus foto profil dan kembali menggunakan inisial nama?')) {
+                return;
+            }
+
+            const btnDelete = document.getElementById('btn-delete-avatar');
+            if (btnDelete) btnDelete.disabled = true;
+
+            try {
+                const token = localStorage.getItem('authToken');
+                const res = await fetch(`${API_BASE}/api/users/profile/avatar`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ avatar: null })
+                });
+
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'Gagal menghapus foto profil.');
+                }
+
+                currentUser.avatar = null;
+                localStorage.setItem('currentUser', JSON.stringify(currentUser));
+                if (data.token) localStorage.setItem('authToken', data.token);
+
+                renderProfileAvatar(null);
+
+                if (typeof window.renderDynamicGlobalSidebar === 'function') {
+                    window.renderDynamicGlobalSidebar();
+                }
+
+                showToast('Foto profil berhasil dihapus.', 'success');
+            } catch (err) {
+                console.error('Delete avatar error:', err);
+                showToast(err.message || 'Gagal menghapus foto profil.', 'error');
+            } finally {
+                if (btnDelete) btnDelete.disabled = false;
+            }
         }
 
         async function updateProfileInfo(e) {
