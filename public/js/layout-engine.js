@@ -5,8 +5,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!document.querySelector("link[rel*='icon']")) {
         const favicon = document.createElement('link');
         favicon.rel = 'icon';
-        favicon.type = 'image/x-icon';
-        favicon.href = 'favicon.ico';
+        favicon.type = 'image/svg+xml';
+        favicon.href = 'Kbec.svg';
         document.head.appendChild(favicon);
     }
 

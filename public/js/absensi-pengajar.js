@@ -5,6 +5,7 @@ let currentFacingMode = 'user'; // 'user' (selfie) atau 'environment' (belakang)
 let currentCapturedPhoto = null;
 let isPhotoFromLiveCamera = false; // Flag penanda foto langsung dari kamera (bukan upload foto lama)
 let currentAttendanceLogs = [];
+let currentTeacherStats = null; // Status & aturan presensi pengajar hari ini
 
 // Koordinat Resmi Yayasan Ar-Rasyid Bintaro — KBEC Jakarta (https://maps.app.goo.gl/gjiAmuJcTriC3VX49)
 const KBEC_LAT = -6.2545644;
@@ -16,15 +17,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadInitialData();
     detectGPSLocation(); // Auto detect GPS saat pertama buka
     
-    // Auto refresh logs setiap 60 detik jika halaman terbuka
+    // Auto refresh status kehadiran & logs setiap 60 detik jika halaman terbuka
     setInterval(() => {
-        const rawUser = localStorage.getItem('currentUser');
-        const user = JSON.parse(rawUser || '{}');
-        const role = (user.role || user.role_name || user.type || 'Pengajar').trim().toLowerCase();
-        const isTeacher = role.includes('pengajar') || role.includes('guru') || role.includes('teacher');
-        if (!isTeacher) {
-            loadAttendanceSummary();
-        }
+        loadAttendanceSummary();
     }, 60000);
 });
 
@@ -82,19 +77,12 @@ function initUserSession() {
 
 // 2. Load Data Awal
 async function loadInitialData() {
-    const rawUser = localStorage.getItem('currentUser');
-    const user = JSON.parse(rawUser || '{}');
-    const role = (user.role || user.role_name || user.type || 'Pengajar').trim().toLowerCase();
-    const isTeacher = role.includes('pengajar') || role.includes('guru') || role.includes('teacher');
-
     const tasks = [
         loadTeachersDropdown(),
         loadTeacherClasses(),
-        loadCheckinLogs()
+        loadCheckinLogs(),
+        loadAttendanceSummary() // Selalu muat summary kehadiran hari ini untuk semua peran (termasuk pengajar)
     ];
-    if (!isTeacher) {
-        tasks.push(loadAttendanceSummary());
-    }
 
     await Promise.all(tasks);
     if (typeof lucide !== 'undefined' && lucide.createIcons) {
@@ -140,8 +128,64 @@ function showToast(message, type = 'info') {
     }, 4000);
 }
 
-// 3. Tab Switching pada Formulir Presensi
-function switchFormTab(type) {
+// Helper formatting durasi kerja ke bahasa Indonesia
+function formatDurationIndonesian(durationMinutes) {
+    if (durationMinutes === null || durationMinutes === undefined) return '-';
+    const mins = parseInt(durationMinutes, 10);
+    if (isNaN(mins) || mins <= 0) return '0 menit';
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    if (hours > 0 && remainingMins > 0) {
+        return `${hours} jam ${remainingMins} menit`;
+    } else if (hours > 0) {
+        return `${hours} jam`;
+    } else {
+        return `${remainingMins} menit`;
+    }
+}
+
+// 3. Tab Switching pada Formulir Presensi dengan Validasi Urutan & Multi-Sesi
+function switchFormTab(type, isForced = false) {
+    if (!isForced && currentTeacherStats) {
+        if (type === 'checkin_harian' && !currentTeacherStats.can_checkin) {
+            if (currentTeacherStats.is_currently_checked_in) {
+                showToast(`Anda saat ini masih dalam status Check-in (sejak pukul ${currentTeacherStats.checkin_time || ''} WIB). Anda harus melakukan Check-out terlebih dahulu sebelum dapat Check-in kembali.`, 'warning');
+            } else if (currentTeacherStats.has_leave_today) {
+                showToast(`Anda tercatat izin/sakit hari ini (${currentTeacherStats.leave_type}). Tidak dapat melakukan check-in.`, 'warning');
+            }
+            return;
+        }
+
+        if (type === 'sesi_mengajar' && !currentTeacherStats.can_teach) {
+            if (!currentTeacherStats.is_currently_checked_in) {
+                if (currentTeacherStats.has_checked_out_today) {
+                    showToast(`Anda saat ini sedang dalam status Check-out (terakhir pukul ${currentTeacherStats.checkout_time || ''} WIB). Silakan lakukan Check-in kembali untuk memulai sesi baru sebelum mengisi presensi mengajar.`, 'warning');
+                } else {
+                    showToast('Anda belum Check-in hari ini! Wajib melakukan Check-in Datang terlebih dahulu sebelum dapat mengisi presensi sesi mengajar kelas.', 'warning');
+                }
+                return;
+            }
+            if (currentTeacherStats.has_leave_today) {
+                showToast('Anda tercatat izin/sakit hari ini. Sesi mengajar tidak dapat diisi.', 'warning');
+                return;
+            }
+        }
+
+        if (type === 'checkout_harian' && !currentTeacherStats.can_checkout) {
+            if (currentTeacherStats.has_checked_out_today) {
+                showToast(`Anda saat ini sedang tidak dalam status Check-in (sudah Check-out pukul ${currentTeacherStats.checkout_time || ''} WIB). Silakan Check-in terlebih dahulu sebelum Check-out kembali.`, 'warning');
+            } else {
+                showToast('Anda belum Check-in hari ini! Silakan lakukan Check-in Datang terlebih dahulu sebelum melakukan check-out.', 'warning');
+            }
+            return;
+        }
+
+        if ((type === 'izin' || type === 'sakit') && currentTeacherStats.is_currently_checked_in) {
+            showToast('Anda saat ini sedang dalam status Check-in aktif. Selesaikan sesi dengan Check-out terlebih dahulu jika ingin izin/pulang.', 'warning');
+            return;
+        }
+    }
+
     document.getElementById('form-attendance-type').value = type;
 
     const tabBtnHarian = document.getElementById('tab-btn-harian');
@@ -151,6 +195,7 @@ function switchFormTab(type) {
 
     const fieldsSesi = document.getElementById('fields-sesi-mengajar');
     const fieldsIzin = document.getElementById('fields-izin-sakit');
+    const submitBtn = document.getElementById('btn-submit-attendance');
     const submitBtnText = document.getElementById('submit-btn-text');
 
     const photoTitle = document.getElementById('photo-label-title');
@@ -166,10 +211,12 @@ function switchFormTab(type) {
 
     if (fieldsSesi) fieldsSesi.classList.add('hidden');
     if (fieldsIzin) fieldsIzin.classList.add('hidden');
+    if (submitBtn) submitBtn.disabled = false;
 
     if (type === 'checkin_harian') {
         if (tabBtnHarian) tabBtnHarian.className = activeClass;
-        if (submitBtnText) submitBtnText.innerText = 'Kirim Check-in Datang';
+        const sessionCount = currentTeacherStats ? (currentTeacherStats.checkin_count_today || 0) : 0;
+        if (submitBtnText) submitBtnText.innerText = sessionCount > 0 ? `Kirim Check-in (Sesi Ke-${sessionCount + 1})` : 'Kirim Check-in Datang';
         if (photoTitle) photoTitle.innerHTML = 'Bukti Foto Datang (Wajib Kamera Langsung) <span class="text-rose-500">*</span>';
         if (photoNotice) photoNotice.innerHTML = '<i data-lucide="shield-alert" class="w-4 h-4 text-amber-600 flex-shrink-0"></i><span>Presensi datang <b>wajib foto kamera langsung saat ini</b> (menghindari penggunaan foto lama dari galeri).</span>';
         if (containerUpload) containerUpload.classList.add('hidden');
@@ -185,9 +232,14 @@ function switchFormTab(type) {
         if (tabBtnCheckout) tabBtnCheckout.className = activeClass;
         if (submitBtnText) submitBtnText.innerText = 'Kirim Check-out Pulang';
         if (photoTitle) photoTitle.innerHTML = 'Bukti Foto Pulang (Wajib Kamera Langsung) <span class="text-rose-500">*</span>';
-        if (photoNotice) photoNotice.innerHTML = '<i data-lucide="shield-alert" class="w-4 h-4 text-amber-600 flex-shrink-0"></i><span>Presensi pulang <b>wajib foto kamera langsung saat ini</b> (menghindari penggunaan foto lama dari galeri).</span>';
+        if (photoNotice) photoNotice.innerHTML = '<i data-lucide="shield-alert" class="w-4 h-4 text-amber-600 flex-shrink-0"></i><span>Presensi pulang <b>wajib foto kamera langsung saat ini</b> (durasi jam kerja akan otomatis terhitung).</span>';
         if (containerUpload) containerUpload.classList.add('hidden');
         if (!isPhotoFromLiveCamera && currentCapturedPhoto) retakePhoto();
+
+        if (currentTeacherStats && !currentTeacherStats.can_checkout) {
+            if (submitBtn) submitBtn.disabled = true;
+            if (submitBtnText) submitBtnText.innerText = currentTeacherStats.has_checked_out_today ? 'Status Saat Ini Sudah Check-out' : 'Wajib Check-in Terlebih Dahulu';
+        }
     } else if (type === 'izin' || type === 'sakit') {
         if (tabBtnIzin) tabBtnIzin.className = activeClass;
         if (fieldsIzin) fieldsIzin.classList.remove('hidden');
@@ -197,6 +249,162 @@ function switchFormTab(type) {
         if (containerUpload) containerUpload.classList.remove('hidden');
     }
 
+    if (currentTeacherStats) {
+        updateTabVisualBadges(currentTeacherStats);
+    }
+
+    if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+}
+
+function updateTabVisualBadges(stats) {
+    const tabHarian = document.getElementById('tab-btn-harian');
+    const tabSesi = document.getElementById('tab-btn-sesi');
+    const tabCheckout = document.getElementById('tab-btn-checkout');
+    const tabIzin = document.getElementById('tab-btn-izin');
+    const currentTab = document.getElementById('form-attendance-type') ? document.getElementById('form-attendance-type').value : '';
+
+    if (!stats) return;
+
+    if (tabHarian) {
+        if (stats.is_currently_checked_in) {
+            tabHarian.title = `Sedang aktif Check-in (${stats.checkin_time || ''} WIB). Selesaikan Check-out sebelum check-in sesi baru.`;
+            tabHarian.innerHTML = '<span class="inline-flex items-center gap-1.5"><i data-lucide="check" class="w-3.5 h-3.5 text-emerald-600"></i> Aktif Check-in</span>';
+            if (currentTab !== 'checkin_harian') tabHarian.classList.add('opacity-75');
+        } else if (stats.checkout_count_today > 0) {
+            tabHarian.title = `Sudah ${stats.checkout_count_today} sesi check-out hari ini. Klik untuk Check-in Sesi Baru.`;
+            tabHarian.innerHTML = '<span class="inline-flex items-center gap-1.5"><i data-lucide="plus-circle" class="w-3.5 h-3.5 text-blue-600"></i> Check-in Sesi Baru</span>';
+            tabHarian.classList.remove('opacity-75');
+        } else {
+            tabHarian.title = 'Lakukan check-in kehadiran datang';
+            tabHarian.innerHTML = 'Check-in Harian';
+            tabHarian.classList.remove('opacity-75');
+        }
+    }
+
+    if (tabSesi) {
+        if (!stats.can_teach) {
+            if (!stats.has_checked_in_today) {
+                tabSesi.title = 'Wajib check-in kehadiran datang terlebih dahulu';
+            } else if (!stats.is_currently_checked_in) {
+                tabSesi.title = `Sedang Check-out (${stats.checkout_time || ''} WIB). Check-in kembali untuk mengisi sesi baru.`;
+            }
+            tabSesi.innerHTML = '<span class="inline-flex items-center gap-1.5"><i data-lucide="lock" class="w-3 h-3 text-slate-400"></i> Sesi Mengajar</span>';
+            if (currentTab !== 'sesi_mengajar') tabSesi.classList.add('opacity-70');
+        } else {
+            tabSesi.title = 'Catat presensi & materi sesi mengajar kelas';
+            tabSesi.innerHTML = 'Sesi Mengajar';
+            tabSesi.classList.remove('opacity-70');
+        }
+    }
+
+    if (tabCheckout) {
+        if (stats.can_checkout) {
+            tabCheckout.title = 'Lakukan check-out pulang untuk mengakhiri sesi kerja saat ini (durasi akan terhitung)';
+            tabCheckout.innerHTML = '<span class="inline-flex items-center gap-1.5"><i data-lucide="log-out" class="w-3.5 h-3.5 text-rose-600"></i> Check-out</span>';
+            tabCheckout.classList.remove('opacity-70', 'opacity-75');
+        } else if (stats.has_checked_out_today) {
+            tabCheckout.title = `Sudah check-out (${stats.checkout_time || ''} WIB). Lakukan check-in terlebih dahulu untuk sesi berikutnya.`;
+            tabCheckout.innerHTML = '<span class="inline-flex items-center gap-1.5"><i data-lucide="lock" class="w-3 h-3 text-slate-400"></i> Check-out</span>';
+            if (currentTab !== 'checkout_harian') tabCheckout.classList.add('opacity-70');
+        } else {
+            tabCheckout.title = 'Wajib check-in terlebih dahulu sebelum check-out';
+            tabCheckout.innerHTML = '<span class="inline-flex items-center gap-1.5"><i data-lucide="lock" class="w-3 h-3 text-slate-400"></i> Check-out</span>';
+            if (currentTab !== 'checkout_harian') tabCheckout.classList.add('opacity-70');
+        }
+    }
+
+    if (tabIzin) {
+        if (stats.is_currently_checked_in) {
+            tabIzin.title = 'Sedang check-in aktif. Check-out terlebih dahulu jika ingin izin/pulang.';
+            if (currentTab !== 'izin' && currentTab !== 'sakit') tabIzin.classList.add('opacity-60');
+        } else {
+            tabIzin.title = 'Pengajuan izin / sakit';
+            tabIzin.classList.remove('opacity-60');
+        }
+    }
+}
+
+function updateTeacherPresenceUI(stats) {
+    const banner = document.getElementById('presence-status-banner');
+    const bannerIconBox = document.getElementById('presence-banner-icon-box');
+    const bannerIcon = document.getElementById('presence-banner-icon');
+    const bannerText = document.getElementById('presence-banner-text');
+    const bannerBadge = document.getElementById('presence-banner-badge');
+
+    if (!stats) {
+        if (banner) banner.classList.add('hidden');
+        return;
+    }
+
+    if (banner) banner.classList.remove('hidden');
+    const currentTab = document.getElementById('form-attendance-type') ? document.getElementById('form-attendance-type').value : 'checkin_harian';
+
+    if (stats.has_leave_today) {
+        if (banner) banner.className = 'flex mb-5 p-3.5 rounded-xl border text-xs font-medium transition-all bg-purple-50/90 border-purple-200 text-purple-900 justify-between items-center';
+        if (bannerIconBox) bannerIconBox.className = 'p-1.5 rounded-lg flex items-center justify-center flex-shrink-0 bg-purple-100 text-purple-700';
+        if (bannerIcon) bannerIcon.setAttribute('data-lucide', 'calendar-off');
+        if (bannerText) bannerText.innerHTML = `Status Hari Ini: <b>Tercatat ${stats.leave_type === 'sakit' ? 'Sakit' : 'Izin'}</b>. Presensi mengajar dan check-in tidak dapat dilakukan saat izin/sakit.`;
+        if (bannerBadge) {
+            bannerBadge.innerText = stats.leave_type === 'sakit' ? 'SAKIT' : 'IZIN';
+            bannerBadge.className = 'px-2.5 py-1 rounded-full font-bold text-[10px] tracking-wide uppercase flex-shrink-0 bg-purple-100 text-purple-800 border border-purple-300';
+        }
+    } else if (stats.is_currently_checked_in) {
+        // SEDANG CHECK-IN AKTIF (Bisa sesi 1, 2, dst)
+        if (banner) banner.className = 'flex mb-5 p-3.5 rounded-xl border text-xs font-medium transition-all bg-emerald-50 border-emerald-200 text-emerald-950 justify-between items-center';
+        if (bannerIconBox) bannerIconBox.className = 'p-1.5 rounded-lg flex items-center justify-center flex-shrink-0 bg-emerald-100 text-emerald-700';
+        if (bannerIcon) bannerIcon.setAttribute('data-lucide', 'check-circle-2');
+        
+        const sessionLabel = stats.checkin_count_today > 1 ? `Sesi Ke-${stats.checkin_count_today}` : 'Hadir Aktif';
+        const activeDuration = stats.current_active_duration_text ? `⏱️ Durasi sesi ini: <b>${stats.current_active_duration_text}</b>` : '';
+        const totalDuration = stats.total_work_duration_text ? ` | Akumulasi kerja hari ini: <b>${stats.total_work_duration_text}</b>` : '';
+
+        if (bannerText) {
+            bannerText.innerHTML = `Status: <b>${sessionLabel} (Check-in pukul ${stats.checkin_time || ''} WIB)</b>. ${activeDuration}${totalDuration}. Silakan catat <b>Sesi Mengajar</b> kelas Anda atau lakukan <b>Check-out</b> saat selesai.`;
+        }
+        if (bannerBadge) {
+            bannerBadge.innerText = stats.checkin_count_today > 1 ? `SESI ${stats.checkin_count_today} AKTIF` : 'HADIR AKTIF';
+            bannerBadge.className = 'px-2.5 py-1 rounded-full font-bold text-[10px] tracking-wide uppercase flex-shrink-0 bg-emerald-100 text-emerald-800 border border-emerald-300';
+        }
+
+        if (currentTab === 'checkin_harian') {
+            switchFormTab('sesi_mengajar', true);
+        }
+    } else if (stats.has_checked_out_today) {
+        // SUDAH CHECK-OUT (Dapat check-in sesi berikutnya berkali-kali sehari)
+        if (banner) banner.className = 'flex mb-5 p-3.5 rounded-xl border text-xs font-medium transition-all bg-sky-50 border-sky-200 text-sky-950 justify-between items-center';
+        if (bannerIconBox) bannerIconBox.className = 'p-1.5 rounded-lg flex items-center justify-center flex-shrink-0 bg-sky-100 text-sky-700';
+        if (bannerIcon) bannerIcon.setAttribute('data-lucide', 'log-out');
+        
+        const lastSessionDuration = stats.last_session_duration_text ? `⏱️ Sesi terakhir: <b>${stats.last_session_duration_text}</b>` : '';
+        const totalDuration = stats.total_work_duration_text ? ` | Total akumulasi kerja: <b>${stats.total_work_duration_text} (${stats.checkout_count_today} sesi selesai)</b>` : '';
+
+        if (bannerText) {
+            bannerText.innerHTML = `Status: <b>Sudah Check-out (Pukul ${stats.checkout_time || ''} WIB)</b>. ${lastSessionDuration}${totalDuration}. Anda dapat <b>Check-in kembali</b> jika memiliki sesi mengajar berikutnya hari ini.`;
+        }
+        if (bannerBadge) {
+            bannerBadge.innerText = `CHECK-OUT (${stats.checkout_count_today} SESI)`;
+            bannerBadge.className = 'px-2.5 py-1 rounded-full font-bold text-[10px] tracking-wide uppercase flex-shrink-0 bg-sky-100 text-sky-800 border border-sky-300';
+        }
+        if (currentTab === 'sesi_mengajar' || currentTab === 'checkout_harian') {
+            switchFormTab('checkin_harian', true);
+        }
+    } else {
+        // BELUM CHECK-IN SAMA SEKALI
+        if (banner) banner.className = 'flex mb-5 p-3.5 rounded-xl border text-xs font-medium transition-all bg-amber-50 border-amber-200 text-amber-950 justify-between items-center';
+        if (bannerIconBox) bannerIconBox.className = 'p-1.5 rounded-lg flex items-center justify-center flex-shrink-0 bg-amber-100 text-amber-700';
+        if (bannerIcon) bannerIcon.setAttribute('data-lucide', 'alert-circle');
+        if (bannerText) bannerText.innerHTML = `Status Hari Ini: <b>Belum Hadir / Belum Check-in</b>. Anda <b>wajib melakukan Check-in Datang</b> terlebih dahulu sebelum dapat mengisi sesi mengajar kelas.`;
+        if (bannerBadge) {
+            bannerBadge.innerText = 'BELUM CHECK-IN';
+            bannerBadge.className = 'px-2.5 py-1 rounded-full font-bold text-[10px] tracking-wide uppercase flex-shrink-0 bg-amber-100 text-amber-800 border border-amber-300';
+        }
+
+        if (currentTab === 'sesi_mengajar' || currentTab === 'checkout_harian') {
+            switchFormTab('checkin_harian', true);
+        }
+    }
+
+    updateTabVisualBadges(stats);
     if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
 }
 
@@ -518,6 +726,49 @@ async function handleAttendanceSubmit(event) {
     const lng = document.getElementById('form-lng').value;
     const notes = document.getElementById('form-notes').value;
 
+    // Validasi Aturan Sequence Presensi Pengajar & Multi-Sesi
+    if (currentTeacherStats) {
+        if (type === 'checkin_harian' && !currentTeacherStats.can_checkin) {
+            if (currentTeacherStats.is_currently_checked_in) {
+                showToast(`Anda saat ini masih dalam status Check-in (sejak pukul ${currentTeacherStats.checkin_time || ''} WIB). Anda harus melakukan Check-out terlebih dahulu sebelum dapat Check-in kembali.`, 'warning');
+            } else if (currentTeacherStats.has_leave_today) {
+                showToast(`Anda tercatat izin/sakit hari ini (${currentTeacherStats.leave_type}). Tidak dapat melakukan check-in.`, 'warning');
+            }
+            return;
+        }
+
+        if (type === 'sesi_mengajar' && !currentTeacherStats.can_teach) {
+            if (!currentTeacherStats.is_currently_checked_in) {
+                if (currentTeacherStats.has_checked_out_today) {
+                    showToast(`Anda saat ini sedang dalam status Check-out (terakhir pukul ${currentTeacherStats.checkout_time || ''} WIB). Silakan lakukan Check-in kembali untuk memulai sesi baru sebelum mengisi presensi mengajar.`, 'warning');
+                } else {
+                    showToast('Anda belum Check-in hari ini! Wajib melakukan Check-in Datang terlebih dahulu sebelum dapat mengisi presensi sesi mengajar kelas.', 'warning');
+                }
+                switchFormTab('checkin_harian');
+                return;
+            }
+            if (currentTeacherStats.has_leave_today) {
+                showToast('Anda tercatat izin/sakit hari ini. Sesi mengajar tidak dapat diisi.', 'warning');
+                return;
+            }
+        }
+
+        if (type === 'checkout_harian' && !currentTeacherStats.can_checkout) {
+            if (currentTeacherStats.has_checked_out_today) {
+                showToast(`Anda saat ini sedang tidak dalam status Check-in (sudah Check-out pukul ${currentTeacherStats.checkout_time || ''} WIB). Silakan Check-in terlebih dahulu sebelum Check-out kembali.`, 'warning');
+            } else {
+                showToast('Anda belum Check-in hari ini! Silakan lakukan Check-in Datang terlebih dahulu sebelum melakukan check-out.', 'warning');
+            }
+            switchFormTab('checkin_harian');
+            return;
+        }
+
+        if ((type === 'izin' || type === 'sakit') && currentTeacherStats.is_currently_checked_in) {
+            showToast('Anda saat ini sedang dalam status Check-in aktif. Selesaikan sesi dengan Check-out terlebih dahulu jika ingin izin/pulang.', 'warning');
+            return;
+        }
+    }
+
     let class_id = null;
     let class_name = null;
     let is_online = 0;
@@ -617,6 +868,11 @@ async function handleAttendanceSubmit(event) {
         }
 
         showToast(data.message || 'Presensi berhasil dicatat!', 'success');
+        if (data.duration_text) {
+            setTimeout(() => {
+                showToast(`⏱️ Durasi Sesi Kerja Terhitung: ${data.duration_text}`, 'info');
+            }, 600);
+        }
 
         // Reset form
         document.getElementById('form-notes').value = '';
@@ -624,15 +880,15 @@ async function handleAttendanceSubmit(event) {
         retakePhoto();
         stopCamera();
 
-        // Refresh log & ringkasan
-        await loadAttendanceSummary();
+        // Refresh log & status kehadiran
+        await loadAttendanceSummary(teacher_id || null);
         await loadCheckinLogs();
     } catch (err) {
         console.error('Submit Attendance Error:', err);
         showToast(err.message, 'error');
     } finally {
         if (submitBtn) submitBtn.disabled = false;
-        switchFormTab(type); // reset button text
+        switchFormTab(type); // reset button text & visual states
     }
 }
 
@@ -677,9 +933,16 @@ async function loadTeacherClasses() {
     const classSelect = document.getElementById('form-class-select');
     if (!classSelect) return;
 
+    const teacherSelect = document.getElementById('form-teacher-id');
+    const selectedTeacherId = teacherSelect && teacherSelect.value ? teacherSelect.value : '';
+
     const token = localStorage.getItem('authToken');
     try {
-        const res = await fetch('/api/teachers/my-classes-today', {
+        let url = '/api/teachers/my-classes-today';
+        if (selectedTeacherId) {
+            url += `?teacher_id=${encodeURIComponent(selectedTeacherId)}`;
+        }
+        const res = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) return;
@@ -697,20 +960,45 @@ async function loadTeacherClasses() {
     }
 }
 
-function onAdminTeacherSelectChange() {
-    // Jika Super Admin memilih pengajar lain pada form entry, refresh daftar kelasnya
-    loadTeacherClasses();
+async function onAdminTeacherSelectChange() {
+    const teacherSelect = document.getElementById('form-teacher-id');
+    const teacherId = teacherSelect ? teacherSelect.value : null;
+    await loadTeacherClasses();
+    if (teacherId) {
+        await loadAttendanceSummary(teacherId);
+    } else {
+        currentTeacherStats = null;
+        updateTeacherPresenceUI(null);
+    }
 }
 
 function onClassSelectChange() {
     // Optional helper when class is selected
 }
 
-// 9. Load Ringkasan KPI
-async function loadAttendanceSummary() {
+// 9. Load Ringkasan KPI & Status Kehadiran
+async function loadAttendanceSummary(teacherIdOverride = null) {
     const token = localStorage.getItem('authToken');
+    const rawUser = localStorage.getItem('currentUser');
+    const user = JSON.parse(rawUser || '{}');
+    const role = (user.role || user.role_name || user.type || 'Pengajar').trim().toLowerCase();
+    const isTeacher = role.includes('pengajar') || role.includes('guru') || role.includes('teacher');
+
+    let targetTeacherId = teacherIdOverride;
+    if (!isTeacher && !targetTeacherId) {
+        const formSelect = document.getElementById('form-teacher-id');
+        if (formSelect && formSelect.value) {
+            targetTeacherId = formSelect.value;
+        }
+    }
+
+    let url = '/api/teachers/attendance-summary';
+    if (!isTeacher && targetTeacherId) {
+        url += `?teacher_id=${encodeURIComponent(targetTeacherId)}`;
+    }
+
     try {
-        const res = await fetch('/api/teachers/attendance-summary', {
+        const res = await fetch(url, {
             headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) return;
@@ -725,6 +1013,9 @@ async function loadAttendanceSummary() {
         if (sessionEl) sessionEl.innerText = data.today_sessions || 0;
         if (leaveEl) leaveEl.innerText = data.today_leave || 0;
         if (teacherEl) teacherEl.innerText = data.total_teachers || 0;
+
+        currentTeacherStats = data.teacher_stats || null;
+        updateTeacherPresenceUI(currentTeacherStats);
     } catch (err) {
         console.warn('Load Summary Error:', err.message);
     }
@@ -784,7 +1075,21 @@ function renderLogsTable(logs) {
 
     tbody.innerHTML = logs.map((log, index) => {
         const typeBadge = typeBadges[log.attendance_type] || `<span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700">${log.attendance_type || 'Presensi'}</span>`;
+        const durationBadge = (log.attendance_type === 'checkout_harian' && log.duration_minutes !== null && log.duration_minutes !== undefined)
+            ? `<div class="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60 w-max"><i data-lucide="clock" class="w-3 h-3 text-indigo-600"></i> Durasi: ${formatDurationIndonesian(log.duration_minutes)}</div>`
+            : '';
         
+        const sessionBadge = log.session_number 
+            ? `<div class="mt-1"><span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/60 w-max"><i data-lucide="layers" class="w-3 h-3 mr-1 text-blue-600"></i>Sesi ${log.session_number}</span></div>`
+            : '';
+
+        let sessionInfoLine = '';
+        if (log.attendance_type === 'checkout_harian' && log.session_checkin_jam) {
+            sessionInfoLine = `<div class="text-[10px] text-indigo-600 font-bold mt-0.5">Masuk: ${log.session_checkin_jam} s/d ${log.jam} WIB</div>`;
+        } else if (log.attendance_type === 'checkin_harian') {
+            sessionInfoLine = `<div class="text-[10px] text-emerald-600 font-bold mt-0.5">Check-in: ${log.jam} WIB</div>`;
+        }
+
         let gpsStatusBadge = '';
         if (log.attendance_type === 'izin' || log.attendance_type === 'sakit') {
             gpsStatusBadge = '<span class="text-[11px] font-semibold text-slate-500">Keterangan Izin</span>';
@@ -818,6 +1123,7 @@ function renderLogsTable(logs) {
                 <td class="py-3.5 px-4 whitespace-nowrap">
                     <div class="font-bold text-slate-900">${log.waktu ? `${log.waktu} WIB` : '-'}</div>
                     <div class="text-[10px] text-slate-400 font-medium">${log.tanggal || ''}</div>
+                    ${sessionBadge}
                 </td>
                 <td class="py-3.5 px-4 whitespace-nowrap">
                     <div class="flex items-center gap-2.5">
@@ -832,10 +1138,12 @@ function renderLogsTable(logs) {
                 </td>
                 <td class="py-3.5 px-4 whitespace-nowrap">
                     ${typeBadge}
+                    ${durationBadge}
                 </td>
                 <td class="py-3.5 px-4 max-w-xs">
                     <div class="font-bold text-slate-800 truncate">${log.class_name || (log.attendance_type === 'checkin_harian' ? 'Kantor / Bimbel KBEC' : '-')}</div>
                     <div class="text-[11px] text-slate-500 truncate mt-0.5">${log.topic_material || log.notes || '-'}</div>
+                    ${sessionInfoLine}
                 </td>
                 <td class="py-3.5 px-4 whitespace-nowrap">
                     ${gpsStatusBadge}
@@ -860,24 +1168,44 @@ function renderLogsTable(logs) {
     }
 }
 
-// 11. Modal Viewer Bukti Absensi
+// 11. Modal Viewer Bukti Absensi dengan Detail Lengkap untuk Admin & Pengajar
+let currentModalProofLog = null;
+
 function openProofModal(logIndex) {
     const log = currentAttendanceLogs[logIndex];
     if (!log) return;
+    currentModalProofLog = log;
 
     const modal = document.getElementById('modal-proof-viewer');
     const teacherEl = document.getElementById('modal-proof-teacher');
     const timeEl = document.getElementById('modal-proof-time');
     const imgEl = document.getElementById('modal-proof-img');
     const noImgEl = document.getElementById('modal-proof-no-img');
+
+    // Badges Sesi & Status
+    const sessionText = document.getElementById('modal-proof-session-text');
+    const sessionLabel = document.getElementById('modal-proof-session-label');
+    const sessionStatusBadge = document.getElementById('modal-proof-session-status-badge');
+    const sessionStatusText = document.getElementById('modal-proof-session-status-text');
+    const typeBadgeEl = document.getElementById('modal-proof-type-badge');
+
+    // Highlight timeline waktu kerja
+    const checkinTimeEl = document.getElementById('modal-proof-checkin-time');
+    const checkoutTimeEl = document.getElementById('modal-proof-checkout-time');
+    const totalDurationEl = document.getElementById('modal-proof-total-duration');
+
+    // Details grid
     const typeEl = document.getElementById('modal-proof-type');
     const statusEl = document.getElementById('modal-proof-status');
     const materialEl = document.getElementById('modal-proof-material');
     const notesEl = document.getElementById('modal-proof-notes');
     const mapLinkEl = document.getElementById('modal-proof-map-link');
 
-    if (teacherEl) teacherEl.innerText = `${log.teacher_name} (${log.teacher_id})`;
-    if (timeEl) timeEl.innerText = `Waktu Presensi: ${log.waktu}`;
+    // Admin audit summary
+    const adminSummaryEl = document.getElementById('modal-proof-admin-summary');
+
+    if (teacherEl) teacherEl.innerText = `${log.teacher_name || '-'} (${log.teacher_id || '-'})`;
+    if (timeEl) timeEl.innerText = `Waktu Presensi Tercatat: ${log.waktu || (log.tanggal + ' ' + (log.jam || '') + ' WIB')}`;
 
     if (log.proof_image) {
         imgEl.src = log.proof_image;
@@ -889,14 +1217,73 @@ function openProofModal(logIndex) {
         if (noImgEl) noImgEl.classList.remove('hidden');
     }
 
-    if (typeEl) typeEl.innerText = (log.attendance_type || 'Presensi').toUpperCase().replace('_', ' ');
+    const sessionNum = log.session_number || 1;
+    if (sessionText) sessionText.innerText = `Sesi Ke-${sessionNum}`;
+    if (sessionLabel) sessionLabel.innerText = `Sesi ${sessionNum}`;
+
+    // Status sesi
+    const isCompleted = log.session_status && log.session_status.includes('Selesai');
+    const isActive = log.is_active_session || (log.session_status && log.session_status.includes('Aktif'));
+
+    if (sessionStatusBadge && sessionStatusText) {
+        if (isCompleted) {
+            sessionStatusBadge.className = 'px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 shadow-2xs';
+            sessionStatusText.innerText = 'Sesi Selesai (Sudah Check-out)';
+        } else if (isActive) {
+            sessionStatusBadge.className = 'px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1.5 shadow-2xs';
+            sessionStatusText.innerText = 'Sesi Aktif (Sedang Berjalan)';
+        } else {
+            sessionStatusBadge.className = 'px-2.5 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5 shadow-2xs';
+            sessionStatusText.innerText = log.session_status || 'Tercatat';
+        }
+    }
+
+    const typeNames = {
+        checkin_harian: 'Check-in Datang',
+        checkout_harian: 'Check-out Pulang',
+        sesi_mengajar: 'Sesi Mengajar Kelas',
+        izin: 'Izin',
+        sakit: 'Sakit'
+    };
+    if (typeBadgeEl) typeBadgeEl.innerText = typeNames[log.attendance_type] || (log.attendance_type || 'Presensi').toUpperCase().replace('_', ' ');
+
+    // Jam Masuk, Jam Pulang, dan Total Durasi Masuk Kerja
+    const checkinTimeFormatted = log.session_checkin_jam || (log.attendance_type === 'checkin_harian' ? `${log.jam} WIB` : '-');
+    const checkoutTimeFormatted = log.session_checkout_jam || (log.attendance_type === 'checkout_harian' ? `${log.jam} WIB` : (isActive ? 'Sedang Berlangsung' : '-'));
+    const durationFormatted = log.session_duration_text || (log.duration_minutes ? formatDurationIndonesian(log.duration_minutes) : (isActive ? 'Sedang Berjalan' : '-'));
+
+    if (checkinTimeEl) {
+        checkinTimeEl.innerHTML = `<i data-lucide="log-in" class="w-3.5 h-3.5 text-emerald-600"></i><span>${checkinTimeFormatted}</span>`;
+    }
+    if (checkoutTimeEl) {
+        if (checkoutTimeFormatted === 'Sedang Berlangsung') {
+            checkoutTimeEl.innerHTML = `<span class="inline-flex items-center gap-1 text-amber-600 font-bold"><span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> Sedang Berlangsung</span>`;
+        } else {
+            checkoutTimeEl.innerHTML = `<i data-lucide="log-out" class="w-3.5 h-3.5 text-rose-600"></i><span>${checkoutTimeFormatted}</span>`;
+        }
+    }
+    if (totalDurationEl) {
+        totalDurationEl.innerHTML = `⏱️ <span>${durationFormatted}</span>`;
+    }
+
+    if (typeEl) typeEl.innerText = (typeNames[log.attendance_type] || log.attendance_type || 'Presensi').toUpperCase();
     if (statusEl) {
         let text = log.status || 'Hadir';
-        if (log.distance_meters > 0) text += ` (${Math.round(log.distance_meters)}m)`;
+        if (log.is_online) {
+            text += ' (Kelas Daring / Online)';
+        } else if (log.distance_meters > 0) {
+            const dist = Math.round(log.distance_meters);
+            text += ` (${dist} meter dari KBEC - ${dist <= KBEC_ALLOWED_RADIUS ? 'Dalam Radius' : 'Luar Radius'})`;
+        }
         statusEl.innerText = text;
     }
-    if (materialEl) materialEl.innerText = `${log.class_name || '-'} — ${log.topic_material || 'Tidak ada catatan materi'}`;
-    if (notesEl) notesEl.innerText = log.notes || 'Tidak ada catatan tambahan.';
+
+    if (materialEl) {
+        materialEl.innerText = `${log.class_name || (log.attendance_type === 'checkin_harian' ? 'Kantor / Bimbel KBEC' : '-')} — ${log.topic_material || log.notes || 'Tidak ada catatan khusus'}`;
+    }
+    if (notesEl) {
+        notesEl.innerText = log.notes || 'Tidak ada catatan tambahan pengajar.';
+    }
 
     if (mapLinkEl) {
         if (log.lat && log.lng && parseFloat(log.lat) !== 0) {
@@ -905,6 +1292,27 @@ function openProofModal(logIndex) {
         } else {
             mapLinkEl.classList.add('hidden');
         }
+    }
+
+    // Ringkasan Khusus Audit Admin & Super Admin
+    if (adminSummaryEl) {
+        const gpsInfo = log.is_online 
+            ? 'Sesi Daring (Online)' 
+            : (log.distance_meters > 0 
+                ? `${Math.round(log.distance_meters)}m dari Kampus KBEC Bintaro (${log.distance_meters <= KBEC_ALLOWED_RADIUS ? 'Terverifikasi Dalam Radius 150m' : 'Peringatan: Di Luar Radius'})` 
+                : 'Tanpa data GPS');
+
+        const summaryHtml = `
+            <div class="space-y-1 text-xs">
+                <div>• <b>Identitas Pengajar:</b> ${log.teacher_name || '-'} (ID: ${log.teacher_id || '-'})</div>
+                <div>• <b>Sesi & Status:</b> Tercatat pada <b>Sesi Ke-${sessionNum}</b> (${log.session_status || 'Tercatat'})</div>
+                <div>• <b>Waktu Kehadiran:</b> Jam Masuk (Check-in): <b>${checkinTimeFormatted}</b> | Jam Pulang (Check-out): <b>${checkoutTimeFormatted}</b></div>
+                <div>• <b>Total Durasi Masuk Kerja:</b> <b>${durationFormatted}</b></div>
+                <div>• <b>Aktivitas:</b> ${log.attendance_type === 'sesi_mengajar' ? `Mengajar kelas <b>${log.class_name || '-'}</b> (Topik: <i>${log.topic_material || '-'}</i>)` : (typeNames[log.attendance_type] || log.attendance_type)}</div>
+                <div>• <b>Verifikasi Lokasi GPS:</b> ${gpsInfo} (Koordinat: ${log.lat || '-'}, ${log.lng || '-'})</div>
+            </div>
+        `;
+        adminSummaryEl.innerHTML = summaryHtml;
     }
 
     if (modal) {
@@ -916,6 +1324,40 @@ function openProofModal(logIndex) {
     }
 
     if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+}
+
+function copyProofDetails() {
+    if (!currentModalProofLog) return;
+    const log = currentModalProofLog;
+    const sessionNum = log.session_number || 1;
+    const checkinTimeFormatted = log.session_checkin_jam || (log.attendance_type === 'checkin_harian' ? `${log.jam} WIB` : '-');
+    const checkoutTimeFormatted = log.session_checkout_jam || (log.attendance_type === 'checkout_harian' ? `${log.jam} WIB` : 'Sedang Berlangsung');
+    const durationFormatted = log.session_duration_text || (log.duration_minutes ? formatDurationIndonesian(log.duration_minutes) : '-');
+
+    const copyText = 
+`[REKAP BUKTI PRESENSI PENGAJAR KBEC]
+Nama Pengajar : ${log.teacher_name || '-'} (${log.teacher_id || '-'})
+Tanggal       : ${log.tanggal || '-'}
+Sesi Ke       : Sesi ${sessionNum}
+Tipe Presensi : ${log.attendance_type || '-'}
+Jam Masuk     : ${checkinTimeFormatted}
+Jam Keluar    : ${checkoutTimeFormatted}
+Durasi Kerja  : ${durationFormatted}
+Kelas         : ${log.class_name || '-'}
+Materi/Topik  : ${log.topic_material || '-'}
+Status GPS    : ${Math.round(log.distance_meters || 0)}m dari KBEC (${log.status || 'Hadir'})
+Koordinat     : ${log.lat || '-'}, ${log.lng || '-'}
+Catatan       : ${log.notes || '-'}`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(copyText).then(() => {
+            showToast('Ringkasan bukti presensi berhasil disalin ke clipboard!', 'success');
+        }).catch(() => {
+            showToast('Gagal menyalin ringkasan.', 'error');
+        });
+    } else {
+        showToast('Fitur clipboard tidak didukung pada peramban ini.', 'warning');
+    }
 }
 
 function closeProofModal() {
@@ -947,7 +1389,12 @@ function exportToExcel() {
         'Jam': l.jam || '',
         'ID Pengajar': l.teacher_id || '',
         'Nama Pengajar': l.teacher_name || '',
+        'Sesi': l.session_number ? `Sesi ${l.session_number}` : 'Sesi 1',
         'Tipe Kehadiran': l.attendance_type || '',
+        'Jam Masuk Sesi': l.session_checkin_jam || '',
+        'Jam Pulang Sesi': l.session_checkout_jam || '',
+        'Durasi (Menit)': l.session_duration_minutes !== null && l.session_duration_minutes !== undefined ? l.session_duration_minutes : (l.duration_minutes || ''),
+        'Durasi Kerja': l.session_duration_text || (l.duration_minutes ? formatDurationIndonesian(l.duration_minutes) : '-'),
         'Kelas': l.class_name || '',
         'Topik / Materi': l.topic_material || '',
         'Status': l.status || '',

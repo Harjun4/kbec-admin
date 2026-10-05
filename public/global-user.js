@@ -204,20 +204,29 @@ function renderDynamicGlobalSidebar() {
     const getSubmenuItemClass = (isActive, activeBg = 'bg-[#0A58CA] text-white font-bold shadow-sm shadow-blue-500/20') => 
         `block py-1.5 px-3 rounded-lg text-xs transition-all ${isActive ? activeBg : 'text-slate-600 hover:text-[#0A58CA] hover:bg-blue-50/60 font-medium'}`;
 
+    // Ensure Favicon is set to Kbec.svg across all pages
+    if (!document.querySelector("link[rel*='icon']")) {
+        const link = document.createElement('link');
+        link.rel = 'icon';
+        link.type = 'image/svg+xml';
+        link.href = 'Kbec.svg';
+        document.head.appendChild(link);
+    }
+
     const sidebarHTML = `
         <div>
             <!-- Header Brand Sidebar -->
-            <div class="p-5 flex items-center justify-between border-b border-slate-100/60">
-                <div class="flex items-center gap-3">
-                    <div class="bg-[#0A58CA] text-white p-2.5 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/20">
-                        <i data-lucide="${isTeacher ? 'award' : (isStaff ? 'briefcase' : 'shield-check')}" class="w-5 h-5"></i>
-                    </div>
-                    <div>
-                        <h1 class="font-extrabold text-slate-900 text-sm leading-tight">KBEC System</h1>
-                        <span class="text-[9px] font-extrabold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md uppercase tracking-wider">${getFormattedRoleText(userRole)}</span>
+            <div class="px-5 py-4 flex items-center justify-between border-b border-slate-100">
+                <div class="flex flex-col gap-1.5">
+                    <a href="dashboard.html" class="flex items-center gap-2 group">
+                        <img src="Logo_KBEC.png" alt="KBEC Logo" class="h-8 w-auto object-contain transition-transform group-hover:scale-102">
+                    </a>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-[9px] font-extrabold text-[#0A58CA] bg-blue-50/80 border border-blue-100 px-2 py-0.5 rounded-md uppercase tracking-wider">${getFormattedRoleText(userRole)}</span>
+                        <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Sistem Aktif"></span>
                     </div>
                 </div>
-                <button onclick="window.toggleSidebar(false)" class="lg:hidden text-slate-400 hover:text-slate-600">
+                <button onclick="window.toggleSidebar(false)" class="lg:hidden text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>

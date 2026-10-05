@@ -18,6 +18,19 @@ function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
     return R * c;
 }
 
+function formatDurationIndonesian(durationMinutes) {
+    const mins = parseInt(durationMinutes, 10);
+    if (isNaN(mins) || mins <= 0) return '0 menit';
+    const hours = Math.floor(mins / 60);
+    const minutes = mins % 60;
+    if (hours > 0 && minutes > 0) {
+        return `${hours} jam ${minutes} menit`;
+    } else if (hours > 0) {
+        return `${hours} jam`;
+    }
+    return `${minutes} menit`;
+}
+
 async function getTeachers(req, res, next) {
     try {
         const [rows] = await db.query('SELECT * FROM teachers ORDER BY id ASC');
@@ -193,6 +206,107 @@ async function checkinTeacher(req, res, next) {
         let isValid = true;
         let status = 'Terverifikasi (Hadir)';
 
+        const todayStr = getWIBDate();
+        const [existingTodayLogs] = await db.query(`
+            SELECT id, attendance_type, status, duration_minutes,
+                   COALESCE(check_time, created_at) AS raw_time,
+                   TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'HH24:MI') AS jam
+            FROM teacher_checkins
+            WHERE (teacher_id = ? OR teacher_id = ? OR LOWER(teacher_name) = LOWER(?))
+              AND TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') = ?
+            ORDER BY COALESCE(check_time, created_at) ASC
+        `, [teacher_id, teacher_id, teacher_name, todayStr]);
+
+        const dailyLogs = existingTodayLogs.filter(c => 
+            c.attendance_type === 'checkin_harian' || 
+            c.attendance_type === 'checkout_harian' || 
+            c.attendance_type === 'izin' || 
+            c.attendance_type === 'sakit'
+        );
+        const lastDailyLog = dailyLogs.length > 0 ? dailyLogs[dailyLogs.length - 1] : null;
+        const isCurrentlyCheckedIn = lastDailyLog && lastDailyLog.attendance_type === 'checkin_harian';
+        const leaveRecord = existingTodayLogs.find(c => c.attendance_type === 'izin' || c.attendance_type === 'sakit');
+
+        let calculatedDurationMinutes = null;
+        let calculatedDurationText = null;
+
+        // 1. Aturan Check-in Harian: Bisa berkali-kali sehari, tetapi jika sedang check-in tidak bisa check-in lagi
+        if (type === 'checkin_harian') {
+            if (isCurrentlyCheckedIn) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Anda saat ini masih dalam status Check-in (sejak pukul ${lastDailyLog.jam} WIB). Anda harus melakukan Check-out terlebih dahulu sebelum dapat Check-in kembali.`
+                });
+            }
+            if (leaveRecord) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Anda sudah tercatat ${leaveRecord.attendance_type} untuk hari ini, sehingga tidak dapat melakukan check-in.`
+                });
+            }
+        }
+
+        // 2. Aturan Check-out Harian: Wajib sedang dalam status check-in
+        if (type === 'checkout_harian') {
+            if (!isCurrentlyCheckedIn) {
+                if (lastDailyLog && lastDailyLog.attendance_type === 'checkout_harian') {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Anda saat ini sedang tidak dalam status Check-in (sudah Check-out pada pukul ${lastDailyLog.jam} WIB). Silakan lakukan Check-in terlebih dahulu sebelum melakukan Check-out.`
+                    });
+                }
+                return res.status(400).json({
+                    success: false,
+                    message: 'Anda belum melakukan check-in hari ini. Silakan lakukan check-in terlebih dahulu sebelum melakukan check-out.'
+                });
+            }
+
+            // Hitung durasi jam kerja dari check-in terakhir sampai check-out ini
+            const checkinTime = new Date(lastDailyLog.raw_time);
+            const checkoutTime = new Date();
+            const diffMs = Math.max(0, checkoutTime.getTime() - checkinTime.getTime());
+            calculatedDurationMinutes = Math.round(diffMs / (1000 * 60));
+            calculatedDurationText = formatDurationIndonesian(calculatedDurationMinutes);
+        }
+
+        // 3. Aturan Sesi Mengajar: Hanya bisa diisi jika sedang dalam keadaan check-in
+        if (type === 'sesi_mengajar') {
+            if (!isCurrentlyCheckedIn) {
+                if (lastDailyLog && lastDailyLog.attendance_type === 'checkout_harian') {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Anda saat ini sedang dalam status Check-out (terakhir check-out pukul ${lastDailyLog.jam} WIB). Anda wajib melakukan Check-in Datang terlebih dahulu sebelum mengisi sesi mengajar kelas.`
+                    });
+                }
+                if (leaveRecord) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Status kehadiran Anda hari ini adalah ${leaveRecord.attendance_type}, tidak dapat mengisi sesi mengajar kelas.`
+                    });
+                }
+                return res.status(400).json({
+                    success: false,
+                    message: 'Anda belum melakukan check-in hari ini. Anda wajib melakukan check-in kehadiran terlebih dahulu sebelum dapat mengisi presensi sesi mengajar kelas.'
+                });
+            }
+        }
+
+        // 4. Aturan Izin / Sakit: Tidak bisa jika sedang dalam keadaan check-in aktif
+        if (type === 'izin' || type === 'sakit') {
+            if (isCurrentlyCheckedIn) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Anda saat ini sedang dalam status Check-in aktif. Selesaikan sesi dengan Check-out terlebih dahulu jika ingin izin/pulang.'
+                });
+            }
+            if (leaveRecord) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Anda sudah tercatat ${leaveRecord.attendance_type} untuk hari ini.`
+                });
+            }
+        }
+
         // Validasi wajib foto bukti langsung untuk presensi datang & pulang
         if ((type === 'checkin_harian' || type === 'checkout_harian') && !proof_image) {
             return res.status(400).json({
@@ -240,8 +354,8 @@ async function checkinTeacher(req, res, next) {
             INSERT INTO teacher_checkins (
                 teacher_id, teacher_name, class_id, class_name, lat, lng,
                 distance_meters, is_online, status, attendance_type,
-                proof_image, topic_material, notes, check_time
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                proof_image, topic_material, notes, duration_minutes, check_time
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         `;
 
         await db.query(querySql, [
@@ -257,14 +371,15 @@ async function checkinTeacher(req, res, next) {
             type,
             proof_image || null,
             escapeHTML(topic_material || ''),
-            escapeHTML(notes || '')
+            escapeHTML(notes || ''),
+            calculatedDurationMinutes
         ]);
 
         let message = 'Presensi berhasil dicatat.';
         if (type === 'checkin_harian') {
             message = isValid ? 'Check-in datang harian berhasil terverifikasi.' : `Check-in tercatat di luar radius KBEC (${Math.round(distanceMeters)} meter).`;
         } else if (type === 'checkout_harian') {
-            message = 'Check-out pulang harian berhasil dicatat.';
+            message = `Check-out pulang harian berhasil dicatat. Durasi sesi kerja: ${calculatedDurationText}.`;
         } else if (type === 'sesi_mengajar') {
             message = 'Presensi sesi mengajar kelas berhasil disimpan beserta bukti.';
         } else if (type === 'izin' || type === 'sakit') {
@@ -276,6 +391,8 @@ async function checkinTeacher(req, res, next) {
             status,
             attendance_type: type,
             distance_meters: Math.round(distanceMeters),
+            duration_minutes: calculatedDurationMinutes,
+            duration_text: calculatedDurationText,
             message
         });
     } catch (err) {
@@ -358,6 +475,7 @@ async function getCheckinLogs(req, res, next) {
                 proof_image,
                 topic_material,
                 notes,
+                duration_minutes,
                 TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'DD Mon YYYY HH24:MI') AS waktu,
                 TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') AS tanggal,
                 TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'HH24:MI') AS jam
@@ -369,7 +487,145 @@ async function getCheckinLogs(req, res, next) {
         params.push(limit);
 
         const [rows] = await db.query(sql, params);
-        res.json(rows || []);
+        if (!rows || rows.length === 0) {
+            return res.json([]);
+        }
+
+        const teacherIds = [...new Set(rows.map(r => r.teacher_id).filter(Boolean))];
+        const dates = [...new Set(rows.map(r => r.tanggal).filter(Boolean))];
+
+        const sessionInfoMap = {};
+
+        if (teacherIds.length > 0 && dates.length > 0) {
+            const tPlaceholders = teacherIds.map(() => '?').join(',');
+            const dPlaceholders = dates.map(() => '?').join(',');
+
+            const [allDayEvents] = await db.query(`
+                SELECT id, teacher_id, attendance_type, duration_minutes,
+                       COALESCE(check_time, created_at) AS raw_time,
+                       TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'HH24:MI') AS jam,
+                       TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') AS tanggal
+                FROM teacher_checkins
+                WHERE teacher_id IN (${tPlaceholders})
+                  AND TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') IN (${dPlaceholders})
+                ORDER BY COALESCE(check_time, created_at) ASC
+            `, [...teacherIds, ...dates]);
+
+            // Group by teacher_id and tanggal
+            const groups = {};
+            (allDayEvents || []).forEach(e => {
+                const key = `${e.teacher_id}_${e.tanggal}`;
+                if (!groups[key]) groups[key] = [];
+                groups[key].push(e);
+            });
+
+            Object.keys(groups).forEach(key => {
+                const events = groups[key];
+                let currentSessionNum = 0;
+                let currentSessionCheckin = null;
+                let currentSessionEvents = [];
+
+                events.forEach(ev => {
+                    if (ev.attendance_type === 'checkin_harian') {
+                        if (currentSessionEvents.length > 0 && currentSessionCheckin) {
+                            const prevCheckinJam = `${currentSessionCheckin.jam} WIB`;
+                            currentSessionEvents.forEach(item => {
+                                sessionInfoMap[item.id] = {
+                                    session_number: Math.max(1, currentSessionNum),
+                                    session_checkin_jam: prevCheckinJam,
+                                    session_checkout_jam: null,
+                                    session_duration_minutes: null,
+                                    session_duration_text: null,
+                                    session_status: 'Sesi Belum Check-out',
+                                    is_active_session: false
+                                };
+                            });
+                        }
+
+                        currentSessionNum++;
+                        currentSessionCheckin = ev;
+                        currentSessionEvents = [ev];
+                    } else if (ev.attendance_type === 'checkout_harian') {
+                        currentSessionEvents.push(ev);
+                        const checkinTime = currentSessionCheckin ? new Date(currentSessionCheckin.raw_time) : null;
+                        const checkoutTime = new Date(ev.raw_time);
+                        let durationMins = ev.duration_minutes;
+                        if (durationMins === null || durationMins === undefined) {
+                            if (checkinTime) {
+                                durationMins = Math.max(0, Math.round((checkoutTime.getTime() - checkinTime.getTime()) / 60000));
+                            }
+                        }
+                        const durationText = formatDurationIndonesian(durationMins);
+                        const checkinJam = currentSessionCheckin ? `${currentSessionCheckin.jam} WIB` : '-';
+                        const checkoutJam = `${ev.jam} WIB`;
+
+                        currentSessionEvents.forEach(item => {
+                            sessionInfoMap[item.id] = {
+                                session_number: Math.max(1, currentSessionNum),
+                                session_checkin_jam: checkinJam,
+                                session_checkout_jam: checkoutJam,
+                                session_duration_minutes: durationMins,
+                                session_duration_text: durationText,
+                                session_status: 'Selesai (Sudah Check-out)',
+                                is_active_session: false
+                            };
+                        });
+
+                        currentSessionCheckin = null;
+                        currentSessionEvents = [];
+                    } else {
+                        // sesi_mengajar, izin, sakit
+                        currentSessionEvents.push(ev);
+                    }
+                });
+
+                // Finalize active session
+                if (currentSessionEvents.length > 0 && currentSessionCheckin) {
+                    const checkinJam = `${currentSessionCheckin.jam} WIB`;
+                    const now = new Date();
+                    const checkinTime = new Date(currentSessionCheckin.raw_time);
+                    const runningMins = Math.max(0, Math.round((now.getTime() - checkinTime.getTime()) / 60000));
+                    const durationText = formatDurationIndonesian(runningMins);
+
+                    currentSessionEvents.forEach(item => {
+                        sessionInfoMap[item.id] = {
+                            session_number: Math.max(1, currentSessionNum),
+                            session_checkin_jam: checkinJam,
+                            session_checkout_jam: null,
+                            session_duration_minutes: runningMins,
+                            session_duration_text: durationText,
+                            session_status: 'Aktif (Sedang Berlangsung)',
+                            is_active_session: true
+                        };
+                    });
+                }
+            });
+        }
+
+        const enrichedRows = rows.map(r => {
+            const sInfo = sessionInfoMap[r.id] || {
+                session_number: 1,
+                session_checkin_jam: r.attendance_type === 'checkin_harian' ? `${r.jam} WIB` : null,
+                session_checkout_jam: r.attendance_type === 'checkout_harian' ? `${r.jam} WIB` : null,
+                session_duration_minutes: r.duration_minutes || null,
+                session_duration_text: r.duration_minutes ? formatDurationIndonesian(r.duration_minutes) : null,
+                session_status: r.attendance_type === 'checkout_harian' ? 'Selesai (Sudah Check-out)' : '-',
+                is_active_session: false
+            };
+
+            return {
+                ...r,
+                session_number: sInfo.session_number,
+                session_checkin_jam: sInfo.session_checkin_jam,
+                session_checkout_jam: sInfo.session_checkout_jam,
+                session_duration_minutes: sInfo.session_duration_minutes,
+                session_duration_text: sInfo.session_duration_text,
+                session_status: sInfo.session_status,
+                is_active_session: sInfo.is_active_session
+            };
+        });
+
+        res.json(enrichedRows);
     } catch (err) {
         next(err);
     }
@@ -388,17 +644,23 @@ async function getAttendanceSummary(req, res, next) {
         const [[todayLeaveRow]] = await db.query("SELECT COUNT(DISTINCT teacher_id) AS total FROM teacher_checkins WHERE TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') = ? AND attendance_type IN ('izin', 'sakit')", [todayStr]);
 
         let teacherStats = null;
-        if (isTeacher) {
-            const uId = req.user.id || '';
-            const tId = req.user.teacher_id || '';
-            const tName = (req.user.name || '').trim();
+        const queryParams = req.query || {};
+        const queryTeacherId = queryParams.teacher_id || '';
+        const queryTeacherName = queryParams.teacher_name || '';
+
+        if (isTeacher || queryTeacherId) {
+            const uId = isTeacher ? (req.user.id || '') : queryTeacherId;
+            const tId = isTeacher ? (req.user.teacher_id || '') : queryTeacherId;
+            const tName = isTeacher ? (req.user.name || '').trim() : queryTeacherName.trim();
 
             const [myTodayCheckin] = await db.query(`
-                SELECT id, attendance_type, status, TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'HH24:MI') AS jam
+                SELECT id, attendance_type, status, duration_minutes,
+                       COALESCE(check_time, created_at) AS raw_time,
+                       TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'HH24:MI') AS jam
                 FROM teacher_checkins
                 WHERE (teacher_id = ? OR teacher_id = ? OR LOWER(teacher_name) = LOWER(?))
                   AND TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') = ?
-                ORDER BY COALESCE(check_time, created_at) DESC
+                ORDER BY COALESCE(check_time, created_at) ASC
             `, [tId, uId, tName, todayStr]);
 
             const [[myMonthSessions]] = await db.query(`
@@ -419,10 +681,61 @@ async function getAttendanceSummary(req, res, next) {
                   AND EXTRACT(YEAR FROM (COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta')) = EXTRACT(YEAR FROM (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Jakarta'))
             `, [tId, uId, tName]);
 
+            const dailyLogs = myTodayCheckin.filter(c => 
+                c.attendance_type === 'checkin_harian' || 
+                c.attendance_type === 'checkout_harian' || 
+                c.attendance_type === 'izin' || 
+                c.attendance_type === 'sakit'
+            );
+            const lastDailyLog = dailyLogs.length > 0 ? dailyLogs[dailyLogs.length - 1] : null;
+            const isCurrentlyCheckedIn = lastDailyLog && lastDailyLog.attendance_type === 'checkin_harian';
+            const leaveRow = myTodayCheckin.find(c => c.attendance_type === 'izin' || c.attendance_type === 'sakit');
+            const hasLeave = !!leaveRow;
+
+            // Total menit kerja hari ini dari seluruh checkout yang sudah selesai
+            let totalWorkMinutesToday = myTodayCheckin
+                .filter(c => c.attendance_type === 'checkout_harian' && c.duration_minutes)
+                .reduce((sum, c) => sum + (parseInt(c.duration_minutes, 10) || 0), 0);
+
+            // Menit sesi aktif berjalan jika saat ini sedang checked in
+            let currentActiveMinutes = 0;
+            if (isCurrentlyCheckedIn && lastDailyLog) {
+                const checkinTime = new Date(lastDailyLog.raw_time);
+                const now = new Date();
+                currentActiveMinutes = Math.max(0, Math.round((now.getTime() - checkinTime.getTime()) / (1000 * 60)));
+                totalWorkMinutesToday += currentActiveMinutes;
+            }
+
+            const checkinCount = myTodayCheckin.filter(c => c.attendance_type === 'checkin_harian').length;
+            const checkoutCount = myTodayCheckin.filter(c => c.attendance_type === 'checkout_harian').length;
+            const lastCheckinRow = [...myTodayCheckin].reverse().find(c => c.attendance_type === 'checkin_harian');
+            const lastCheckoutRow = [...myTodayCheckin].reverse().find(c => c.attendance_type === 'checkout_harian');
+
+            const currentState = hasLeave 
+                ? 'ON_LEAVE' 
+                : (isCurrentlyCheckedIn ? 'CHECKED_IN' : (checkoutCount > 0 ? 'CHECKED_OUT' : 'NOT_CHECKED_IN'));
+
             teacherStats = {
-                has_checked_in_today: myTodayCheckin.some(c => c.attendance_type === 'checkin_harian'),
-                has_checked_out_today: myTodayCheckin.some(c => c.attendance_type === 'checkout_harian'),
-                today_logs: myTodayCheckin,
+                current_state: currentState,
+                is_currently_checked_in: isCurrentlyCheckedIn,
+                can_checkin: !isCurrentlyCheckedIn && !hasLeave,
+                can_checkout: isCurrentlyCheckedIn,
+                can_teach: isCurrentlyCheckedIn,
+                has_checked_in_today: checkinCount > 0,
+                has_checked_out_today: checkoutCount > 0,
+                has_leave_today: hasLeave,
+                checkin_count_today: checkinCount,
+                checkout_count_today: checkoutCount,
+                checkin_time: lastCheckinRow ? lastCheckinRow.jam : null,
+                checkout_time: lastCheckoutRow ? lastCheckoutRow.jam : null,
+                current_active_minutes: currentActiveMinutes,
+                current_active_duration_text: formatDurationIndonesian(currentActiveMinutes),
+                total_work_minutes_today: totalWorkMinutesToday,
+                total_work_duration_text: formatDurationIndonesian(totalWorkMinutesToday),
+                last_session_duration_minutes: lastCheckoutRow ? (lastCheckoutRow.duration_minutes || 0) : 0,
+                last_session_duration_text: lastCheckoutRow && lastCheckoutRow.duration_minutes ? formatDurationIndonesian(lastCheckoutRow.duration_minutes) : null,
+                leave_type: leaveRow ? leaveRow.attendance_type : null,
+                today_logs: [...myTodayCheckin].reverse(),
                 month_sessions: myMonthSessions ? myMonthSessions.total : 0,
                 month_days_attended: myMonthDays ? myMonthDays.total : 0
             };
@@ -444,15 +757,16 @@ async function getMyClassesToday(req, res, next) {
     try {
         const userRole = (req.user && req.user.role ? req.user.role : '').trim().toLowerCase();
         const isTeacher = userRole.includes('pengajar') || userRole.includes('guru') || userRole.includes('teacher');
+        const queryParams = req.query || {};
         
         let sql = 'SELECT id, nama, program, pengajar, teacher_id, hari, mulai, selesai, tipe, ruang FROM classes';
         let params = [];
 
-        if (isTeacher) {
-            const uId = req.user.id || '';
-            const tId = req.user.teacher_id || '';
-            const tEmail = (req.user.email || '').trim().toLowerCase();
-            const tName = (req.user.name || '').trim();
+        if (isTeacher || queryParams.teacher_id) {
+            const uId = isTeacher ? (req.user.id || '') : (queryParams.teacher_id || '');
+            const tId = isTeacher ? (req.user.teacher_id || '') : (queryParams.teacher_id || '');
+            const tEmail = isTeacher ? ((req.user.email || '').trim().toLowerCase()) : '';
+            const tName = isTeacher ? ((req.user.name || '').trim()) : ((queryParams.teacher_name || '').trim());
 
             sql += ' WHERE (teacher_id IS NOT NULL AND teacher_id != \'\' AND teacher_id = (SELECT teacher_id FROM users WHERE id = ? OR nis = ? LIMIT 1))' +
                    ' OR (teacher_id IS NOT NULL AND teacher_id = ?)' +

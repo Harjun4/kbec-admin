@@ -30,8 +30,9 @@ const PORT = process.env.PORT || 3000;
 // Enable Trust Proxy for Vercel & Reverse Proxies
 app.set('trust proxy', 1);
 
-// Handle favicon.ico requests quickly
-app.get('/favicon.ico', (req, res) => res.status(204).end());
+// Serve official KBEC Favicon
+app.get('/favicon.ico', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Kbec.svg')));
+app.get('/favicon.svg', (req, res) => res.sendFile(path.join(__dirname, 'public', 'Kbec.svg')));
 
 // Essential Middlewares
 app.use(helmet({ contentSecurityPolicy: false }));
