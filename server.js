@@ -1,12 +1,24 @@
 require('dotenv').config();
 
 // Process safety: prevent unhandled exceptions or connection drop from terminating the server process
-process.on('uncaughtException', (err) => {
-    console.warn('⚠️ Process uncaughtException intercepted:', err.message);
+process.on('uncaughtException', (err, origin) => {
+    try {
+        console.error('⚠️ Process uncaughtException intercepted:', (err && err.stack) || err, 'origin:', origin);
+    } catch (_) {}
 });
-process.on('unhandledRejection', (reason) => {
-    console.warn('⚠️ Process unhandledRejection intercepted:', reason?.message || reason);
+process.on('unhandledRejection', (reason, promise) => {
+    try {
+        console.warn('⚠️ Process unhandledRejection intercepted:', (reason && reason.stack) || reason);
+    } catch (_) {}
 });
+process.on('exit', (code) => {
+    console.log(`[PROCESS EXIT] Server process exiting with code: ${code}`);
+});
+
+// Active heartbeat to keep the Node event loop permanently engaged
+setInterval(() => {
+    // Keep alive heartbeat
+}, 20000);
 
 const express = require('express');
 const cors = require('cors');
@@ -277,11 +289,19 @@ function getLocalIpAddress() {
 }
 
 if (require.main === module || !process.env.VERCEL) {
-    app.listen(PORT, () => {
+    const server = app.listen(PORT, () => {
         const localIp = getLocalIpAddress();
         console.log(`KBEC Admin Server running on port ${PORT}`);
         console.log(`   - Local:   http://localhost:${PORT}`);
         console.log(`   - Network: http://${localIp}:${PORT}`);
+    });
+
+    server.on('error', (err) => {
+        console.error('[HTTP SERVER ERROR]', err.message);
+    });
+
+    server.on('close', () => {
+        console.warn('[HTTP SERVER CLOSED]');
     });
 }
 
