@@ -1,9 +1,18 @@
+require('dotenv').config();
+
+// Process safety: prevent unhandled exceptions or connection drop from terminating the server process
+process.on('uncaughtException', (err) => {
+    console.warn('⚠️ Process uncaughtException intercepted:', err.message);
+});
+process.on('unhandledRejection', (reason) => {
+    console.warn('⚠️ Process unhandledRejection intercepted:', reason?.message || reason);
+});
+
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
 const os = require('os');
 const path = require('path');
-require('dotenv').config();
 
 const db = require('./src/config/db');
 const helmet = require('helmet');

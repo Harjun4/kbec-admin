@@ -22,17 +22,22 @@ if (isPostgres) {
         password: (process.env.SUPABASE_DB_PASSWORD || '').trim(),
         database: (process.env.SUPABASE_DB_NAME || 'postgres').trim(),
         ssl: { rejectUnauthorized: false },
-        max: 20
+        max: 20,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 10000,
+        keepAlive: true,
+        keepAliveInitialDelayMillis: 10000
     });
 
     pgPool.on('connect', (client) => {
-        client.query("SET timezone = 'Asia/Jakarta'").catch((err) => {
-            console.warn('[DB] Set timezone Asia/Jakarta notice:', err.message);
+        // Prevent socket drop crashes on idle pooled clients
+        client.on('error', (err) => {
+            console.warn('[DB] Pooled client socket notice:', err.message);
         });
     });
 
     pgPool.on('error', (err) => {
-        console.error('PostgreSQL Idle Pool Client Error:', err.message);
+        console.warn('PostgreSQL Idle Pool Notice:', err.message);
     });
 
 
