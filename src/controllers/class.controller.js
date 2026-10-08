@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { escapeHTML } = require('../utils/helpers');
+const { escapeHTML, normalizeUnit, resolveStudentUnit, matchProgramMaster } = require('../utils/helpers');
 
 async function resolveValidProgramName(programInput) {
     if (!programInput || !String(programInput).trim()) return 'KBEC';
@@ -17,6 +17,28 @@ async function resolveValidProgramName(programInput) {
     }
 }
 
+/**
+ * Menentukan unit yayasan & program_id (FK ke master programs) untuk sebuah kelas.
+ * Teks `program` tetap disimpan apa adanya (UI lama memakai nama unit atau nama program).
+ */
+async function resolveClassProgram(programInput, unitInput) {
+    const name = await resolveValidProgramName(programInput);
+    let programs = [];
+    try {
+        const [rows] = await db.query('SELECT id, nama, cat, level FROM programs');
+        programs = rows || [];
+    } catch (e) {
+        programs = [];
+    }
+    const explicitUnit = normalizeUnit(unitInput);
+    const match = matchProgramMaster(programs, explicitUnit, name);
+    const unit = explicitUnit
+        || (match ? normalizeUnit(match.cat) : null)
+        || normalizeUnit(name)
+        || resolveStudentUnit('', name, '');
+    return { name, unit, programId: match ? match.id : null };
+}
+
 async function resolveTeacherId(pengajarInput) {
     if (!pengajarInput || pengajarInput === '-') return null;
     try {
@@ -32,7 +54,7 @@ async function getClasses(req, res, next) {
         const userRole = (req.user && req.user.role ? req.user.role : '').trim();
         const isTeacher = userRole.toLowerCase().includes('pengajar') || userRole.toLowerCase().includes('guru') || userRole.toLowerCase().includes('teacher');
         
-        let sql = 'SELECT c.id, c.nama, c.program, c.pengajar, c.teacher_id, c.kapasitas, c.hari, c.mulai, c.selesai, c.tipe, c.ruang, COALESCE(cs.student_count, 0) AS terisi FROM classes c LEFT JOIN (SELECT class_id, COUNT(*) AS student_count FROM class_students GROUP BY class_id) cs ON c.id::text = cs.class_id::text';
+        let sql = 'SELECT c.id, c.nama, c.program, c.unit, c.program_id, c.pengajar, c.teacher_id, c.kapasitas, c.hari, c.mulai, c.selesai, c.tipe, c.ruang, COALESCE(cs.student_count, 0) AS terisi FROM classes c LEFT JOIN (SELECT class_id, COUNT(*) AS student_count FROM class_students GROUP BY class_id) cs ON c.id::text = cs.class_id::text';
         let params = [];
 
         if (isTeacher && req.user) {
@@ -58,9 +80,9 @@ async function getClasses(req, res, next) {
 }
 
 async function createClass(req, res, next) {
-    const { nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
+    const { nama, program, unit, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
     try {
-        const validProgram = await resolveValidProgramName(program);
+        const { name: validProgram, unit: validUnit, programId } = await resolveClassProgram(program, unit);
         const resolvedTeacherId = await resolveTeacherId(pengajar);
 
         const [allClasses] = await db.query('SELECT id FROM classes');
@@ -72,8 +94,8 @@ async function createClass(req, res, next) {
         const nextId = String(maxNum + 1);
 
         await db.query(
-            'INSERT INTO classes (id, nama, program, pengajar, teacher_id, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [nextId, escapeHTML(nama || 'Kelas Baru'), validProgram, escapeHTML(pengajar || '-'), resolvedTeacherId, kapasitas || 20, escapeHTML(hari || 'Senin'), escapeHTML(mulai || '08:00'), escapeHTML(selesai || '09:30'), escapeHTML(tipe || 'Reguler'), escapeHTML(ruang || 'Ruang 1')]
+            'INSERT INTO classes (id, nama, program, unit, program_id, pengajar, teacher_id, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            [nextId, escapeHTML(nama || 'Kelas Baru'), validProgram, validUnit, programId, escapeHTML(pengajar || '-'), resolvedTeacherId, kapasitas || 20, escapeHTML(hari || 'Senin'), escapeHTML(mulai || '08:00'), escapeHTML(selesai || '09:30'), escapeHTML(tipe || 'Reguler'), escapeHTML(ruang || 'Ruang 1')]
         );
 
         try {
@@ -94,14 +116,14 @@ async function createClass(req, res, next) {
 
 async function updateClass(req, res, next) {
     const { id } = req.params;
-    const { nama, program, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
+    const { nama, program, unit, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
     try {
-        const validProgram = await resolveValidProgramName(program);
+        const { name: validProgram, unit: validUnit, programId } = await resolveClassProgram(program, unit);
         const resolvedTeacherId = await resolveTeacherId(pengajar);
 
         await db.query(
-            'UPDATE classes SET nama = ?, program = ?, pengajar = ?, teacher_id = ?, kapasitas = ?, hari = ?, mulai = ?, selesai = ?, tipe = ?, ruang = ? WHERE id = ?',
-            [escapeHTML(nama), validProgram, escapeHTML(pengajar), resolvedTeacherId, kapasitas, escapeHTML(hari), escapeHTML(mulai), escapeHTML(selesai), escapeHTML(tipe), escapeHTML(ruang), id]
+            'UPDATE classes SET nama = ?, program = ?, unit = ?, program_id = ?, pengajar = ?, teacher_id = ?, kapasitas = ?, hari = ?, mulai = ?, selesai = ?, tipe = ?, ruang = ? WHERE id = ?',
+            [escapeHTML(nama), validProgram, validUnit, programId, escapeHTML(pengajar), resolvedTeacherId, kapasitas, escapeHTML(hari), escapeHTML(mulai), escapeHTML(selesai), escapeHTML(tipe), escapeHTML(ruang), id]
         );
 
         try {

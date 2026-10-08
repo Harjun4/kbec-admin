@@ -20,12 +20,23 @@ const loginSchema = z.object({
     password: z.string().min(1, 'Password wajib diisi')
 });
 
+const optionalText = (max, label) => z.string().max(max, `${label} maksimal ${max} karakter`).optional().nullable();
+
 const studentSchema = z.object({
-    nama: z.string().min(2, 'Nama siswa minimal 2 karakter'),
-    program: z.string().optional(),
-    level: z.string().optional(),
-    status: z.enum(['Aktif', 'Alumni', 'Non-Aktif']).optional()
-});
+    id: z.string().max(100, 'NIS maksimal 100 karakter').optional().nullable(),
+    nama: z.string().trim().min(2, 'Nama siswa minimal 2 karakter').max(150, 'Nama siswa maksimal 150 karakter'),
+    unit: optionalText(100, 'Unit'),
+    program: optionalText(150, 'Program'),
+    level: optionalText(100, 'Level'),
+    // Nilai dinormalisasi (Aktif / Nonaktif / Alumni) di student.controller
+    status: optionalText(50, 'Status'),
+    kontak: optionalText(100, 'Kontak'),
+    alamat: z.string().optional().nullable(),
+    agama: optionalText(50, 'Agama'),
+    nama_ibu: optionalText(150, 'Nama ibu'),
+    nama_ayah: optionalText(150, 'Nama ayah'),
+    tempat_tanggal_lahir: optionalText(150, 'Tempat, tanggal lahir')
+}).passthrough();
 
 const paymentSchema = z.object({
     jumlah: z.number().min(1, 'Nominal pembayaran harus lebih dari 0').or(z.string()),

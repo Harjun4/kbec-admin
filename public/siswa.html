@@ -13,6 +13,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="js/route-guard.js"></script>
     <script src="global-user.js"></script>
     <script src="js/ui-guard.js"></script>
@@ -174,6 +175,7 @@
                                     class="bg-white border border-slate-200 text-xs font-semibold text-slate-700 px-3.5 py-2 rounded-xl outline-none min-w-[130px] shadow-sm cursor-pointer focus:border-blue-500 transition-colors">
                                     <option value="Semua Status">Semua Status</option>
                                     <option value="Aktif">Aktif</option>
+                                    <option value="Cuti">Cuti</option>
                                     <option value="Nonaktif">Nonaktif</option>
                                     <option value="Alumni">Alumni</option>
                                 </select>
@@ -249,57 +251,127 @@
     <div id="student-modal"
         class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4 overflow-y-auto">
         <div
-            class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300 space-y-5 my-8">
+            class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300 space-y-5 my-8">
             <div class="flex items-center justify-between border-b border-slate-100 pb-4">
                 <h3 id="modal-title" class="text-lg font-extrabold text-slate-900">Tambah Siswa Baru</h3>
-                <button onclick="closeStudentModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                <button onclick="closeStudentModal()"
+                    class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-50 transition-colors">
                     <i data-lucide="x" class="w-5 h-5"></i>
                 </button>
             </div>
             <form id="student-form" onsubmit="handleFormSubmit(event)" class="space-y-4">
                 <input type="hidden" id="student-idx">
+
+                <!-- Baris 1: NIS -->
                 <div>
                     <div class="flex items-center justify-between mb-1">
                         <label class="text-xs font-bold text-slate-700 uppercase tracking-wider">NIS / Nomor Induk Siswa
                             *</label>
                         <button type="button" onclick="generateAndSetNis()"
-                            class="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
+                            class="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1 transition-colors">
                             <i data-lucide="refresh-cw" class="w-3 h-3"></i> Auto Generate NIS
                         </button>
                     </div>
-                    <input type="text" id="form-nis" required placeholder="Contoh: 2607000001-C"
+                    <input type="text" id="form-nis" required placeholder="Contoh: 2607001805 atau 2507000715-C"
                         class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono font-bold text-blue-700 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors">
-                    <p class="text-[10px] text-slate-400 mt-1">Format: <code>[YY][MM][000001][SUFFIX]</code> (-C:
-                        Calistung, -B: Bimbel, -A: Arabin, -TK: TK). Bebas diedit manual jika perlu.</p>
+                    <p id="form-nis-hint" class="text-[10px] text-slate-400 mt-1">KBEC: 10 digit angka | Calistung: -C |
+                        Bimbel: -B | Arabin: -A | TK: ARBN.YYYY.MM.NNN</p>
                 </div>
+
+                <!-- Baris 2: Nama Lengkap -->
                 <div>
                     <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nama Lengkap
-                        *</label>
-                    <input type="text" id="form-nama" required placeholder="Contoh: Ahmad Syarif"
+                        Siswa *</label>
+                    <input type="text" id="form-nama" required placeholder="Contoh: Muhammad Rayyan"
                         class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors">
                 </div>
+
+                <!-- Baris 3: TTL & Agama -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Tempat,
+                            Tanggal Lahir</label>
+                        <input type="text" id="form-ttl" placeholder="Contoh: Jakarta, 16 Desember 2021"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors">
+                    </div>
+                    <div>
+                        <label
+                            class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Agama</label>
+                        <select id="form-agama"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors cursor-pointer">
+                            <option value="">Pilih Agama</option>
+                            <option value="Islam">Islam</option>
+                            <option value="Kristen">Kristen</option>
+                            <option value="Katolik">Katolik</option>
+                            <option value="Hindu">Hindu</option>
+                            <option value="Buddha">Buddha</option>
+                            <option value="Konghucu">Konghucu</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Baris 4: Nama Ayah & Nama Ibu -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nama Ayah /
+                            Wali</label>
+                        <input type="text" id="form-ayah" placeholder="Contoh: Hendra Pratama"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nama
+                            Ibu</label>
+                        <input type="text" id="form-ibu" placeholder="Contoh: Siti Aisyah"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors">
+                    </div>
+                </div>
+
+                <!-- Baris 5: Kontak & Status Keaktifan -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nomor Kontak
+                            / WhatsApp</label>
+                        <input type="text" id="form-kontak" placeholder="Contoh: 0812-3456-7890"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Status
+                            Keaktifan</label>
+                        <select id="form-status"
+                            class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors cursor-pointer">
+                            <option value="Aktif">Aktif</option>
+                            <option value="Cuti">Cuti</option>
+                            <option value="Nonaktif">Nonaktif</option>
+                            <option value="Alumni">Alumni</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Baris 6: Alamat Lengkap (Leluasa & Full-Width Textarea) -->
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Alamat</label>
-                    <input type="text" id="form-alamat" placeholder="Contoh: Jl. Mawar No. 12, Kediri"
-                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors">
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">Alamat
+                            Lengkap</label>
+                        <span class="text-[10px] text-slate-400 font-medium">Leluasa diisi & bisa diperpanjang (tarik
+                            sudut bawah)</span>
+                    </div>
+                    <textarea id="form-alamat" rows="2"
+                        placeholder="Contoh: Jl. Mawar No. 12, RT 03/RW 05, Kelurahan Bintaro, Pesanggrahan, Jakarta Selatan"
+                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors resize-y min-h-[64px]"></textarea>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Nomor Kontak /
-                        WA</label>
-                    <input type="text" id="form-kontak" placeholder="Contoh: 0812-3456-7890"
-                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
+
+                <!-- Baris 7: Unit & Program -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                     <div>
                         <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Unit Yayasan
-                            / Program *</label>
+                            *</label>
                         <select id="form-program" onchange="generateAndSetNis(); updateFormLevelDropdown();"
                             class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors cursor-pointer">
                             <option value="KBEC">KBEC (English Course)</option>
                             <option value="TK">TK (Preschool / PAUD)</option>
                             <option value="Bimbel">Bimbel (Akademik Sekolah)</option>
                             <option value="Calistung">Calistung (Baca Tulis Hitung)</option>
-                            <option value="Arabin">Arabin (Beasiswa Bantuan Pemulung / Kurang Mampu)</option>
+                            <option value="Arabin">Arabin (Beasiswa Bantuan)</option>
                         </select>
                     </div>
                     <div>
@@ -310,16 +382,7 @@
                         </select>
                     </div>
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Status
-                        Keaktifan</label>
-                    <select id="form-status"
-                        class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:border-blue-500 focus:outline-none transition-colors cursor-pointer">
-                        <option value="Aktif">Aktif</option>
-                        <option value="Nonaktif">Nonaktif</option>
-                        <option value="Alumni">Alumni</option>
-                    </select>
-                </div>
+
                 <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                     <button type="button" onclick="closeStudentModal()"
                         class="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Batal</button>
@@ -331,40 +394,196 @@
         </div>
     </div>
 
+    <!-- Modal Detail Profil Siswa Lengkap -->
+    <div id="detail-modal"
+        class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4 overflow-y-auto">
+        <div
+            class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300 space-y-5 my-8">
+            <!-- Header Modal Detail -->
+            <div class="flex items-start justify-between border-b border-slate-100 pb-4">
+                <div class="flex items-center gap-3.5">
+                    <div id="detail-avatar"
+                        class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-base flex items-center justify-center shadow-md">
+                        AS
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h3 id="detail-nama" class="text-lg font-extrabold text-slate-900 leading-tight">Nama Siswa
+                            </h3>
+                            <span id="detail-status-badge"
+                                class="text-[10px] font-bold px-2 py-0.5 rounded-full">Aktif</span>
+                        </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span
+                                class="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
+                                <i data-lucide="hash" class="w-3 h-3"></i> <span id="detail-nis">2607000001</span>
+                            </span>
+                            <span id="detail-unit-badge"
+                                class="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">KBEC</span>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="closeModal('detail-modal')"
+                    class="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Konten Detail 2 Kolom Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
+                <!-- Identitas Siswa -->
+                <div class="bg-slate-50/70 border border-slate-100 rounded-xl p-3.5 space-y-2.5">
+                    <h4 class="font-bold text-slate-400 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                        <i data-lucide="user" class="w-3.5 h-3.5 text-blue-600"></i> Identitas Pribadi
+                    </h4>
+                    <div>
+                        <span class="text-slate-400 block text-[10px] uppercase font-bold">Tempat, Tanggal Lahir</span>
+                        <p id="detail-ttl" class="font-semibold text-slate-800 mt-0.5">-</p>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[10px] uppercase font-bold">Agama</span>
+                        <p id="detail-agama" class="font-semibold text-slate-800 mt-0.5">-</p>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[10px] uppercase font-bold">Program / Level</span>
+                        <p id="detail-program" class="font-semibold text-slate-800 mt-0.5">-</p>
+                    </div>
+                </div>
+
+                <!-- Orang Tua & Kontak -->
+                <div class="bg-slate-50/70 border border-slate-100 rounded-xl p-3.5 space-y-2.5">
+                    <h4 class="font-bold text-slate-400 uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                        <i data-lucide="users" class="w-3.5 h-3.5 text-indigo-600"></i> Orang Tua & Kontak
+                    </h4>
+                    <div>
+                        <span class="text-slate-400 block text-[10px] uppercase font-bold">Nama Ayah / Wali</span>
+                        <p id="detail-ayah" class="font-semibold text-slate-800 mt-0.5">-</p>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[10px] uppercase font-bold">Nama Ibu</span>
+                        <p id="detail-ibu" class="font-semibold text-slate-800 mt-0.5">-</p>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block text-[10px] uppercase font-bold">No. Kontak / WA</span>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            <p id="detail-kontak" class="font-semibold text-slate-800">-</p>
+                            <a id="detail-wa-btn" href="#" target="_blank"
+                                class="hidden text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px] font-bold border border-emerald-200">
+                                Chat WA
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alamat Domisili -->
+            <div class="bg-slate-50/70 border border-slate-100 rounded-xl p-3.5 space-y-1 text-xs">
+                <span class="text-slate-400 block text-[10px] uppercase font-bold flex items-center gap-1.5">
+                    <i data-lucide="map-pin" class="w-3.5 h-3.5 text-rose-500"></i> Alamat Lengkap
+                </span>
+                <p id="detail-alamat" class="font-medium text-slate-700 leading-relaxed">-</p>
+            </div>
+
+            <!-- Catatan Perkembangan -->
+            <div class="bg-amber-50/50 border border-amber-100 rounded-xl p-3.5 space-y-1.5 text-xs">
+                <div class="flex items-center justify-between">
+                    <span
+                        class="text-amber-800 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                        <i data-lucide="clipboard" class="w-3.5 h-3.5 text-amber-600"></i> Catatan Perkembangan Siswa
+                    </span>
+                    <button id="detail-open-notes-btn"
+                        class="text-[11px] font-bold text-amber-700 hover:underline">Kelola Catatan</button>
+                </div>
+                <p id="detail-notes" class="text-amber-900/80 italic whitespace-pre-wrap">Belum ada catatan
+                    evaluasi/perkembangan untuk siswa ini.</p>
+            </div>
+
+            <!-- Footer Action Buttons -->
+            <div class="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button type="button" onclick="closeModal('detail-modal')"
+                    class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors">Tutup</button>
+                <button type="button" id="detail-edit-btn"
+                    class="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm flex items-center gap-1.5">
+                    <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Profil Siswa
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Impor Data Siswa CSV/Excel -->
     <div id="import-modal"
-        class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4">
+        class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300 p-4 overflow-y-auto">
         <div
-            class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300 space-y-4">
+            class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300 space-y-4 my-8">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 class="text-base font-bold text-slate-900">Impor Data Siswa (CSV/Excel)</h3>
-                <button onclick="closeModal('import-modal')" class="text-slate-400 hover:text-slate-600 p-1">
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="file-spreadsheet" class="w-5 h-5 text-emerald-600"></i> Impor Data Siswa (Excel /
+                    CSV)
+                </h3>
+                <button onclick="closeModal('import-modal')" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
+
             <p class="text-xs text-slate-500 leading-relaxed">
-                Pilih berkas format CSV yang berisi kolom:
-                <code>ID, Nama, Alamat, Kontak, Program, Level, Status</code>.
+                Mendukung langsung berkas Excel yayasan (<strong>.xlsx</strong>, <strong>.xls</strong>) atau
+                <strong>.csv</strong> dengan 11 kolom:
+                <code
+                    class="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-blue-700 block mt-1">NIS, Nama Lengkap, Tempat Tanggal Lahir, Agama, Nama Ayah, Nama Ibu, Kontak, Alamat, Unit, Program, Status</code>
             </p>
+
+            <!-- Tombol Unduh Template Resmi -->
             <div
-                class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-blue-400 transition-colors bg-slate-50/50">
-                <input type="file" id="import-file-input" accept=".csv,.txt" onchange="handleFileSelected(event)"
+                class="bg-blue-50/60 border border-blue-100 rounded-xl p-3 flex items-center justify-between gap-3 text-xs">
+                <div class="flex items-center gap-2 text-blue-900">
+                    <i data-lucide="download" class="w-4 h-4 text-blue-600 shrink-0"></i>
+                    <span class="font-medium text-[11px]">Belum punya formatnya? Unduh template:</span>
+                </div>
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <button type="button" onclick="downloadImportTemplate('xlsx')"
+                        class="px-2.5 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors">
+                        .XLSX (Excel)
+                    </button>
+                    <button type="button" onclick="downloadImportTemplate('csv')"
+                        class="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-white hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors">
+                        .CSV
+                    </button>
+                </div>
+            </div>
+
+            <div
+                class="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl p-6 text-center transition-colors bg-slate-50/50">
+                <input type="file" id="import-file-input" accept=".xlsx,.xls,.csv" onchange="handleFileSelected(event)"
                     class="hidden">
                 <label for="import-file-input" class="cursor-pointer space-y-2 block">
                     <div
-                        class="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-                        <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+                        class="w-11 h-11 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto shadow-xs">
+                        <i data-lucide="upload-cloud" class="w-6 h-6"></i>
                     </div>
-                    <p class="text-xs font-bold text-slate-700">Klik untuk memilih berkas CSV</p>
-                    <p id="import-filename-display" class="text-[11px] text-blue-600 font-semibold hidden"></p>
+                    <p class="text-xs font-bold text-slate-700">Pilih berkas Excel (.xlsx/.xls) atau CSV</p>
+                    <p class="text-[10px] text-slate-400">Susunan kolom otomatis disesuaikan dengan database yayasan</p>
+                    <p id="import-filename-display" class="text-xs text-blue-600 font-bold hidden pt-1"></p>
                 </label>
             </div>
-            <div class="flex justify-end gap-2 pt-2">
-                <button onclick="closeModal('import-modal')"
-                    class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Batal</button>
-                <button onclick="processImportCSV()"
-                    class="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm">Proses
-                    Impor</button>
+
+            <!-- Preview Data Siap Impor -->
+            <div id="import-preview-box"
+                class="hidden bg-emerald-50/60 border border-emerald-100 rounded-xl p-3 text-xs text-emerald-800 flex items-center justify-between">
+                <span class="flex items-center gap-1.5 font-medium">
+                    <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600"></i>
+                    Data siap diimpor: <strong id="import-preview-count"
+                        class="font-extrabold text-emerald-900">0</strong> siswa
+                </span>
+                <span class="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Terverifikasi</span>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onclick="closeModal('import-modal')"
+                    class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">Batal</button>
+                <button type="button" id="btn-do-import" onclick="processImportFile()"
+                    class="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-all flex items-center gap-1.5">
+                    <i data-lucide="upload" class="w-3.5 h-3.5"></i> Proses Impor Data
+                </button>
             </div>
         </div>
     </div>
@@ -375,21 +594,39 @@
         <div
             class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl transform scale-95 transition-transform duration-300 space-y-4">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 class="text-base font-bold text-slate-900">Ekspor Data Siswa</h3>
+                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <i data-lucide="download" class="w-5 h-5 text-emerald-600"></i> Ekspor Data Siswa
+                </h3>
                 <button onclick="closeModal('export-modal')" class="text-slate-400 hover:text-slate-600 p-1">
                     <i data-lucide="x" class="w-4 h-4"></i>
                 </button>
             </div>
             <p class="text-xs text-slate-500 leading-relaxed">
-                Unduh seluruh data registrasi siswa terdaftar dalam format spreadsheet berkas CSV (.csv).
+                Unduh seluruh data registrasi siswa terdaftar (11 kolom lengkap) sesuai filter yang aktif saat ini.
             </p>
-            <div class="flex justify-end gap-2 pt-2">
-                <button onclick="closeModal('export-modal')"
-                    class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Batal</button>
-                <button onclick="exportStudentsToCSV()"
-                    class="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm flex items-center gap-1.5">
-                    <i data-lucide="download" class="w-3.5 h-3.5"></i> Unduh Berkas CSV
+            <div class="grid grid-cols-2 gap-3 pt-2">
+                <button type="button" onclick="exportStudents('xlsx')"
+                    class="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/60 text-left transition-colors group">
+                    <div
+                        class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center mb-2 shadow-xs group-hover:scale-105 transition-transform">
+                        <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+                    </div>
+                    <h5 class="text-xs font-bold text-slate-900">Format Excel</h5>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Berkas .xlsx rapi berkolom</p>
                 </button>
+                <button type="button" onclick="exportStudents('csv')"
+                    class="p-4 rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-100/60 text-left transition-colors group">
+                    <div
+                        class="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center mb-2 shadow-xs group-hover:scale-105 transition-transform">
+                        <i data-lucide="file-text" class="w-4 h-4"></i>
+                    </div>
+                    <h5 class="text-xs font-bold text-slate-900">Format CSV</h5>
+                    <p class="text-[10px] text-slate-500 mt-0.5">Berkas .csv (UTF-8 BOM)</p>
+                </button>
+            </div>
+            <div class="flex justify-end pt-2">
+                <button onclick="closeModal('export-modal')"
+                    class="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl">Tutup</button>
             </div>
         </div>
     </div>
@@ -435,10 +672,10 @@
             try {
                 const response = await fetch(`${API_BASE}/api/students`);
                 studentsData = await response.json();
-                
+
                 const urlParams = new URLSearchParams(window.location.search);
                 const queryUnit = urlParams.get('unit') || urlParams.get('program') || urlParams.get('cat');
-                
+
                 populateProgramFilter(queryUnit);
                 await fetchPrograms();
                 renderTable();
@@ -467,7 +704,7 @@
             });
 
             select.innerHTML = html;
-            
+
             if (initialUnit) {
                 const matched = validUnits.find(u => u.val.toLowerCase() === initialUnit.toLowerCase());
                 if (matched) {
@@ -548,6 +785,7 @@
                 const originalIndex = studentsData.findIndex(s => s.id === student.id);
                 let statusClass = 'text-slate-500 bg-slate-100';
                 if (student.status === 'Aktif') statusClass = 'text-green-600 bg-green-50';
+                else if (student.status === 'Cuti') statusClass = 'text-amber-700 bg-amber-50 border border-amber-200';
                 else if (student.status === 'Alumni') statusClass = 'text-blue-600 bg-blue-50';
 
                 const isArabin = (student.program && student.program.toLowerCase().includes('arabin')) || (student.id && student.id.endsWith('-A'));
@@ -558,10 +796,12 @@
                     <td class="py-4 px-6 font-mono text-xs text-[#0A58CA] font-bold group-hover:underline transition-colors">${student.id}</td>
                     <td class="py-4 px-6">
                         <div class="flex items-center gap-3">
-                            <div class="w-9 h-9 rounded-full ${student.color || 'bg-blue-50 text-blue-600'} font-bold text-xs flex items-center justify-center shadow-sm">${student.initial || 'S'}</div>
+                            <div class="w-9 h-9 rounded-full ${student.color || 'bg-blue-50 text-blue-600'} font-bold text-xs flex items-center justify-center shadow-sm shrink-0">${student.initial || 'S'}</div>
                             <div>
                                 <h4 class="font-semibold text-slate-800 leading-tight">${student.nama} ${arabinBadge}</h4>
-                                <p class="text-[11px] text-slate-400 mt-0.5">${student.alamat || '-'}</p>
+                                <p class="text-[11px] text-slate-400 mt-0.5 truncate max-w-xs" title="${student.tempat_tanggal_lahir ? student.tempat_tanggal_lahir + ' • ' : ''}${student.alamat || '-'}">
+                                    ${student.tempat_tanggal_lahir ? `<span class="text-slate-500 font-medium">${student.tempat_tanggal_lahir}</span> • ` : ''}${student.alamat || '-'}
+                                </p>
                             </div>
                         </div>
                     </td>
@@ -570,9 +810,10 @@
                     <td class="py-4 px-6 text-xs text-slate-500 font-medium">${student.level || student.program || '-'}</td>
                     <td class="py-4 px-6"><span class="text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm ${statusClass}">${student.status || 'Aktif'}</span></td>
                     <td class="py-4 px-6">
-                        <div class="flex items-center justify-center gap-2">
+                        <div class="flex items-center justify-center gap-1.5">
+                            <button onclick="openDetailModal(${originalIndex})" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all" title="Detail Profil Lengkap"><i data-lucide="eye" class="w-3.5 h-3.5"></i></button>
                             <button onclick="openNotesModal(${originalIndex})" class="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Catatan Progress Siswa"><i data-lucide="clipboard" class="w-3.5 h-3.5"></i></button>
-                            <button onclick="openEditModal(${originalIndex})" class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Ubah"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
+                            <button onclick="openEditModal(${originalIndex})" class="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Ubah Data"><i data-lucide="edit-3" class="w-3.5 h-3.5"></i></button>
                             <button onclick="deleteStudent(${originalIndex})" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all" title="Hapus"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
                         </div>
                     </td>
@@ -586,18 +827,23 @@
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
             toast.className = `flex items-center gap-3 bg-white border border-slate-100 p-4 rounded-xl shadow-lg pointer-events-auto min-w-[300px] animate-slide-in`;
-            const icon = type === 'success' ? '<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500"></i>' : '<i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i>';
+            let icon = '<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500"></i>';
+            if (type === 'error') {
+                icon = '<i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i>';
+            } else if (type === 'warning') {
+                icon = '<i data-lucide="alert-circle" class="w-5 h-5 text-amber-500"></i>';
+            }
 
             toast.innerHTML = `<div class="flex items-center justify-center">${icon}</div><div class="flex-1"><p class="text-xs font-bold text-slate-900">${message}</p></div>`;
             container.appendChild(toast);
-            lucide.createIcons();
+            if (window.lucide) lucide.createIcons();
 
             setTimeout(() => {
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateY(10px)';
                 toast.style.transition = 'all 0.3s ease';
                 setTimeout(() => toast.remove(), 300);
-            }, 3000);
+            }, 3500);
         }
 
         function openModal(id) {
@@ -609,6 +855,7 @@
                 const box = modal.querySelector('div');
                 if (box) box.classList.remove('scale-95');
             }, 10);
+            if (window.lucide) lucide.createIcons();
         }
 
         function closeModal(id) {
@@ -620,12 +867,24 @@
             setTimeout(() => modal.classList.add('hidden'), 300);
         }
 
+        function updateNisHint(unit) {
+            const hint = document.getElementById('form-nis-hint');
+            if (!hint) return;
+            const u = (unit || '').toUpperCase();
+            if (u === 'CALISTUNG') hint.innerText = "Format Calistung: 10 digit angka + suffix '-C' (misal: 2507000715-C)";
+            else if (u === 'BIMBEL') hint.innerText = "Format Bimbel: 10 digit angka + suffix '-B' (misal: 2502001439-B)";
+            else if (u === 'ARABIN') hint.innerText = "Format Arabin: 10 digit angka + suffix '-A' (misal: 2607000016-A)";
+            else if (u === 'TK') hint.innerText = "Format TK: ARBN.YYYY.MM.NNN (misal: ARBN.2026.07.228)";
+            else hint.innerText = "Format KBEC: 10 digit angka murni [YY][MM][000001] (misal: 2607001805)";
+        }
+
         async function generateAndSetNis() {
             const prog = document.getElementById('form-program')?.value || 'KBEC';
+            updateNisHint(prog);
             const nisInput = document.getElementById('form-nis');
             if (!nisInput) return;
             try {
-                const res = await fetch(`${API_BASE}/api/students/next-id?program=${encodeURIComponent(prog)}`);
+                const res = await fetch(`${API_BASE}/api/students/next-id?unit=${encodeURIComponent(prog)}&program=${encodeURIComponent(prog)}`);
                 const data = await res.json();
                 if (data && data.nextId) {
                     nisInput.value = data.nextId;
@@ -639,6 +898,11 @@
             document.getElementById('student-form').reset();
             document.getElementById('student-idx').value = '';
             document.getElementById('modal-title').innerText = "Tambah Siswa Baru";
+
+            if (document.getElementById('form-ttl')) document.getElementById('form-ttl').value = '';
+            if (document.getElementById('form-agama')) document.getElementById('form-agama').value = '';
+            if (document.getElementById('form-ayah')) document.getElementById('form-ayah').value = '';
+            if (document.getElementById('form-ibu')) document.getElementById('form-ibu').value = '';
 
             const urlParams = new URLSearchParams(window.location.search);
             const progParam = urlParams.get('program') || urlParams.get('unit');
@@ -661,26 +925,32 @@
 
         function openEditModal(index) {
             const student = studentsData[index];
+            if (!student) return;
+
             document.getElementById('student-idx').value = index;
             document.getElementById('form-nis').value = student.id || '';
             document.getElementById('form-nama').value = student.nama || '';
             document.getElementById('form-alamat').value = student.alamat || '';
             document.getElementById('form-kontak').value = student.kontak || '';
 
-            let progVal = student.program || 'KBEC';
-            if (['Beginner 1', 'Beginner 2', 'Elementary 1A', 'Elementary 1B', 'Elementary 2A', 'Elementary 2B', 'Elementary 3A', 'Elementary 3B', 'BTP 1', 'BTP 2', 'BTP 3', 'CTP 1', 'CTP 2', 'CTP 3', 'Intermediate', 'Advance'].includes(progVal)) {
-                progVal = 'KBEC';
-            } else if (['Calistung 1A', 'Calistung 1B', 'Calistung 2A', 'Calistung 2B', 'Calistung 3A', 'Calistung 3B'].includes(progVal)) {
-                progVal = 'Calistung';
-            } else if (['KB', 'TKA', 'TKB'].includes(progVal)) {
-                progVal = 'TK';
-            } else if (['Arabin 1', 'Arabin 2'].includes(progVal)) {
-                progVal = 'Arabin';
-            } else if (progVal === 'Bimbel (SD-SMP)') {
-                progVal = 'Bimbel';
+            if (document.getElementById('form-ttl')) document.getElementById('form-ttl').value = student.tempat_tanggal_lahir || '';
+            if (document.getElementById('form-agama')) document.getElementById('form-agama').value = student.agama || '';
+            if (document.getElementById('form-ayah')) document.getElementById('form-ayah').value = student.nama_ayah || '';
+            if (document.getElementById('form-ibu')) document.getElementById('form-ibu').value = student.nama_ibu || '';
+
+            let progVal = student.unit || 'KBEC';
+            if (!student.unit) {
+                const sProg = (student.program || '').toLowerCase();
+                const sId = (student.id || '').toUpperCase();
+                if (sId.endsWith('-C') || sProg.includes('calistung')) progVal = 'Calistung';
+                else if (sId.endsWith('-B') || sProg.includes('bimbel')) progVal = 'Bimbel';
+                else if (sId.endsWith('-A') || sProg.includes('arabin')) progVal = 'Arabin';
+                else if (sId.includes('ARBN.') || sId.endsWith('-TK') || sProg.includes('tk') || sProg.includes('paud')) progVal = 'TK';
+                else progVal = 'KBEC';
             }
 
             if (document.getElementById('form-program')) document.getElementById('form-program').value = progVal;
+            updateNisHint(progVal);
             updateFormLevelDropdown();
             if (document.getElementById('form-level')) document.getElementById('form-level').value = student.level || student.program || '';
             if (document.getElementById('form-status')) document.getElementById('form-status').value = student.status || 'Aktif';
@@ -689,6 +959,79 @@
         }
 
         function closeStudentModal() { closeModal('student-modal'); }
+
+        let activeDetailStudentIndex = null;
+        function openDetailModal(index) {
+            activeDetailStudentIndex = index;
+            const student = studentsData[index];
+            if (!student) return;
+
+            const avatarEl = document.getElementById('detail-avatar');
+            if (avatarEl) avatarEl.innerText = student.initial || (student.nama ? student.nama.substring(0, 2).toUpperCase() : 'S');
+
+            document.getElementById('detail-nama').innerText = student.nama || '-';
+            document.getElementById('detail-nis').innerText = student.id || '-';
+            document.getElementById('detail-unit-badge').innerText = student.unit || 'KBEC';
+
+            const statusBadge = document.getElementById('detail-status-badge');
+            if (statusBadge) {
+                statusBadge.innerText = student.status || 'Aktif';
+                if (student.status === 'Aktif') {
+                    statusBadge.className = 'text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200';
+                } else if (student.status === 'Cuti') {
+                    statusBadge.className = 'text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200';
+                } else if (student.status === 'Alumni') {
+                    statusBadge.className = 'text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200';
+                } else {
+                    statusBadge.className = 'text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200';
+                }
+            }
+
+            document.getElementById('detail-ttl').innerText = student.tempat_tanggal_lahir || '-';
+            document.getElementById('detail-agama').innerText = student.agama || '-';
+            document.getElementById('detail-program').innerText = student.program || student.level || '-';
+            document.getElementById('detail-ayah').innerText = student.nama_ayah || '-';
+            document.getElementById('detail-ibu').innerText = student.nama_ibu || '-';
+            document.getElementById('detail-kontak').innerText = student.kontak || '-';
+
+            const waBtn = document.getElementById('detail-wa-btn');
+            if (waBtn) {
+                if (student.kontak) {
+                    const cleanPhone = student.kontak.replace(/[^0-9]/g, '');
+                    let waNumber = cleanPhone;
+                    if (waNumber.startsWith('0')) waNumber = '62' + waNumber.slice(1);
+                    if (waNumber.length >= 9) {
+                        waBtn.href = `https://wa.me/${waNumber}`;
+                        waBtn.classList.remove('hidden');
+                    } else {
+                        waBtn.classList.add('hidden');
+                    }
+                } else {
+                    waBtn.classList.add('hidden');
+                }
+            }
+
+            document.getElementById('detail-alamat').innerText = student.alamat || '-';
+            document.getElementById('detail-notes').innerText = student.notes || 'Belum ada catatan evaluasi/perkembangan untuk siswa ini.';
+
+            const editBtn = document.getElementById('detail-edit-btn');
+            if (editBtn) {
+                editBtn.onclick = () => {
+                    closeModal('detail-modal');
+                    openEditModal(index);
+                };
+            }
+
+            const notesBtn = document.getElementById('detail-open-notes-btn');
+            if (notesBtn) {
+                notesBtn.onclick = () => {
+                    closeModal('detail-modal');
+                    openNotesModal(index);
+                };
+            }
+
+            openModal('detail-modal');
+        }
 
         async function handleFormSubmit(e) {
             e.preventDefault();
@@ -702,15 +1045,33 @@
             try {
                 const idx = document.getElementById('student-idx').value;
                 const nis = document.getElementById('form-nis').value.trim();
-                const nama = document.getElementById('form-nama').value;
-                const alamat = document.getElementById('form-alamat').value;
-                const kontak = document.getElementById('form-kontak').value;
-                const program = document.getElementById('form-program').value;
+                const nama = document.getElementById('form-nama').value.trim();
+                const ttl = document.getElementById('form-ttl')?.value.trim() || '';
+                const agama = document.getElementById('form-agama')?.value.trim() || '';
+                const ayah = document.getElementById('form-ayah')?.value.trim() || '';
+                const ibu = document.getElementById('form-ibu')?.value.trim() || '';
+                const alamat = document.getElementById('form-alamat').value.trim();
+                const kontak = document.getElementById('form-kontak').value.trim();
+                const unit = document.getElementById('form-program').value;
                 const level = document.getElementById('form-level').value;
                 const status = document.getElementById('form-status').value;
-                const initial = nama.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                const initial = nama.split(' ').filter(Boolean).map(n => n[0]).join('').substring(0, 2).toUpperCase() || 'S';
 
-                const payload = { id: nis, nama, alamat, kontak, program, level, status, initial };
+                const payload = {
+                    id: nis,
+                    nama,
+                    tempat_tanggal_lahir: ttl,
+                    agama,
+                    nama_ayah: ayah,
+                    nama_ibu: ibu,
+                    alamat,
+                    kontak,
+                    unit,
+                    program: level,
+                    level,
+                    status,
+                    initial
+                };
 
                 if (idx === '') {
                     payload.color = 'bg-blue-50 text-blue-600';
@@ -719,7 +1080,8 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    if (!res.ok) throw new Error();
+                    const resData = await res.json();
+                    if (!res.ok) throw new Error(resData.message || 'Gagal menyimpan siswa');
                     showToast(`Siswa "${nama}" (NIS: ${nis}) berhasil didaftarkan!`);
                 } else {
                     const studentId = studentsData[idx].id;
@@ -728,14 +1090,15 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    if (!res.ok) throw new Error();
+                    const resData = await res.json();
+                    if (!res.ok) throw new Error(resData.message || 'Gagal memperbarui siswa');
                     showToast(`Data "${nama}" berhasil diperbarui!`);
                 }
                 closeStudentModal();
                 await fetchStudents();
             } catch (err) {
                 console.error(err);
-                showToast('Gagal menyimpan data siswa ke database.', 'error');
+                showToast(err.message || 'Gagal menyimpan data siswa ke database.', 'error');
             } finally {
                 if (btn) {
                     btn.disabled = false;
@@ -748,112 +1111,315 @@
         async function deleteStudent(index) {
             const student = studentsData[index];
             const namaSiswa = student.nama;
-            if (confirm(`Apakah Anda yakin ingin menghapus siswa ${namaSiswa}?`)) {
+            if (confirm(`Apakah Anda yakin ingin menghapus data siswa ${namaSiswa} (NIS: ${student.id})?`)) {
                 try {
                     const res = await fetch(`${API_BASE}/api/students/${encodeURIComponent(student.id)}`, {
                         method: 'DELETE'
                     });
-                    if (!res.ok) throw new Error();
+                    const resData = await res.json();
+                    if (!res.ok) throw new Error(resData.message || 'Gagal menghapus siswa');
                     showToast(`Data "${namaSiswa}" berhasil dihapus.`, 'success');
                     await fetchStudents();
                 } catch (err) {
                     console.error(err);
-                    showToast('Gagal menghapus siswa dari database.', 'error');
+                    showToast(err.message || 'Gagal menghapus siswa dari database.', 'error');
                 }
             }
         }
 
         let selectedImportFile = null;
+        let parsedImportRows = [];
 
         function handleFileSelected(e) {
             const file = e.target.files[0];
             if (!file) return;
             selectedImportFile = file;
             const display = document.getElementById('import-filename-display');
+            const previewBox = document.getElementById('import-preview-box');
+            const previewCount = document.getElementById('import-preview-count');
+
             display.innerText = `Terpilih: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
             display.classList.remove('hidden');
+
+            parseFileRows(file).then(rows => {
+                parsedImportRows = rows;
+                if (previewBox && previewCount) {
+                    previewCount.innerText = rows.length;
+                    previewBox.classList.remove('hidden');
+                }
+            }).catch(err => {
+                console.error('Error saat membaca pratinjau berkas:', err);
+                parsedImportRows = [];
+                if (previewBox) previewBox.classList.add('hidden');
+            });
         }
 
-        async function processImportCSV() {
+        function parseFileRows(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+
+                reader.onload = function (e) {
+                    try {
+                        const data = e.target.result;
+                        let workbook;
+                        if (isExcel) {
+                            workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+                        } else {
+                            workbook = XLSX.read(data, { type: 'string' });
+                        }
+
+                        const sheetName = workbook.SheetNames[0];
+                        if (!sheetName) return resolve([]);
+                        const worksheet = workbook.Sheets[sheetName];
+                        const rawSheet = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                        if (!rawSheet || rawSheet.length === 0) return resolve([]);
+
+                        // Deteksi baris header
+                        let headerRowIndex = -1;
+                        for (let r = 0; r < Math.min(rawSheet.length, 10); r++) {
+                            const row = rawSheet[r];
+                            if (!Array.isArray(row)) continue;
+                            const rowText = row.map(c => String(c || '').toLowerCase()).join(' ');
+                            if (rowText.includes('nama') || rowText.includes('nis') || rowText.includes('siswa')) {
+                                headerRowIndex = r;
+                                break;
+                            }
+                        }
+
+                        const colMap = {
+                            id: -1,
+                            nama: -1,
+                            tempat_tanggal_lahir: -1,
+                            agama: -1,
+                            nama_ayah: -1,
+                            nama_ibu: -1,
+                            kontak: -1,
+                            alamat: -1,
+                            unit: -1,
+                            program: -1,
+                            status: -1
+                        };
+
+                        let startDataIndex = 1;
+
+                        if (headerRowIndex >= 0) {
+                            const headers = rawSheet[headerRowIndex].map(h => String(h || '').trim());
+                            headers.forEach((h, colIdx) => {
+                                const hLow = h.toLowerCase().replace(/[\r\n\t_]/g, ' ').replace(/\s+/g, ' ');
+                                if (/^(nis|id|no(\.|\s)?induk|nomor(\.|\s)?induk)$/i.test(hLow) || hLow === 'nis siswa') {
+                                    colMap.id = colIdx;
+                                } else if (/^(nama|nama lengkap|nama siswa|siswa)$/i.test(hLow)) {
+                                    colMap.nama = colIdx;
+                                } else if ((hLow.includes('tempat') && hLow.includes('lahir')) || hLow === 'ttl' || hLow.includes('tanggal lahir')) {
+                                    colMap.tempat_tanggal_lahir = colIdx;
+                                } else if (hLow.includes('agama')) {
+                                    colMap.agama = colIdx;
+                                } else if (hLow.includes('ayah')) {
+                                    colMap.nama_ayah = colIdx;
+                                } else if (hLow.includes('ibu')) {
+                                    colMap.nama_ibu = colIdx;
+                                } else if (hLow.includes('kontak') || hLow.includes('telepon') || hLow.includes('telp') || hLow.includes('wa') || hLow.includes('hp')) {
+                                    colMap.kontak = colIdx;
+                                } else if (hLow.includes('alamat') || hLow.includes('domisili')) {
+                                    colMap.alamat = colIdx;
+                                } else if (hLow.includes('unit') || hLow === 'lembaga') {
+                                    colMap.unit = colIdx;
+                                } else if (hLow.includes('program') || hLow.includes('level') || hLow.includes('tingkat')) {
+                                    colMap.program = colIdx;
+                                } else if (hLow.includes('status') || hLow.includes('keaktifan')) {
+                                    colMap.status = colIdx;
+                                }
+                            });
+                            startDataIndex = headerRowIndex + 1;
+                        } else {
+                            // Fallback indeks default urutan 11 kolom yayasan
+                            colMap.id = 0;
+                            colMap.nama = 1;
+                            colMap.tempat_tanggal_lahir = 2;
+                            colMap.agama = 3;
+                            colMap.nama_ayah = 4;
+                            colMap.nama_ibu = 5;
+                            colMap.kontak = 6;
+                            colMap.alamat = 7;
+                            colMap.unit = 8;
+                            colMap.program = 9;
+                            colMap.status = 10;
+                            startDataIndex = 0;
+                        }
+
+                        const students = [];
+                        for (let r = startDataIndex; r < rawSheet.length; r++) {
+                            const row = rawSheet[r];
+                            if (!Array.isArray(row) || row.length === 0) continue;
+
+                            const getVal = (idx) => {
+                                if (idx < 0 || idx >= row.length) return '';
+                                const val = row[idx];
+                                if (val === null || val === undefined) return '';
+                                return String(val).trim();
+                            };
+
+                            const nama = colMap.nama >= 0 ? getVal(colMap.nama) : (row[1] || '');
+                            if (!nama || nama.length < 2) continue;
+
+                            students.push({
+                                id: colMap.id >= 0 ? getVal(colMap.id) : (row[0] || null),
+                                nama,
+                                tempat_tanggal_lahir: colMap.tempat_tanggal_lahir >= 0 ? getVal(colMap.tempat_tanggal_lahir) : (row[2] || null),
+                                agama: colMap.agama >= 0 ? getVal(colMap.agama) : (row[3] || null),
+                                nama_ayah: colMap.nama_ayah >= 0 ? getVal(colMap.nama_ayah) : (row[4] || null),
+                                nama_ibu: colMap.nama_ibu >= 0 ? getVal(colMap.nama_ibu) : (row[5] || null),
+                                kontak: colMap.kontak >= 0 ? getVal(colMap.kontak) : (row[6] || null),
+                                alamat: colMap.alamat >= 0 ? getVal(colMap.alamat) : (row[7] || null),
+                                unit: colMap.unit >= 0 ? getVal(colMap.unit) : (row[8] || null),
+                                program: colMap.program >= 0 ? getVal(colMap.program) : (row[9] || null),
+                                level: colMap.program >= 0 ? getVal(colMap.program) : (row[9] || null),
+                                status: (colMap.status >= 0 ? getVal(colMap.status) : (row[10] || '')) || 'Aktif'
+                            });
+                        }
+
+                        resolve(students);
+                    } catch (err) {
+                        reject(err);
+                    }
+                };
+
+                if (isExcel) {
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    reader.readAsText(file);
+                }
+            });
+        }
+
+        async function processImportFile() {
             if (!selectedImportFile) {
-                showToast('Pilih berkas CSV terlebih dahulu!', 'error');
+                showToast('Pilih berkas Excel (.xlsx/.xls) atau CSV terlebih dahulu!', 'error');
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = async function (e) {
-                const text = e.target.result;
-                const rows = text.split(/\r?\n/);
-                if (rows.length <= 1) {
-                    showToast('Berkas CSV kosong atau tidak valid!', 'error');
+            const importBtn = document.getElementById('btn-do-import');
+            const origHtml = importBtn ? importBtn.innerHTML : '';
+            if (importBtn) {
+                importBtn.disabled = true;
+                importBtn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle"></span> Memproses...`;
+            }
+
+            try {
+                let students = parsedImportRows;
+                if (!students || students.length === 0) {
+                    students = await parseFileRows(selectedImportFile);
+                }
+
+                if (students.length === 0) {
+                    showToast('Tidak ada data siswa valid ditemukan dalam berkas tersebut!', 'error');
                     return;
                 }
 
-                const list = [];
-                for (let i = 1; i < rows.length; i++) {
-                    const rowText = rows[i].trim();
-                    if (!rowText) continue;
+                const BATCH_SIZE = 100;
+                let totalSuccess = 0;
+                let allErrors = [];
 
-                    const columns = [];
-                    let insideQuotes = false;
-                    let currentColumn = '';
-
-                    for (let c = 0; c < rowText.length; c++) {
-                        const char = rowText[c];
-                        if (char === '"') {
-                            insideQuotes = !insideQuotes;
-                        } else if (char === ',' && !insideQuotes) {
-                            columns.push(currentColumn.trim());
-                            currentColumn = '';
-                        } else {
-                            currentColumn += char;
-                        }
-                    }
-                    columns.push(currentColumn.trim());
-
-                    if (columns.length < 2 || !columns[1]) continue;
-
-                    const student = {
-                        id: columns[0] || null,
-                        nama: columns[1],
-                        alamat: columns[2] || '',
-                        kontak: columns[3] || '',
-                        program: columns[4] || null,
-                        level: columns[5] || null,
-                        status: columns[6] || 'Aktif'
-                    };
-                    list.push(student);
-                }
-
-                if (list.length === 0) {
-                    showToast('Tidak ada data siswa valid ditemukan dalam berkas!', 'error');
-                    return;
-                }
-
-                try {
+                for (let i = 0; i < students.length; i += BATCH_SIZE) {
+                    const batch = students.slice(i, i + BATCH_SIZE);
                     const res = await fetch(`${API_BASE}/api/students/bulk`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ list })
+                        body: JSON.stringify({ list: batch })
                     });
-                    if (!res.ok) throw new Error();
-
-                    showToast(`Sukses mengimpor ${list.length} data siswa!`);
-                    closeModal('import-modal');
-                    selectedImportFile = null;
-                    document.getElementById('import-filename-display').classList.add('hidden');
-                    document.getElementById('import-file-input').value = '';
-                    await fetchStudents();
-                } catch (err) {
-                    console.error(err);
-                    showToast('Gagal mengimpor data siswa ke server.', 'error');
+                    const resData = await res.json();
+                    if (res.ok && resData.success) {
+                        totalSuccess += (resData.count || 0);
+                        if (Array.isArray(resData.errors) && resData.errors.length > 0) {
+                            allErrors.push(...resData.errors);
+                        }
+                    } else {
+                        allErrors.push({ error: resData.message || `Gagal batch ${Math.floor(i / BATCH_SIZE) + 1}` });
+                    }
                 }
-            };
-            reader.readAsText(selectedImportFile);
+
+                closeModal('import-modal');
+                selectedImportFile = null;
+                parsedImportRows = [];
+                document.getElementById('import-file-input').value = '';
+                document.getElementById('import-filename-display').classList.add('hidden');
+                if (document.getElementById('import-preview-box')) {
+                    document.getElementById('import-preview-box').classList.add('hidden');
+                }
+
+                await fetchStudents();
+
+                if (allErrors.length === 0) {
+                    showToast(`Sukses mengimpor ${totalSuccess} data siswa tanpa kendala!`, 'success');
+                } else {
+                    showToast(`Impor selesai: ${totalSuccess} berhasil, ${allErrors.length} baris kendala.`, 'warning');
+                    console.warn('Rincian kendala impor:', allErrors);
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Terjadi kesalahan saat memproses impor berkas: ' + err.message, 'error');
+            } finally {
+                if (importBtn) {
+                    importBtn.disabled = false;
+                    importBtn.innerHTML = origHtml;
+                    if (window.lucide) lucide.createIcons();
+                }
+            }
+        }
+
+        function downloadImportTemplate(type = 'xlsx') {
+            const headers = [
+                "NIS",
+                "NAMA LENGKAP",
+                "TEMPAT, TANGGAL LAHIR",
+                "AGAMA",
+                "NAMA AYAH",
+                "NAMA IBU",
+                "KONTAK",
+                "ALAMAT LENGKAP",
+                "UNIT YAYASAN",
+                "PROGRAM",
+                "STATUS"
+            ];
+
+            const sampleRows = [
+                ["2607001805", "Muhammad Rayyan", "Jakarta, 16 Desember 2021", "Islam", "Hendra Pratama", "Siti Aisyah", "081234567890", "Jl. Mawar No. 12, Tangerang Selatan", "KBEC", "Beginner 1", "Aktif"],
+                ["2507000715-C", "Aisyah Putri", "Tangerang, 10 Mei 2020", "Islam", "Budi Santoso", "Dewi Lestari", "085678901234", "Jl. Melati Blok B4 No. 5", "Calistung", "Calistung 1A", "Cuti"],
+                ["ARBN.2026.07.228", "Fathir Ahmad", "Tangerang Selatan, 9 September 2015", "Islam", "Ahmad Fauzi", "Nurul Hidayah", "087890123456", "Jl. Flamboyan No. 8", "TK", "TKA", "Alumni"]
+            ];
+
+            if (type === 'xlsx' && window.XLSX) {
+                const wsData = [headers, ...sampleRows];
+                const ws = XLSX.utils.aoa_to_sheet(wsData);
+                ws['!cols'] = [
+                    { wch: 18 }, { wch: 25 }, { wch: 30 }, { wch: 12 }, { wch: 20 },
+                    { wch: 20 }, { wch: 16 }, { wch: 35 }, { wch: 15 }, { wch: 18 }, { wch: 12 }
+                ];
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Data Siswa");
+                XLSX.writeFile(wb, "Template_Import_Siswa_KBEC.xlsx");
+                showToast("Template Excel (.xlsx) berhasil diunduh.");
+            } else {
+                let csvContent = "\uFEFF";
+                csvContent += headers.map(h => `"${h}"`).join(",") + "\n";
+                sampleRows.forEach(row => {
+                    csvContent += row.map(cell => `"${(cell || '').replace(/"/g, '""')}"`).join(",") + "\n";
+                });
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', "Template_Import_Siswa_KBEC.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast("Template CSV (.csv) berhasil diunduh.");
+            }
         }
 
         function getFilteredStudents() {
-            const filterProgram = document.getElementById('filter-program')?.value || 'Semua Program';
+            const filterProgram = document.getElementById('filter-program')?.value || 'Semua Unit';
             const filterStatus = document.getElementById('filter-status')?.value || 'Semua Status';
             const filterLevel = document.getElementById('filter-level')?.value || 'Semua Level';
 
@@ -862,85 +1428,135 @@
             const searchValue = (tableSearch || headerSearch).toLowerCase().trim();
 
             return studentsData.filter(student => {
-                let matchesProgram = (filterProgram === 'Semua Program');
+                let matchesProgram = (!filterProgram || filterProgram === 'Semua Unit' || filterProgram === 'Semua Program' || filterProgram.toLowerCase().startsWith('semua'));
+
                 if (!matchesProgram) {
                     const pLow = filterProgram.toLowerCase();
                     const stdProgLow = (student.program || '').toLowerCase();
-                    const stdId = student.id || '';
+                    const stdUnitLow = (student.unit || '').toLowerCase();
+                    const stdId = (student.id || '').toUpperCase();
 
-                    if (stdProgLow.includes(pLow)) {
+                    if (stdUnitLow === pLow || stdProgLow === pLow || stdProgLow.includes(pLow)) {
                         matchesProgram = true;
-                    } else if (pLow === 'calistung' && (stdId.endsWith('-C') || stdId.includes('-C'))) {
+                    } else if (pLow === 'calistung' && (stdUnitLow === 'calistung' || stdId.endsWith('-C') || stdId.includes('-C') || stdProgLow.includes('calistung'))) {
                         matchesProgram = true;
-                    } else if (pLow === 'bimbel' && (stdId.endsWith('-B') || stdId.includes('-B'))) {
+                    } else if (pLow === 'bimbel' && (stdUnitLow === 'bimbel' || stdId.endsWith('-B') || stdId.includes('-B') || stdProgLow.includes('bimbel'))) {
                         matchesProgram = true;
-                    } else if (pLow === 'arabin' && (stdId.endsWith('-A') || stdId.includes('-A'))) {
+                    } else if (pLow === 'arabin' && (stdUnitLow === 'arabin' || stdId.endsWith('-A') || stdId.includes('-A') || stdProgLow.includes('arabin'))) {
                         matchesProgram = true;
-                    } else if (pLow === 'tk' && (stdId.endsWith('-TK') || stdId.includes('-TK'))) {
+                    } else if (pLow === 'tk' && (stdUnitLow === 'tk' || stdId.includes('ARBN.') || stdId.endsWith('-TK') || stdId.includes('-TK') || stdProgLow === 'tk' || stdProgLow === 'tka' || stdProgLow === 'tkb' || stdProgLow === 'paud' || (stdProgLow.includes('kb') && !stdProgLow.includes('kbec')))) {
                         matchesProgram = true;
-                    } else if (pLow === 'kbec' && (stdProgLow.includes('kbec') || (!stdId.includes('-') && stdId.length >= 10))) {
+                    } else if (pLow === 'kbec' && (stdUnitLow === 'kbec' || stdProgLow.includes('kbec') || (!stdId.includes('-') && !stdId.includes('ARBN.') && stdId.length >= 8))) {
                         matchesProgram = true;
                     }
                 }
 
-                const matchesStatus = (filterStatus === 'Semua Status' || student.status === filterStatus);
-                const matchesLevel = (filterLevel === 'Semua Level' || (student.level && student.level.toLowerCase().includes(filterLevel.toLowerCase())));
+                let matchesStatus = (!filterStatus || filterStatus === 'Semua Status' || filterStatus.toLowerCase().startsWith('semua') || student.status === filterStatus);
+
+                let matchesLevel = (!filterLevel || filterLevel === 'Semua Level' || filterLevel === 'Semua Level / Program' || filterLevel.toLowerCase().startsWith('semua'));
+                if (!matchesLevel && (student.level || student.program)) {
+                    const lLow = filterLevel.toLowerCase();
+                    const stdLvlLow = (student.level || student.program || '').toLowerCase();
+                    if (stdLvlLow === lLow || stdLvlLow.includes(lLow)) {
+                        matchesLevel = true;
+                    }
+                }
 
                 const matchesSearch = !searchValue || (
                     (student.nama && student.nama.toLowerCase().includes(searchValue)) ||
                     (student.program && student.program.toLowerCase().includes(searchValue)) ||
+                    (student.level && student.level.toLowerCase().includes(searchValue)) ||
                     (student.id && student.id.toLowerCase().includes(searchValue)) ||
                     (student.alamat && student.alamat.toLowerCase().includes(searchValue)) ||
-                    (student.kontak && student.kontak.toLowerCase().includes(searchValue))
+                    (student.kontak && student.kontak.toLowerCase().includes(searchValue)) ||
+                    (student.nama_ayah && student.nama_ayah.toLowerCase().includes(searchValue)) ||
+                    (student.nama_ibu && student.nama_ibu.toLowerCase().includes(searchValue)) ||
+                    (student.tempat_tanggal_lahir && student.tempat_tanggal_lahir.toLowerCase().includes(searchValue))
                 );
 
                 return matchesProgram && matchesStatus && matchesLevel && matchesSearch;
             });
         }
 
-        function exportStudentsToCSV() {
+        function exportStudents(type = 'xlsx') {
             try {
                 const filtered = getFilteredStudents();
-
                 if (!filtered || filtered.length === 0) {
                     showToast('Tidak ada data siswa yang cocok dengan filter untuk diekspor!', 'error');
                     return;
                 }
 
-                let csvContent = "\uFEFF";
-                csvContent += "ID / NIS Siswa,Nama Lengkap,Alamat,No. Kontak,Program,Tingkat (Level),Status\n";
+                const headers = [
+                    "NIS",
+                    "NAMA LENGKAP",
+                    "TEMPAT, TANGGAL LAHIR",
+                    "AGAMA",
+                    "NAMA AYAH",
+                    "NAMA IBU",
+                    "KONTAK",
+                    "ALAMAT LENGKAP",
+                    "UNIT YAYASAN",
+                    "PROGRAM / LEVEL",
+                    "STATUS"
+                ];
 
-                filtered.forEach(s => {
-                    const row = [
-                        s.id,
-                        s.nama,
-                        s.alamat || '',
-                        s.kontak || '',
-                        s.program || '',
-                        s.level || '',
-                        s.status || 'Aktif'
-                    ].map(val => `"${(val || '').toString().replace(/"/g, '""')}"`).join(",");
-                    csvContent += row + "\n";
-                });
+                const rows = filtered.map(s => [
+                    s.id || '',
+                    s.nama || '',
+                    s.tempat_tanggal_lahir || '',
+                    s.agama || '',
+                    s.nama_ayah || '',
+                    s.nama_ibu || '',
+                    s.kontak || '',
+                    s.alamat || '',
+                    s.unit || 'KBEC',
+                    s.program || s.level || '',
+                    s.status || 'Aktif'
+                ]);
 
-                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
                 const filterProg = document.getElementById('filter-program')?.value || 'Semua';
-                const fileTag = filterProg !== 'Semua Program' ? filterProg.toLowerCase().replace(/\s+/g, '_') : 'semua';
+                const fileTag = filterProg !== 'Semua Unit' && filterProg !== 'Semua Program' ? filterProg.toLowerCase().replace(/\s+/g, '_') : 'semua';
+                const dateStr = new Date().toISOString().slice(0, 10);
+                const baseFileName = `data_siswa_kbec_${fileTag}_${dateStr}`;
 
-                link.setAttribute('href', url);
-                link.setAttribute('download', `data_siswa_kbec_${fileTag}_${new Date().toISOString().slice(0, 10)}.csv`);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-
-                closeModal('export-modal');
-                showToast(`Sukses mengekspor ${filtered.length} data siswa terfilter ke CSV!`);
+                if (type === 'xlsx' && window.XLSX) {
+                    const wsData = [headers, ...rows];
+                    const ws = XLSX.utils.aoa_to_sheet(wsData);
+                    ws['!cols'] = [
+                        { wch: 18 }, { wch: 25 }, { wch: 30 }, { wch: 12 }, { wch: 20 },
+                        { wch: 20 }, { wch: 16 }, { wch: 35 }, { wch: 15 }, { wch: 18 }, { wch: 12 }
+                    ];
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Data Siswa");
+                    XLSX.writeFile(wb, `${baseFileName}.xlsx`);
+                    closeModal('export-modal');
+                    showToast(`Sukses mengekspor ${filtered.length} siswa ke file Excel (.xlsx)!`);
+                } else {
+                    let csvContent = "\uFEFF";
+                    csvContent += headers.map(h => `"${h}"`).join(",") + "\n";
+                    rows.forEach(row => {
+                        csvContent += row.map(cell => `"${(cell || '').toString().replace(/"/g, '""')}"`).join(",") + "\n";
+                    });
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `${baseFileName}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    closeModal('export-modal');
+                    showToast(`Sukses mengekspor ${filtered.length} siswa ke file CSV (.csv)!`);
+                }
             } catch (err) {
                 console.error(err);
-                showToast('Gagal mengekspor data siswa.', 'error');
+                showToast('Gagal mengekspor data siswa: ' + err.message, 'error');
             }
+        }
+
+        // Kompatibilitas untuk pemanggil lama exportStudentsToCSV
+        function exportStudentsToCSV() {
+            exportStudents('csv');
         }
 
         const UNIT_DEFAULT_LEVELS = {

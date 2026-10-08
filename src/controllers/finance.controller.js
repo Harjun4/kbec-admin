@@ -488,14 +488,25 @@ async function getStudentBillsSummary(req, res, next) {
                 const matchedCatLow = matchedProg && matchedProg.cat ? matchedProg.cat.toLowerCase().trim() : '';
                 const matchedNameLow = matchedProg && matchedProg.nama ? matchedProg.nama.toLowerCase().trim() : '';
 
-                const matchesProg = (stdProgLow === pLow) ||
-                                    (stdLevelLow === pLow) ||
-                                    (billProgLow === pLow) ||
-                                    (matchedCatLow === pLow) ||
-                                    (matchedNameLow === pLow) ||
-                                    stdProgLow.includes(pLow) ||
-                                    stdLevelLow.includes(pLow) ||
-                                    billProgLow.includes(pLow);
+                let matchesProg = (stdProgLow === pLow) ||
+                                  (stdLevelLow === pLow) ||
+                                  (billProgLow === pLow) ||
+                                  (matchedCatLow === pLow) ||
+                                  (matchedNameLow === pLow);
+
+                if (!matchesProg && pLow !== 'tk') {
+                    matchesProg = stdProgLow.includes(pLow) ||
+                                  stdLevelLow.includes(pLow) ||
+                                  billProgLow.includes(pLow);
+                } else if (!matchesProg && pLow === 'tk') {
+                    if (std.unit && std.unit.toLowerCase() !== 'tk') {
+                        matchesProg = false;
+                    } else if (stdProgLow === 'mtk' || stdLevelLow === 'mtk') {
+                        matchesProg = false;
+                    } else if (stdProgLow.startsWith('tk ') || stdProgLow.startsWith('tk-') || stdProgLow === 'tka' || stdProgLow === 'tkb' || stdProgLow === 'paud' || (std.unit && std.unit.toLowerCase() === 'tk')) {
+                        matchesProg = true;
+                    }
+                }
                 if (!matchesProg) continue;
             }
 
