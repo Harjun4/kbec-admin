@@ -715,6 +715,101 @@
             select.value = 'Semua Unit';
         }
 
+        function getStudentUnit(student) {
+            if (!student) return 'KBEC';
+            const raw = (student.unit || '').trim();
+            if (raw) {
+                const u = raw.toUpperCase();
+                if (u === 'TK') return 'TK';
+                if (u === 'CALISTUNG') return 'Calistung';
+                if (u === 'BIMBEL') return 'Bimbel';
+                if (u === 'ARABIN') return 'Arabin';
+                if (u === 'KBEC') return 'KBEC';
+            }
+
+            const id = (student.id || '').toUpperCase().trim();
+            if (id.startsWith('ARBN.') || id.includes('ARBN.') || id.endsWith('-TK') || id.includes('-TK')) {
+                return 'TK';
+            }
+            if (id.endsWith('-C') || id.includes('-C')) {
+                return 'Calistung';
+            }
+            if (id.endsWith('-B') || id.includes('-B')) {
+                return 'Bimbel';
+            }
+            if (id.endsWith('-A') || id.includes('-A')) {
+                return 'Arabin';
+            }
+
+            const prog = (student.program || '').toLowerCase().trim();
+            const lvl = (student.level || '').toLowerCase().trim();
+            const combined = `${prog} ${lvl}`;
+            if (combined.includes('calistung')) return 'Calistung';
+            if (combined.includes('bimbel') || combined.includes('akademik sd')) return 'Bimbel';
+            if (combined.includes('arabin')) return 'Arabin';
+            if (combined.includes('preschool') || ['kb', 'tka', 'tkb', 'paud'].includes(prog) || combined.includes('tk')) {
+                return 'TK';
+            }
+
+            return 'KBEC';
+        }
+
+        function isStudentMatchFilter(student, filterProgram, filterStatus, filterLevel, searchValue) {
+            // 1. Filter Unit Yayasan
+            const fp = (filterProgram || 'Semua Unit').trim();
+            if (fp && fp !== 'Semua Unit' && fp !== 'Semua Program' && !fp.toLowerCase().startsWith('semua')) {
+                const pLow = fp.toLowerCase();
+                const stdUnit = getStudentUnit(student).toLowerCase();
+                if (['kbec', 'tk', 'bimbel', 'calistung', 'arabin'].includes(pLow)) {
+                    if (stdUnit !== pLow) return false;
+                } else {
+                    const stdProgLow = (student.program || '').toLowerCase();
+                    const stdLvlLow = (student.level || '').toLowerCase();
+                    const match = (stdUnit === pLow || stdProgLow === pLow || stdProgLow.includes(pLow) || stdLvlLow === pLow || stdLvlLow.includes(pLow));
+                    if (!match) return false;
+                }
+            }
+
+            // 2. Filter Status
+            const fs = (filterStatus || 'Semua Status').trim();
+            if (fs && fs !== 'Semua Status' && !fs.toLowerCase().startsWith('semua')) {
+                if ((student.status || 'Aktif').toLowerCase() !== fs.toLowerCase()) {
+                    return false;
+                }
+            }
+
+            // 3. Filter Level / Program
+            const fl = (filterLevel || 'Semua Level').trim();
+            if (fl && fl !== 'Semua Level' && fl !== 'Semua Level / Program' && !fl.toLowerCase().startsWith('semua')) {
+                const lLow = fl.toLowerCase();
+                const stdLvlLow = (student.level || '').toLowerCase();
+                const stdProgLow = (student.program || '').toLowerCase();
+                if (stdLvlLow !== lLow && stdProgLow !== lLow && !stdLvlLow.includes(lLow) && !stdProgLow.includes(lLow)) {
+                    return false;
+                }
+            }
+
+            // 4. Pencarian Cerdas
+            if (searchValue) {
+                const s = searchValue.toLowerCase().trim();
+                const matchesSearch = (
+                    (student.nama && student.nama.toLowerCase().includes(s)) ||
+                    (student.id && student.id.toLowerCase().includes(s)) ||
+                    (student.program && student.program.toLowerCase().includes(s)) ||
+                    (student.level && student.level.toLowerCase().includes(s)) ||
+                    (student.alamat && student.alamat.toLowerCase().includes(s)) ||
+                    (student.kontak && student.kontak.toLowerCase().includes(s)) ||
+                    (student.nama_ayah && student.nama_ayah.toLowerCase().includes(s)) ||
+                    (student.nama_ibu && student.nama_ibu.toLowerCase().includes(s)) ||
+                    (student.tempat_tanggal_lahir && student.tempat_tanggal_lahir.toLowerCase().includes(s)) ||
+                    (student.agama && student.agama.toLowerCase().includes(s))
+                );
+                if (!matchesSearch) return false;
+            }
+
+            return true;
+        }
+
         function renderTable() {
             const tbody = document.getElementById('student-table-body');
             const filterProgram = document.getElementById('filter-program')?.value || 'Semua Unit';
@@ -727,52 +822,9 @@
 
             tbody.innerHTML = '';
 
-            const filteredData = studentsData.filter(student => {
-                let matchesProgram = (!filterProgram || filterProgram === 'Semua Unit' || filterProgram === 'Semua Program' || filterProgram.toLowerCase().startsWith('semua'));
-
-                if (!matchesProgram) {
-                    const pLow = filterProgram.toLowerCase();
-                    const stdProgLow = (student.program || '').toLowerCase();
-                    const stdUnitLow = (student.unit || '').toLowerCase();
-                    const stdId = (student.id || '').toUpperCase();
-
-                    if (stdUnitLow === pLow || stdProgLow === pLow || stdProgLow.includes(pLow)) {
-                        matchesProgram = true;
-                    } else if (pLow === 'calistung' && (stdUnitLow === 'calistung' || stdId.endsWith('-C') || stdId.includes('-C') || stdProgLow.includes('calistung'))) {
-                        matchesProgram = true;
-                    } else if (pLow === 'bimbel' && (stdUnitLow === 'bimbel' || stdId.endsWith('-B') || stdId.includes('-B') || stdProgLow.includes('bimbel'))) {
-                        matchesProgram = true;
-                    } else if (pLow === 'arabin' && (stdUnitLow === 'arabin' || stdId.endsWith('-A') || stdId.includes('-A') || stdProgLow.includes('arabin'))) {
-                        matchesProgram = true;
-                    } else if (pLow === 'tk' && (stdUnitLow === 'tk' || stdId.endsWith('-TK') || stdId.includes('-TK') || stdProgLow === 'tk' || stdProgLow === 'tka' || stdProgLow === 'tkb' || stdProgLow === 'paud' || (stdProgLow.includes('kb') && !stdProgLow.includes('kbec')))) {
-                        matchesProgram = true;
-                    } else if (pLow === 'kbec' && (stdUnitLow === 'kbec' || stdProgLow.includes('kbec') || (!stdId.includes('-') && stdId.length >= 8))) {
-                        matchesProgram = true;
-                    }
-                }
-
-                let matchesStatus = (!filterStatus || filterStatus === 'Semua Status' || filterStatus.toLowerCase().startsWith('semua') || student.status === filterStatus);
-
-                let matchesLevel = (!filterLevel || filterLevel === 'Semua Level' || filterLevel === 'Semua Level / Program' || filterLevel.toLowerCase().startsWith('semua'));
-                if (!matchesLevel && (student.level || student.program)) {
-                    const lLow = filterLevel.toLowerCase();
-                    const stdLvlLow = (student.level || student.program || '').toLowerCase();
-                    if (stdLvlLow === lLow || stdLvlLow.includes(lLow)) {
-                        matchesLevel = true;
-                    }
-                }
-
-                const matchesSearch = !searchValue || (
-                    (student.nama && student.nama.toLowerCase().includes(searchValue)) ||
-                    (student.program && student.program.toLowerCase().includes(searchValue)) ||
-                    (student.level && student.level.toLowerCase().includes(searchValue)) ||
-                    (student.id && student.id.toLowerCase().includes(searchValue)) ||
-                    (student.alamat && student.alamat.toLowerCase().includes(searchValue)) ||
-                    (student.kontak && student.kontak.toLowerCase().includes(searchValue))
-                );
-
-                return matchesProgram && matchesStatus && matchesLevel && matchesSearch;
-            });
+            const filteredData = studentsData.filter(student =>
+                isStudentMatchFilter(student, filterProgram, filterStatus, filterLevel, searchValue)
+            );
 
             document.getElementById('total-siswa-counter').innerText = filteredData.length;
 
@@ -788,7 +840,7 @@
                 else if (student.status === 'Cuti') statusClass = 'text-amber-700 bg-amber-50 border border-amber-200';
                 else if (student.status === 'Alumni') statusClass = 'text-blue-600 bg-blue-50';
 
-                const isArabin = (student.program && student.program.toLowerCase().includes('arabin')) || (student.id && student.id.endsWith('-A'));
+                const isArabin = getStudentUnit(student) === 'Arabin';
                 const arabinBadge = isArabin ? `<span class="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">Beasiswa</span>` : '';
 
                 tbody.innerHTML += `
@@ -806,7 +858,7 @@
                         </div>
                     </td>
                     <td class="py-4 px-6 text-xs text-slate-600 font-medium">${student.kontak || '-'}</td>
-                    <td class="py-4 px-6 text-xs text-slate-700 font-semibold">${student.unit || 'KBEC'}</td>
+                    <td class="py-4 px-6 text-xs text-slate-700 font-semibold">${getStudentUnit(student)}</td>
                     <td class="py-4 px-6 text-xs text-slate-500 font-medium">${student.level || student.program || '-'}</td>
                     <td class="py-4 px-6"><span class="text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm ${statusClass}">${student.status || 'Aktif'}</span></td>
                     <td class="py-4 px-6">
@@ -938,16 +990,7 @@
             if (document.getElementById('form-ayah')) document.getElementById('form-ayah').value = student.nama_ayah || '';
             if (document.getElementById('form-ibu')) document.getElementById('form-ibu').value = student.nama_ibu || '';
 
-            let progVal = student.unit || 'KBEC';
-            if (!student.unit) {
-                const sProg = (student.program || '').toLowerCase();
-                const sId = (student.id || '').toUpperCase();
-                if (sId.endsWith('-C') || sProg.includes('calistung')) progVal = 'Calistung';
-                else if (sId.endsWith('-B') || sProg.includes('bimbel')) progVal = 'Bimbel';
-                else if (sId.endsWith('-A') || sProg.includes('arabin')) progVal = 'Arabin';
-                else if (sId.includes('ARBN.') || sId.endsWith('-TK') || sProg.includes('tk') || sProg.includes('paud')) progVal = 'TK';
-                else progVal = 'KBEC';
-            }
+            let progVal = getStudentUnit(student);
 
             if (document.getElementById('form-program')) document.getElementById('form-program').value = progVal;
             updateNisHint(progVal);
@@ -971,7 +1014,7 @@
 
             document.getElementById('detail-nama').innerText = student.nama || '-';
             document.getElementById('detail-nis').innerText = student.id || '-';
-            document.getElementById('detail-unit-badge').innerText = student.unit || 'KBEC';
+            document.getElementById('detail-unit-badge').innerText = getStudentUnit(student);
 
             const statusBadge = document.getElementById('detail-status-badge');
             if (statusBadge) {
@@ -1427,55 +1470,9 @@
             const headerSearch = document.getElementById('header-search-input')?.value || '';
             const searchValue = (tableSearch || headerSearch).toLowerCase().trim();
 
-            return studentsData.filter(student => {
-                let matchesProgram = (!filterProgram || filterProgram === 'Semua Unit' || filterProgram === 'Semua Program' || filterProgram.toLowerCase().startsWith('semua'));
-
-                if (!matchesProgram) {
-                    const pLow = filterProgram.toLowerCase();
-                    const stdProgLow = (student.program || '').toLowerCase();
-                    const stdUnitLow = (student.unit || '').toLowerCase();
-                    const stdId = (student.id || '').toUpperCase();
-
-                    if (stdUnitLow === pLow || stdProgLow === pLow || stdProgLow.includes(pLow)) {
-                        matchesProgram = true;
-                    } else if (pLow === 'calistung' && (stdUnitLow === 'calistung' || stdId.endsWith('-C') || stdId.includes('-C') || stdProgLow.includes('calistung'))) {
-                        matchesProgram = true;
-                    } else if (pLow === 'bimbel' && (stdUnitLow === 'bimbel' || stdId.endsWith('-B') || stdId.includes('-B') || stdProgLow.includes('bimbel'))) {
-                        matchesProgram = true;
-                    } else if (pLow === 'arabin' && (stdUnitLow === 'arabin' || stdId.endsWith('-A') || stdId.includes('-A') || stdProgLow.includes('arabin'))) {
-                        matchesProgram = true;
-                    } else if (pLow === 'tk' && (stdUnitLow === 'tk' || stdId.includes('ARBN.') || stdId.endsWith('-TK') || stdId.includes('-TK') || stdProgLow === 'tk' || stdProgLow === 'tka' || stdProgLow === 'tkb' || stdProgLow === 'paud' || (stdProgLow.includes('kb') && !stdProgLow.includes('kbec')))) {
-                        matchesProgram = true;
-                    } else if (pLow === 'kbec' && (stdUnitLow === 'kbec' || stdProgLow.includes('kbec') || (!stdId.includes('-') && !stdId.includes('ARBN.') && stdId.length >= 8))) {
-                        matchesProgram = true;
-                    }
-                }
-
-                let matchesStatus = (!filterStatus || filterStatus === 'Semua Status' || filterStatus.toLowerCase().startsWith('semua') || student.status === filterStatus);
-
-                let matchesLevel = (!filterLevel || filterLevel === 'Semua Level' || filterLevel === 'Semua Level / Program' || filterLevel.toLowerCase().startsWith('semua'));
-                if (!matchesLevel && (student.level || student.program)) {
-                    const lLow = filterLevel.toLowerCase();
-                    const stdLvlLow = (student.level || student.program || '').toLowerCase();
-                    if (stdLvlLow === lLow || stdLvlLow.includes(lLow)) {
-                        matchesLevel = true;
-                    }
-                }
-
-                const matchesSearch = !searchValue || (
-                    (student.nama && student.nama.toLowerCase().includes(searchValue)) ||
-                    (student.program && student.program.toLowerCase().includes(searchValue)) ||
-                    (student.level && student.level.toLowerCase().includes(searchValue)) ||
-                    (student.id && student.id.toLowerCase().includes(searchValue)) ||
-                    (student.alamat && student.alamat.toLowerCase().includes(searchValue)) ||
-                    (student.kontak && student.kontak.toLowerCase().includes(searchValue)) ||
-                    (student.nama_ayah && student.nama_ayah.toLowerCase().includes(searchValue)) ||
-                    (student.nama_ibu && student.nama_ibu.toLowerCase().includes(searchValue)) ||
-                    (student.tempat_tanggal_lahir && student.tempat_tanggal_lahir.toLowerCase().includes(searchValue))
-                );
-
-                return matchesProgram && matchesStatus && matchesLevel && matchesSearch;
-            });
+            return studentsData.filter(student =>
+                isStudentMatchFilter(student, filterProgram, filterStatus, filterLevel, searchValue)
+            );
         }
 
         function exportStudents(type = 'xlsx') {
@@ -1509,7 +1506,7 @@
                     s.nama_ibu || '',
                     s.kontak || '',
                     s.alamat || '',
-                    s.unit || 'KBEC',
+                    getStudentUnit(s),
                     s.program || s.level || '',
                     s.status || 'Aktif'
                 ]);
