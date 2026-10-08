@@ -58,7 +58,7 @@
 
         // 4. Staff Suppression: Sembunyikan tombol Hapus (Delete) pada master data yang dilindungi Super Admin
         if (isStaff) {
-            if (currentPath.endsWith('pengajar.html') || currentPath.endsWith('kelas.html') || currentPath.endsWith('inventaris.html') || currentPath.endsWith('siswa.html')) {
+            if (currentPath.endsWith('pengajar.html') || currentPath.endsWith('inventaris.html') || currentPath.endsWith('siswa.html')) {
                 document.querySelectorAll('button, a, [role="button"]').forEach(btn => {
                     const txt = (btn.textContent || btn.innerText || '').trim().toLowerCase();
                     const onclickAttr = btn.getAttribute('onclick') || '';

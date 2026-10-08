@@ -797,15 +797,23 @@
             const kelas = kelasList.find(k => String(k.id) === String(id));
             if (kelas && confirm(`Apakah Anda yakin ingin menghapus kelas ${kelas.nama}?`)) {
                 try {
+                    const token = localStorage.getItem('authToken');
+                    const headers = { 'X-Requested-With': 'XMLHttpRequest' };
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+
                     const res = await fetch(`${API_BASE}/api/classes/${id}`, {
-                        method: 'DELETE'
+                        method: 'DELETE',
+                        headers: headers
                     });
-                    if (!res.ok) throw new Error();
+                    if (!res.ok) {
+                        const errData = await res.json().catch(() => ({}));
+                        throw new Error(errData.message || 'Gagal menghapus kelas');
+                    }
                     showToast(`Kelas "${kelas.nama}" berhasil dihapus.`, 'error');
                     await fetchClasses();
                 } catch (err) {
                     console.error(err);
-                    showToast('Gagal menghapus kelas dari database.', 'error');
+                    showToast(err.message || 'Gagal menghapus kelas dari database.', 'error');
                 }
             }
         }
