@@ -34,15 +34,72 @@ function formatDurationIndonesian(durationMinutes) {
 async function getTeachers(req, res, next) {
     try {
         const [rows] = await db.query('SELECT * FROM teachers ORDER BY id ASC');
-        const formatted = rows.map(r => ({
-            ...r,
-            expertise: JSON.parse(r.expertise || '[]')
-        }));
+        
+        // Ambil data attendance bulan berjalan dan relasi kelas untuk deteksi siswa bermasalah
+        let classes = [];
+        let classStudents = [];
+        let attRows = [];
+        try {
+            const [c] = await db.query('SELECT id, nama, pengajar, teacher_id, hari FROM classes');
+            const [cs] = await db.query('SELECT class_id, student_id FROM class_students');
+            const currentMonth = getWIBMonth();
+            const [a] = await db.query(`
+                SELECT a.student_id, s.nama AS student_name, a.status, a.kelas, 
+                       TO_CHAR(a.tanggal::timestamp, 'YYYY-MM-DD') as tanggal 
+                FROM attendance a
+                LEFT JOIN students s ON a.student_id = s.id
+                WHERE a.tanggal::text LIKE ?
+            `, [`${currentMonth}-%`]);
+            classes = c || [];
+            classStudents = cs || [];
+            attRows = a || [];
+        } catch (queryErr) {
+            console.warn('[getTeachers] Attendance enrichment notice:', queryErr.message);
+        }
+
+        const todayDate = getWIBDate();
+        const formatted = rows.map(r => {
+            const tId = r.id;
+            const tNameLower = (r.nama || '').toLowerCase().trim();
+            const myClasses = classes.filter(c => 
+                (c.teacher_id && String(c.teacher_id).trim() === String(tId).trim()) ||
+                (c.pengajar && tNameLower && (
+                    c.pengajar.toLowerCase().trim() === tNameLower ||
+                    c.pengajar.toLowerCase().includes(tNameLower) ||
+                    tNameLower.includes(c.pengajar.toLowerCase().trim())
+                ))
+            );
+            const myClassIds = myClasses.map(c => String(c.id));
+            const myClassNames = myClasses.map(c => (c.nama || '').toLowerCase().replace(/&amp;/g, '&').trim());
+            const myStudentIds = classStudents
+                .filter(cs => myClassIds.includes(String(cs.class_id)))
+                .map(cs => String(cs.student_id));
+
+            const relevantAtt = attRows.filter(a => {
+                const aKelasClean = (a.kelas || '').toLowerCase().replace(/&amp;/g, '&').trim();
+                return myStudentIds.includes(String(a.student_id)) || (aKelasClean && myClassNames.includes(aKelasClean));
+            });
+
+            const problematicStudents = evaluateProblematicStudents(relevantAtt);
+            const scheduledTodayCount = myClasses.filter(c => isClassScheduledOnDay(c.hari, todayDate)).length;
+
+            return {
+                ...r,
+                expertise: JSON.parse(r.expertise || '[]'),
+                total_classes: myClasses.length,
+                total_classes_today: scheduledTodayCount,
+                problematic_students_count: problematicStudents.length,
+                has_problematic_students: problematicStudents.length > 0,
+                problematic_students: problematicStudents
+            };
+        });
+
         res.json(formatted);
     } catch (err) {
         next(err);
     }
 }
+
 
 async function createTeacher(req, res, next) {
     const { nama, joined, expertise, email, kontak, status, avatar } = req.body;
@@ -784,6 +841,574 @@ async function getMyClassesToday(req, res, next) {
     }
 }
 
+/**
+ * Mengecek apakah suatu jadwal kelas aktif pada hari tertentu di KBEC
+ * Menangani Serial 1 (Senin, Rabu, Jumat), Serial 2 (Selasa, Kamis, Sabtu),
+ * Senin - Jumat, Setiap Hari, serta nama hari spesifik.
+ */
+function isClassScheduledOnDay(classHari, targetDateOrDay) {
+    if (!classHari) return false;
+    const h = String(classHari).toLowerCase().trim();
+
+    let dayIdx = -1;
+    let dayName = '';
+    const DAY_NAMES = ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'];
+
+    if (typeof targetDateOrDay === 'number') {
+        dayIdx = targetDateOrDay;
+        dayName = DAY_NAMES[dayIdx] || '';
+    } else if (typeof targetDateOrDay === 'string') {
+        const clean = targetDateOrDay.toLowerCase().trim();
+        if (clean.includes('-')) {
+            // Format YYYY-MM-DD
+            try {
+                const parts = clean.split('-');
+                const dObj = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                dayIdx = dObj.getDay();
+                dayName = DAY_NAMES[dayIdx];
+            } catch (e) {
+                dayIdx = new Date().getDay();
+                dayName = DAY_NAMES[dayIdx];
+            }
+        } else {
+            // Langsung nama hari (misal 'jumat' atau 'senin')
+            dayName = clean;
+            dayIdx = DAY_NAMES.indexOf(dayName);
+        }
+    } else {
+        dayIdx = new Date().getDay();
+        dayName = DAY_NAMES[dayIdx];
+    }
+
+    // 1. Serial 1: Senin (1), Rabu (3), Jumat (5)
+    if (h.includes('serial 1')) {
+        return dayIdx === 1 || dayIdx === 3 || dayIdx === 5;
+    }
+
+    // 2. Serial 2: Selasa (2), Kamis (4), Sabtu (6)
+    if (h.includes('serial 2')) {
+        return dayIdx === 2 || dayIdx === 4 || dayIdx === 6;
+    }
+
+    // 3. Rentang Senin - Jumat (misal kelas TK)
+    if (h.includes('senin - jumat') || h.includes('senin-jumat') || h.includes('senin s/d jumat')) {
+        return dayIdx >= 1 && dayIdx <= 5;
+    }
+
+    // 4. Rentang Senin - Sabtu
+    if (h.includes('senin - sabtu') || h.includes('senin-sabtu') || h.includes('senin s/d sabtu')) {
+        return dayIdx >= 1 && dayIdx <= 6;
+    }
+
+    // 5. Setiap Hari
+    if (h.includes('setiap hari') || h.includes('daily')) {
+        return true;
+    }
+
+    // 6. Weekend: Sabtu & Minggu
+    if (h.includes('sabtu - minggu') || h.includes('weekend') || h.includes('sabtu & minggu')) {
+        return dayIdx === 0 || dayIdx === 6;
+    }
+
+    // 7. Nama hari spesifik
+    return dayName ? h.includes(dayName) : false;
+}
+
+/**
+ * Menghitung ketepatan waktu check-in sesi mengajar pengajar
+ * Toleransi: 10 - 15 Menit sesuai arahan Super Admin KBEC
+ */
+function calculatePunctuality(scheduledStart, actualTime) {
+    if (!scheduledStart || !actualTime) {
+        return {
+            status: 'Belum Ada Jadwal / Absen',
+            badge: 'slate',
+            is_late: false,
+            late_minutes: 0,
+            diff_minutes: 0
+        };
+    }
+
+    const parseMinutes = (timeStr) => {
+        const parts = String(timeStr).trim().split(':');
+        const h = parseInt(parts[0], 10) || 0;
+        const m = parseInt(parts[1], 10) || 0;
+        return h * 60 + m;
+    };
+
+    const schedM = parseMinutes(scheduledStart);
+    const actualM = parseMinutes(actualTime);
+    const diff = actualM - schedM;
+
+    // Toleransi 10 - 15 Menit:
+    // <= 10 menit: Tepat Waktu (Hijau)
+    // 11 s/d 15 menit: Toleransi Keterlambatan (Kuning / Amber)
+    // > 15 menit: Terlambat (Merah / Rose)
+    if (diff <= 10) {
+        return {
+            status: 'Tepat Waktu',
+            badge: 'green',
+            is_late: false,
+            late_minutes: 0,
+            diff_minutes: diff,
+            diff_text: diff <= 0 ? 'On-time' : `+${diff} mnt`
+        };
+    } else if (diff <= 15) {
+        return {
+            status: `Toleransi (Telat ${diff} mnt)`,
+            badge: 'amber',
+            is_late: false,
+            late_minutes: diff,
+            diff_minutes: diff,
+            diff_text: `+${diff} mnt`
+        };
+    } else {
+        return {
+            status: `Telat ${diff} Menit ⚠️`,
+            badge: 'rose',
+            is_late: true,
+            late_minutes: diff,
+            diff_minutes: diff,
+            diff_text: `+${diff} mnt`
+        };
+    }
+
+}
+
+/**
+ * Mengevaluasi siswa bermasalah (jarang masuk / banyak alpha) di kelas pengajar
+ */
+function evaluateProblematicStudents(attendanceRecords) {
+    if (!Array.isArray(attendanceRecords) || attendanceRecords.length === 0) return [];
+
+    const studentMap = {};
+    attendanceRecords.forEach(rec => {
+        const sid = String(rec.student_id || rec.id || '').trim();
+        if (!sid) return;
+
+        if (!studentMap[sid]) {
+            studentMap[sid] = {
+                student_id: sid,
+                student_name: rec.student_name || rec.nama || 'Siswa KBEC',
+                kelas: rec.kelas || rec.class_name || '-',
+                hadir_count: 0,
+                izin_count: 0,
+                sakit_count: 0,
+                alpha_count: 0,
+                total_recorded: 0
+            };
+        }
+
+        const st = String(rec.status || '').toLowerCase().trim();
+        studentMap[sid].total_recorded++;
+        if (st.includes('hadir') || st === 'h') {
+            studentMap[sid].hadir_count++;
+        } else if (st.includes('izin') || st.includes('ijin') || st === 'i') {
+            studentMap[sid].izin_count++;
+        } else if (st.includes('sakit') || st === 's') {
+            studentMap[sid].sakit_count++;
+        } else if (st.includes('alpha') || st.includes('alpa') || st === 'a') {
+            studentMap[sid].alpha_count++;
+        }
+    });
+
+    const problematic = [];
+    Object.values(studentMap).forEach(s => {
+        const rate = s.total_recorded > 0 ? (s.hadir_count / s.total_recorded) * 100 : 100;
+        let isProblematic = false;
+        let reasons = [];
+
+        if (s.alpha_count >= 3) {
+            isProblematic = true;
+            reasons.push(`${s.alpha_count}x Alpha (Tanpa Keterangan)`);
+        }
+
+        if (s.total_recorded >= 3 && rate < 75) {
+            isProblematic = true;
+            reasons.push(`Kehadiran Rendah (${Math.round(rate)}% - ${s.hadir_count} dari ${s.total_recorded})`);
+        }
+
+        if (isProblematic) {
+            problematic.push({
+                student_id: s.student_id,
+                student_name: s.student_name,
+                nama: s.student_name,
+                kelas: s.kelas,
+                hadir_count: s.hadir_count,
+                alpha_count: s.alpha_count,
+                total_recorded: s.total_recorded,
+                attendance_rate: Math.round(rate),
+                is_problematic: true,
+                reason: reasons.join(' • ')
+            });
+        }
+    });
+
+    return problematic;
+}
+
+/**
+ * Controller Endpoint Khusus Super Admin:
+ * Pusat Audit & Pemantauan Kinerja Pengajar Terpadu
+ */
+async function getTeacherAuditMonitoring(req, res, next) {
+    try {
+        const targetDate = req.query.date || getWIBDate();
+        const targetMonth = req.query.month || (targetDate ? targetDate.slice(0, 7) : getWIBMonth());
+        const filterUnit = req.query.unit || 'all';
+        const filterTeacherId = req.query.teacher_id || 'all';
+
+        // 1. Ambil data semua guru aktif
+        let teacherSql = "SELECT id, nama, email, kontak, expertise, joined, status, avatar FROM teachers WHERE status != 'Nonaktif' AND status != 'Non-Aktif'";
+        let teacherParams = [];
+        if (filterTeacherId && filterTeacherId !== 'all') {
+            teacherSql += " AND id = ?";
+            teacherParams.push(filterTeacherId);
+        }
+        teacherSql += " ORDER BY nama ASC";
+        const [teachers] = await db.query(teacherSql, teacherParams);
+
+        // 2. Ambil semua kelas
+        let classSql = `
+            SELECT c.id, c.nama, c.program, c.unit, c.pengajar, c.teacher_id, c.hari, c.mulai, c.selesai, c.tipe, c.ruang, 
+                   COALESCE(cs.student_count, 0) AS terisi 
+            FROM classes c 
+            LEFT JOIN (SELECT class_id, COUNT(*) AS student_count FROM class_students GROUP BY class_id) cs ON c.id::text = cs.class_id::text
+        `;
+        let classParams = [];
+        if (filterUnit && filterUnit !== 'all') {
+            classSql += " WHERE c.unit ILIKE ? OR c.program ILIKE ?";
+            classParams.push(`%${filterUnit}%`, `%${filterUnit}%`);
+        }
+        classSql += " ORDER BY c.nama ASC";
+        const [classes] = await db.query(classSql, classParams);
+
+        // 3. Mapping data siswa per kelas
+        const [classStudentRows] = await db.query(`
+            SELECT cs.class_id, cs.student_id, s.nama AS student_name, s.program, s.level, s.unit
+            FROM class_students cs
+            JOIN students s ON cs.student_id = s.id
+        `);
+        const classStudentsMap = {};
+        (classStudentRows || []).forEach(r => {
+            const cid = String(r.class_id);
+            if (!classStudentsMap[cid]) classStudentsMap[cid] = [];
+            classStudentsMap[cid].push(r);
+        });
+
+        // 4. Ambil log teacher_checkins pada tanggal yang dipilih
+        const [checkinRows] = await db.query(`
+            SELECT id, teacher_id, teacher_name, class_id, class_name, lat, lng,
+                   distance_meters, is_online, status, attendance_type, proof_image,
+                   topic_material, notes, duration_minutes,
+                   TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'HH24:MI') AS jam,
+                   TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') AS tanggal
+            FROM teacher_checkins
+            WHERE TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') = ?
+            ORDER BY COALESCE(check_time, created_at) ASC
+        `, [targetDate]);
+
+        // 5. Ambil data attendance siswa dalam bulan terkait untuk deteksi siswa bermasalah & kesehatan kelas
+        const [attendanceRows] = await db.query(`
+            SELECT a.student_id, s.nama AS student_name, s.nama, a.status, a.kelas, 
+                   TO_CHAR(a.tanggal::timestamp, 'YYYY-MM-DD') AS tanggal
+            FROM attendance a
+            LEFT JOIN students s ON a.student_id = s.id
+            WHERE a.tanggal::text LIKE ?
+        `, [`${targetMonth}-%`]);
+
+        // 6. Ambil data evaluasi nilai siswa (student_grades) pada tanggal terpilih
+        const [gradeRows] = await db.query(`
+            SELECT sg.student_id, sg.class_name, sg.presensi, sg.sb_page, sg.wb_page, sg.grade, sg.lesson, sg.notes,
+                   TO_CHAR(sg.tanggal::timestamp, 'YYYY-MM-DD') AS tanggal
+            FROM student_grades sg
+            WHERE sg.tanggal::text LIKE ?
+        `, [`${targetDate}%`]);
+
+        // Tentukan nama hari Bahasa Indonesia dari targetDate
+        const INDO_DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        let dayName = '';
+        try {
+            const dateParts = targetDate.split('-');
+            const dObj = new Date(parseInt(dateParts[0], 10), parseInt(dateParts[1], 10) - 1, parseInt(dateParts[2], 10));
+            dayName = INDO_DAYS[dObj.getDay()];
+        } catch (e) {
+            dayName = 'Senin';
+        }
+
+        // Agregasi Data per Pengajar
+        let totalPunctualCount = 0;
+        let totalLateCount = 0;
+        let totalClassesScheduled = 0;
+        let totalClassesCompleted = 0;
+        let totalGradingFull = 0;
+        let totalProblematicStudentsGlobal = 0;
+
+        const teacherAuditList = teachers.map(teacher => {
+            const tId = teacher.id;
+            const tName = teacher.nama || '';
+            const tNameLower = tName.toLowerCase();
+
+            // Saring checkins guru ini hari ini
+            const myCheckins = checkinRows.filter(c => 
+                c.teacher_id === tId || 
+                (c.teacher_name && c.teacher_name.toLowerCase().includes(tNameLower))
+            );
+
+            const checkinHarian = myCheckins.find(c => c.attendance_type === 'checkin_harian');
+            const checkoutHarian = [...myCheckins].reverse().find(c => c.attendance_type === 'checkout_harian');
+            const leaveRecord = myCheckins.find(c => c.attendance_type === 'izin' || c.attendance_type === 'sakit');
+            const teachingSessions = myCheckins.filter(c => c.attendance_type === 'sesi_mengajar');
+
+            // Hitung status kehadiran guru
+            let attendanceStatus = 'Belum Hadir';
+            let attendanceBadge = 'slate';
+            let workDurationText = '-';
+
+            if (leaveRecord) {
+                attendanceStatus = leaveRecord.attendance_type === 'izin' ? 'Izin Resmi' : 'Sakit (Surat Dokter)';
+                attendanceBadge = 'amber';
+            } else if (checkinHarian && checkoutHarian) {
+                attendanceStatus = 'Hadir (Sudah Check-out)';
+                attendanceBadge = 'green';
+                const totalMins = myCheckins
+                    .filter(c => c.attendance_type === 'checkout_harian' && c.duration_minutes)
+                    .reduce((sum, c) => sum + (parseInt(c.duration_minutes, 10) || 0), 0);
+                workDurationText = formatDurationIndonesian(totalMins);
+            } else if (checkinHarian) {
+                attendanceStatus = 'Hadir (Aktif Mengajar)';
+                attendanceBadge = 'blue';
+                workDurationText = 'Sedang Berlangsung';
+            }
+
+            // Cari kelas-kelas yang diampu oleh pengajar ini
+            const myAssignedClasses = classes.filter(c => 
+                (c.teacher_id && c.teacher_id === tId) || 
+                (c.pengajar && c.pengajar.toLowerCase().includes(tNameLower))
+            );
+
+            // Saring kelas yang dijadwalkan HARI INI (Mendukung Serial 1, Serial 2, Senin-Jumat, dsb)
+            const scheduledToday = myAssignedClasses.filter(c => 
+                c.hari && isClassScheduledOnDay(c.hari, targetDate)
+            );
+
+            totalClassesScheduled += scheduledToday.length;
+
+            // Evaluasi setiap kelas hari ini
+            const classAuditDetails = scheduledToday.map(cls => {
+                const clsCleanName = (cls.nama || '').toLowerCase().replace(/&amp;/g, '&');
+                const sessionCheckin = teachingSessions.find(s => 
+                    String(s.class_id) === String(cls.id) || 
+                    (s.class_name && s.class_name.toLowerCase().replace(/&amp;/g, '&') === clsCleanName)
+                );
+
+                const isTaught = !!sessionCheckin;
+                if (isTaught) totalClassesCompleted++;
+
+                const punctuality = isTaught 
+                    ? calculatePunctuality(cls.mulai, sessionCheckin.jam)
+                    : { status: 'Belum Dilaksanakan', badge: 'slate', is_late: false, late_minutes: 0 };
+
+                if (isTaught) {
+                    if (punctuality.is_late) {
+                        totalLateCount++;
+                    } else {
+                        totalPunctualCount++;
+                    }
+                }
+
+                // Cek kepatuhan input evaluasi siswa untuk kelas ini
+                const enrolledStudents = classStudentsMap[String(cls.id)] || [];
+                const enrolledStudentIds = enrolledStudents.map(s => String(s.student_id));
+                
+                const evaluatedInClass = gradeRows.filter(g => 
+                    (g.class_name && g.class_name.toLowerCase().replace(/&amp;/g, '&') === clsCleanName) ||
+                    enrolledStudentIds.includes(String(g.student_id))
+                );
+
+                const studentCount = enrolledStudents.length;
+                const evalCount = evaluatedInClass.length;
+                let gradingStatus = 'Belum Diinput (0%)';
+                let gradingBadge = 'rose';
+
+                if (studentCount === 0) {
+                    gradingStatus = 'Tidak Ada Siswa';
+                    gradingBadge = 'slate';
+                } else if (evalCount >= studentCount) {
+                    gradingStatus = 'Lengkap (100%)';
+                    gradingBadge = 'green';
+                    totalGradingFull++;
+                } else if (evalCount > 0) {
+                    gradingStatus = `Sebagian (${Math.round((evalCount / studentCount) * 100)}%)`;
+                    gradingBadge = 'amber';
+                }
+
+                return {
+                    class_id: cls.id,
+                    class_name: cls.nama,
+                    program: cls.program || cls.unit || '-',
+                    unit: cls.unit || 'KBEC',
+                    room: cls.ruang || '-',
+                    scheduled_time: `${cls.mulai || '08:00'} - ${cls.selesai || '09:30'}`,
+                    is_taught: isTaught,
+                    checkin_time: sessionCheckin ? `${sessionCheckin.jam} WIB` : '-',
+                    punctuality_status: punctuality.status,
+                    punctuality_badge: punctuality.badge,
+                    is_late: punctuality.is_late,
+                    late_minutes: punctuality.late_minutes,
+                    topic_material: sessionCheckin ? (sessionCheckin.topic_material || '-') : '-',
+                    proof_image: sessionCheckin ? sessionCheckin.proof_image : null,
+                    is_online: sessionCheckin ? sessionCheckin.is_online : 0,
+                    students_count: studentCount,
+                    evaluated_count: evalCount,
+                    grading_status: gradingStatus,
+                    grading_badge: gradingBadge
+                };
+            });
+
+            // Evaluasi Seluruh Siswa & Deteksi Siswa Bermasalah di kelas pengajar ini
+            const allMyClassNames = myAssignedClasses.map(c => (c.nama || '').toLowerCase().replace(/&amp;/g, '&'));
+            const allMyStudentIds = [];
+            myAssignedClasses.forEach(cls => {
+                const st = classStudentsMap[String(cls.id)] || [];
+                st.forEach(s => allMyStudentIds.push(String(s.student_id)));
+            });
+
+            const relevantAttendance = attendanceRows.filter(a => {
+                const aClass = (a.kelas || '').toLowerCase().replace(/&amp;/g, '&');
+                return allMyStudentIds.includes(String(a.student_id)) ||
+                       (aClass && allMyClassNames.includes(aClass));
+            });
+
+            const problematicStudents = evaluateProblematicStudents(relevantAttendance);
+            totalProblematicStudentsGlobal += problematicStudents.length;
+
+            const totalHadirStudents = relevantAttendance.filter(a => String(a.status || '').toLowerCase().includes('hadir')).length;
+            const studentAttendanceRate = relevantAttendance.length > 0 
+                ? Math.round((totalHadirStudents / relevantAttendance.length) * 100) 
+                : 100;
+
+            // Hitung Skor Kinerja Objektif (0 - 100)
+            let sKehadiran = checkinHarian ? 100 : (leaveRecord ? 80 : 0);
+            
+            let sKetepatan = 100;
+            const taughtClasses = classAuditDetails.filter(c => c.is_taught);
+            if (taughtClasses.length > 0) {
+                const lateClasses = taughtClasses.filter(c => c.is_late);
+                const avgLateMins = lateClasses.reduce((sum, c) => sum + c.late_minutes, 0) / (lateClasses.length || 1);
+                if (lateClasses.length > 0) {
+                    sKetepatan = Math.max(30, 100 - (lateClasses.length * 20) - Math.round(avgLateMins));
+                }
+            } else if (scheduledToday.length > 0 && !leaveRecord) {
+                sKetepatan = 50;
+            }
+
+            let sRealisasi = scheduledToday.length > 0 
+                ? Math.round((taughtClasses.length / scheduledToday.length) * 100) 
+                : 100;
+
+            let sGrading = 100;
+            if (taughtClasses.length > 0) {
+                const totalStudentsToGrade = taughtClasses.reduce((sum, c) => sum + c.students_count, 0);
+                const totalGraded = taughtClasses.reduce((sum, c) => sum + c.evaluated_count, 0);
+                sGrading = totalStudentsToGrade > 0 ? Math.round((totalGraded / totalStudentsToGrade) * 100) : 100;
+            }
+
+            let overallScore = Math.round(
+                (sKehadiran * 0.30) + 
+                (sKetepatan * 0.25) + 
+                (sRealisasi * 0.25) + 
+                (sGrading * 0.20)
+            );
+
+            // Penyesuaian jika ada siswa bermasalah yang menonjol
+            if (problematicStudents.length >= 3) {
+                overallScore = Math.max(40, overallScore - 5);
+            }
+
+            let kpiGrade = 'A';
+            if (overallScore >= 90) kpiGrade = 'A';
+            else if (overallScore >= 75) kpiGrade = 'B';
+            else if (overallScore >= 60) kpiGrade = 'C';
+            else kpiGrade = 'D';
+
+            return {
+                teacher_id: tId,
+                name: tName,
+                email: teacher.email || '-',
+                kontak: teacher.kontak || '-',
+                avatar: teacher.avatar || null,
+                status_kontrak: teacher.status || 'Aktif',
+                joined: teacher.joined || '-',
+                expertise: JSON.parse(teacher.expertise || '[]'),
+                daily_attendance: {
+                    status: attendanceStatus,
+                    badge: attendanceBadge,
+                    checkin_time: checkinHarian ? `${checkinHarian.jam} WIB` : '-',
+                    checkout_time: checkoutHarian ? `${checkoutHarian.jam} WIB` : '-',
+                    work_duration: workDurationText,
+                    gps_radius_meters: checkinHarian ? Math.round(checkinHarian.distance_meters) : null,
+                    gps_is_valid: checkinHarian ? checkinHarian.distance_meters <= KBEC_ALLOWED_RADIUS : true,
+                    proof_image: checkinHarian ? checkinHarian.proof_image : null
+                },
+                classes_summary: {
+                    total_assigned: myAssignedClasses.length,
+                    scheduled_today_count: scheduledToday.length,
+                    completed_today_count: taughtClasses.length,
+                    fulfillment_rate: scheduledToday.length > 0 ? Math.round((taughtClasses.length / scheduledToday.length) * 100) : 100,
+                    details: classAuditDetails
+                },
+                student_health: {
+                    attendance_rate: studentAttendanceRate,
+                    total_records_month: relevantAttendance.length,
+                    problematic_count: problematicStudents.length,
+                    has_problematic_students: problematicStudents.length > 0,
+                    problematic_students: problematicStudents
+                },
+                kpi_score: {
+                    overall: overallScore,
+                    grade: kpiGrade,
+                    breakdown: {
+                        kehadiran: sKehadiran,
+                        ketepatan: sKetepatan,
+                        realisasi: sRealisasi,
+                        grading: sGrading
+                    }
+                }
+            };
+        });
+
+        const totalTeachers = teachers.length;
+        const presentCount = teacherAuditList.filter(t => t.daily_attendance.badge === 'green' || t.daily_attendance.badge === 'blue').length;
+        const onTimeRate = (totalPunctualCount + totalLateCount) > 0 
+            ? Math.round((totalPunctualCount / (totalPunctualCount + totalLateCount)) * 100) 
+            : 100;
+        const classFulfillmentRate = totalClassesScheduled > 0 
+            ? Math.round((totalClassesCompleted / totalClassesScheduled) * 100) 
+            : 100;
+
+        res.json({
+            success: true,
+            date: targetDate,
+            month: targetMonth,
+            day_name: dayName,
+            summary: {
+                total_teachers: totalTeachers,
+                teachers_present: presentCount,
+                attendance_rate: totalTeachers > 0 ? Math.round((presentCount / totalTeachers) * 100) : 0,
+                total_classes_scheduled: totalClassesScheduled,
+                total_classes_completed: totalClassesCompleted,
+                class_fulfillment_rate: classFulfillmentRate,
+                punctuality_rate: onTimeRate,
+                total_problematic_students: totalProblematicStudentsGlobal
+            },
+            teachers: teacherAuditList
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     getTeachers,
     createTeacher,
@@ -792,5 +1417,10 @@ module.exports = {
     checkinTeacher,
     getCheckinLogs,
     getAttendanceSummary,
-    getMyClassesToday
+    getMyClassesToday,
+    calculatePunctuality,
+    isClassScheduledOnDay,
+    evaluateProblematicStudents,
+    getTeacherAuditMonitoring
 };
+

@@ -123,6 +123,7 @@
                             <option value="" disabled selected>Pilih Hari / Serial Belajar</option>
                             <option value="Serial 1">Serial 1 (Senin, Rabu, Jumat)</option>
                             <option value="Serial 2">Serial 2 (Selasa, Kamis, Sabtu)</option>
+                            <option value="Senin - Jumat">Senin - Jumat</option>
                             <option value="Senin">Senin</option>
                             <option value="Selasa">Selasa</option>
                             <option value="Rabu">Rabu</option>
@@ -585,6 +586,16 @@
             fetchClasses();
             fetchTeachers();
             fetchPrograms();
+
+            const progSelect = document.getElementById('form-program');
+            if (progSelect) {
+                progSelect.addEventListener('change', function() {
+                    const hariSelect = document.getElementById('form-hari');
+                    if (this.value === 'TK' && hariSelect && (!hariSelect.value || hariSelect.value === '' || hariSelect.value === 'Serial 1' || hariSelect.value === 'Serial 2')) {
+                        hariSelect.value = 'Senin - Jumat';
+                    }
+                });
+            }
         };
 
         function hitungStatistik() {

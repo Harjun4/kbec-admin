@@ -732,6 +732,350 @@ async function getAttendanceReport(req, res, next) {
     }
 }
 
+async function getSessionEvaluations(req, res, next) {
+    let { class_id, tanggal } = req.query;
+    const finalDate = tanggal || new Date().toISOString().slice(0, 10);
+
+    try {
+        const userRole = (req.user && req.user.role ? req.user.role : '').toLowerCase();
+        const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
+
+        if (isTeacher && req.user) {
+            const uId = req.user.id || '';
+            const tId = req.user.teacher_id || '';
+            const tEmail = (req.user.email || '').trim().toLowerCase();
+            const tName = (req.user.name || '').trim();
+
+            const [teacherClasses] = await db.query(
+                'SELECT id, nama FROM classes WHERE (teacher_id IS NOT NULL AND teacher_id = (SELECT teacher_id FROM users WHERE id = ? OR nis = ? LIMIT 1))' +
+                ' OR (teacher_id IS NOT NULL AND teacher_id = ?)' +
+                ' OR (teacher_id IS NOT NULL AND teacher_id IN (SELECT id FROM teachers WHERE LOWER(email) = LOWER(?)))' +
+                ' OR (LOWER(pengajar) = LOWER(?))' +
+                ' OR (pengajar ILIKE ?)',
+                [uId, uId, tId, tEmail, tName, `%${tName}%`]
+            );
+
+            const allowedClassIds = teacherClasses.map(c => String(c.id));
+            if (class_id) {
+                if (!allowedClassIds.includes(String(class_id))) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'Akses dilarang. Anda tidak memiliki akses ke kelas ini.'
+                    });
+                }
+            } else if (teacherClasses.length > 0) {
+                class_id = teacherClasses[0].id;
+            } else {
+                return res.json({
+                    success: true,
+                    session_date: finalDate,
+                    class: { id: null, nama: 'Belum Ada Kelas', pengajar: tName || 'Pengajar KBEC' },
+                    students: []
+                });
+            }
+        }
+
+        let classObj = null;
+        if (class_id) {
+            const [[cRow]] = await db.query('SELECT * FROM classes WHERE id = ?', [class_id]);
+            classObj = cRow;
+        }
+
+        if (!classObj) {
+            const [[firstClass]] = await db.query('SELECT * FROM classes ORDER BY id ASC LIMIT 1');
+            if (firstClass) {
+                classObj = firstClass;
+                class_id = firstClass.id;
+            } else {
+                classObj = { id: null, nama: 'Kelas KBEC', pengajar: 'Pengajar KBEC' };
+            }
+        }
+
+        let studentQuery = 'SELECT s.id, s.nama, s.program, s.level, s.initial FROM students s';
+        let studentParams = [];
+        if (class_id) {
+            studentQuery += ' JOIN class_students cs ON s.id = cs.student_id WHERE cs.class_id = ? ORDER BY s.nama ASC';
+            studentParams.push(class_id);
+        } else {
+            studentQuery += ' ORDER BY s.nama ASC LIMIT 50';
+        }
+        let [students] = await db.query(studentQuery, studentParams);
+
+        if (students.length === 0 && class_id) {
+            const [[cRow]] = await db.query('SELECT nama FROM classes WHERE id = ?', [class_id]);
+            if (cRow && cRow.nama) {
+                const [byName] = await db.query(
+                    'SELECT s.id, s.nama, s.program, s.level, s.initial FROM students s JOIN classes c ON c.nama = ? JOIN class_students cs ON c.id = cs.class_id WHERE s.id = cs.student_id ORDER BY s.nama ASC',
+                    [cRow.nama]
+                );
+                if (byName.length > 0) students = byName;
+            }
+        }
+
+        if (students.length === 0) {
+            return res.json({
+                success: true,
+                session_date: finalDate,
+                class: classObj,
+                students: []
+            });
+        }
+
+        const studentIds = students.map(s => String(s.id));
+        const placeholders = studentIds.map(() => '?').join(',');
+
+        // 1. Fetch current date evaluations and attendances
+        const [currentGradeRows] = await db.query(
+            `SELECT student_id, student_name, nama_panggilan, grade, lesson, material_tambahan, presensi, sb_page, wb_page, notes, keterangan 
+             FROM student_grades 
+             WHERE student_id IN (${placeholders}) AND tanggal::text = ?`,
+            [...studentIds, finalDate]
+        );
+
+        const [currentAttRows] = await db.query(
+            `SELECT student_id, status FROM attendance 
+             WHERE student_id IN (${placeholders}) AND tanggal::text = ?`,
+            [...studentIds, finalDate]
+        );
+
+        // 2. Fetch last session prior to finalDate for context helper (SB / WB / date)
+        const [lastGradeRows] = await db.query(
+            `SELECT student_id, TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') AS tgl, sb_page, wb_page, lesson, presensi 
+             FROM student_grades 
+             WHERE student_id IN (${placeholders}) AND tanggal::text < ? 
+             ORDER BY tanggal DESC, id DESC`,
+            [...studentIds, finalDate]
+        );
+
+        const lastSessionMap = {};
+        lastGradeRows.forEach(row => {
+            const sid = String(row.student_id);
+            if (!lastSessionMap[sid]) {
+                lastSessionMap[sid] = {
+                    date: row.tgl,
+                    sb: row.sb_page || '',
+                    wb: row.wb_page || '',
+                    lesson: row.lesson || '',
+                    presence: row.presensi || ''
+                };
+            }
+        });
+
+        const studentsResult = students.map(std => {
+            const sId = String(std.id);
+            const sGrade = currentGradeRows.find(g => String(g.student_id) === sId) || {};
+            const sAtt = currentAttRows.find(a => String(a.student_id) === sId) || {};
+            const lastSess = lastSessionMap[sId] || null;
+
+            const currentPresensi = (sAtt.status && sAtt.status !== '-') ? sAtt.status : (sGrade.presensi || 'Hadir');
+
+            return {
+                student_id: std.id,
+                full_name: std.nama || 'Siswa KBEC',
+                nickname: sGrade.nama_panggilan || (std.nama ? std.nama.split(' ')[0] : 'Siswa'),
+                grade: sGrade.grade || std.level || std.program || '1A',
+                default_lesson: sGrade.lesson || (lastSess && lastSess.lesson) || 'Speaking, Reading, Telling Story',
+                last_session: lastSess ? {
+                    date: lastSess.date,
+                    sb: lastSess.sb,
+                    wb: lastSess.wb,
+                    lesson: lastSess.lesson,
+                    presence: lastSess.presence
+                } : null,
+                current_evaluation: {
+                    presence: currentPresensi,
+                    sb: sGrade.sb_page || '',
+                    wb: sGrade.wb_page || '',
+                    lesson: sGrade.lesson || (lastSess && lastSess.lesson) || 'Speaking, Reading, Telling Story',
+                    additional_material: sGrade.material_tambahan || sGrade.notes || sGrade.keterangan || ''
+                }
+            };
+        });
+
+        res.json({
+            success: true,
+            session_date: finalDate,
+            class: classObj,
+            students: studentsResult
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
+async function saveBatchStudentGrades(req, res, next) {
+    const { class_id, class_name, session_date, evaluations } = req.body;
+    const finalDate = session_date || new Date().toISOString().slice(0, 10);
+
+    if (!Array.isArray(evaluations) || evaluations.length === 0) {
+        return res.status(400).json({ success: false, message: 'Daftar evaluasi siswa (evaluations) wajib diisi dalam format array.' });
+    }
+
+    try {
+        const userRole = (req.user && req.user.role ? req.user.role : '').toLowerCase();
+        const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
+
+        if (isTeacher && req.user) {
+            const uId = req.user.id || '';
+            const tId = req.user.teacher_id || '';
+            const tEmail = (req.user.email || '').trim().toLowerCase();
+            const tName = (req.user.name || '').trim();
+
+            const [teacherClasses] = await db.query(
+                'SELECT id, nama FROM classes WHERE (teacher_id IS NOT NULL AND teacher_id = (SELECT teacher_id FROM users WHERE id = ? OR nis = ? LIMIT 1))' +
+                ' OR (teacher_id IS NOT NULL AND teacher_id = ?)' +
+                ' OR (teacher_id IS NOT NULL AND teacher_id IN (SELECT id FROM teachers WHERE LOWER(email) = LOWER(?)))' +
+                ' OR (LOWER(pengajar) = LOWER(?))' +
+                ' OR (pengajar ILIKE ?)',
+                [uId, uId, tId, tEmail, tName, `%${tName}%`]
+            );
+
+            const allowedClassIds = teacherClasses.map(c => String(c.id));
+            const allowedClassNames = teacherClasses.map(c => c.nama.toLowerCase());
+
+            const reqClassId = String(class_id || '');
+            const reqClassName = (class_name || '').toLowerCase();
+
+            let hasAccess = false;
+            if (reqClassId && allowedClassIds.includes(reqClassId)) hasAccess = true;
+            if (reqClassName && reqClassName !== '-' && allowedClassNames.includes(reqClassName)) hasAccess = true;
+
+            if (!hasAccess) {
+                return res.status(403).json({ success: false, message: 'Akses dilarang. Anda hanya dapat menyimpan nilai untuk kelas Anda sendiri.' });
+            }
+        }
+
+        const conn = await db.getConnection();
+        let savedCount = 0;
+
+        try {
+            await conn.beginTransaction();
+
+            for (const ev of evaluations) {
+                const student_id = String(ev.student_id || '').trim();
+                if (!student_id) continue;
+
+                let student_name = ev.student_name || ev.full_name;
+                if (!student_name) {
+                    const [[sRow]] = await conn.query('SELECT nama FROM students WHERE id = ?', [student_id]);
+                    student_name = sRow ? sRow.nama : 'Siswa KBEC';
+                }
+
+                const finalNick = ev.nama_panggilan || ev.nickname || (student_name ? student_name.split(' ')[0] : 'Siswa');
+                const finalGrade = ev.grade || '1A';
+                const finalPresensi = ev.presensi || ev.presence || 'Hadir';
+                const sbPage = ev.sb || ev.sb_page || '';
+                const wbPage = ev.wb || ev.wb_page || '';
+                const lesson = ev.lesson || '';
+                const additionalMaterial = ev.material_tambahan || ev.additional_material || ev.notes || ev.keterangan || '';
+
+                // Upsert student_grades
+                const [existing] = await conn.query(
+                    'SELECT id FROM student_grades WHERE student_id = ? AND tanggal::text = ?',
+                    [student_id, finalDate]
+                );
+
+                if (existing.length > 0) {
+                    await conn.query(
+                        'UPDATE student_grades SET student_name = ?, nama_panggilan = ?, class_id = ?, class_name = ?, grade = ?, lesson = ?, material_tambahan = ?, presensi = ?, sb_page = ?, wb_page = ?, notes = ?, keterangan = ? WHERE id = ?',
+                        [
+                            escapeHTML(student_name),
+                            escapeHTML(finalNick),
+                            class_id || null,
+                            escapeHTML(class_name || '-'),
+                            escapeHTML(finalGrade),
+                            escapeHTML(lesson),
+                            escapeHTML(additionalMaterial),
+                            finalPresensi,
+                            escapeHTML(sbPage),
+                            escapeHTML(wbPage),
+                            escapeHTML(additionalMaterial),
+                            escapeHTML(additionalMaterial),
+                            existing[0].id
+                        ]
+                    );
+                } else {
+                    await conn.query(
+                        'INSERT INTO student_grades (student_id, student_name, nama_panggilan, class_id, class_name, grade, lesson, material_tambahan, tanggal, presensi, sb_page, wb_page, notes, keterangan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        [
+                            student_id,
+                            escapeHTML(student_name),
+                            escapeHTML(finalNick),
+                            class_id || null,
+                            escapeHTML(class_name || '-'),
+                            escapeHTML(finalGrade),
+                            escapeHTML(lesson),
+                            escapeHTML(additionalMaterial),
+                            finalDate,
+                            finalPresensi,
+                            escapeHTML(sbPage),
+                            escapeHTML(wbPage),
+                            escapeHTML(additionalMaterial),
+                            escapeHTML(additionalMaterial)
+                        ]
+                    );
+                }
+
+                // Sync to attendance table
+                if (finalPresensi && finalPresensi !== '-') {
+                    const [existingAtt] = await conn.query(
+                        'SELECT id FROM attendance WHERE student_id = ? AND tanggal::text = ?',
+                        [student_id, finalDate]
+                    );
+                    if (existingAtt.length > 0) {
+                        await conn.query(
+                            'UPDATE attendance SET status = ?, kelas = ? WHERE id = ?',
+                            [finalPresensi, class_name || 'Reguler', existingAtt[0].id]
+                        );
+                    } else {
+                        const [[maxRow]] = await conn.query('SELECT COALESCE(MAX(id), 0) AS max_id FROM attendance');
+                        const nextId = parseInt(maxRow.max_id, 10) + 1;
+                        await conn.query(
+                            'INSERT INTO attendance (id, student_id, nama, program, kelas, status, inisial, tanggal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                            [
+                                nextId,
+                                student_id,
+                                escapeHTML(student_name),
+                                escapeHTML(finalGrade || 'Reguler'),
+                                escapeHTML(class_name || 'Reguler'),
+                                finalPresensi,
+                                escapeHTML(finalNick),
+                                finalDate
+                            ]
+                        );
+                    }
+                }
+                savedCount++;
+            }
+
+            await conn.commit();
+        } catch (err) {
+            await conn.rollback();
+            throw err;
+        } finally {
+            conn.release();
+        }
+
+        try {
+            const { createActivityLog } = require('../utils/logger');
+            createActivityLog({
+                user_name: (req.user && req.user.name) || 'Pengajar/Admin',
+                action: `Batch Simpan Evaluasi Kinerja Kelas (${class_name || 'Kelas'} - ${savedCount} Siswa - ${finalDate})`,
+                program: class_name || '-',
+                status: 'Berhasil'
+            }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
+        } catch (lErr) {}
+
+        res.json({
+            success: true,
+            message: `Evaluasi kinerja untuk ${savedCount} siswa berhasil disimpan.`,
+            count: savedCount
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     getAttendance,
     getMonthlyAttendance,
@@ -739,5 +1083,7 @@ module.exports = {
     getStudentGrades,
     saveStudentGrade,
     getPerformanceReport,
-    getAttendanceReport
+    getAttendanceReport,
+    getSessionEvaluations,
+    saveBatchStudentGrades
 };

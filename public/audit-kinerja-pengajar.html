@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="KBEC Course Management Admin System - Pusat Audit & Monitoring Kinerja Pengajar (Super Admin Only)">
+    <title>KBEC Admin - Audit & Pemantauan Kinerja Pengajar</title>
+    <link rel="icon" type="image/svg+xml" href="Kbec.svg">
+    <link rel="alternate icon" type="image/png" href="Logo_KBEC.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="js/route-guard.js"></script>
+    <script src="global-user.js"></script>
+    <script src="js/ui-guard.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #F8FAFC;
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+
+        @media print {
+            aside, header, #filter-section, #action-buttons, footer, .no-print {
+                display: none !important;
+            }
+            body, .flex-1 {
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+            }
+            .print-full-width {
+                width: 100% !important;
+                max-width: 100% !important;
+                border: none !important;
+                box-shadow: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="text-slate-700 flex min-h-screen select-none">
+
+    <!-- SIDEBAR ENGINE (INJECTED VIA GLOBAL-USER.JS) -->
+    <aside class="w-64 bg-white border-r border-slate-100 flex flex-col justify-between fixed h-full z-40 shadow-[4px_0_24px_rgba(0,0,0,0.03)] transition-transform duration-300 kbec-sidebar">
+    </aside>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-3 pointer-events-none"></div>
+
+    <!-- MAIN CONTENT WRAPPER -->
+    <div class="flex-1 pl-0 lg:pl-64 flex flex-col min-h-screen w-full min-w-0 transition-all duration-300">
+
+        <!-- TOPBAR NAVBAR -->
+        <header class="h-20 bg-white/95 backdrop-blur-md flex items-center justify-between px-4 sm:px-6 lg:px-8 sticky top-0 z-30 border-b border-slate-100 shadow-xs transition-all no-print">
+            <div class="flex items-center gap-3">
+                <button onclick="window.toggleSidebar(true)" class="lg:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <div class="text-xs text-slate-400 font-medium">
+                    Pages / Akademik / <span class="text-slate-700 font-semibold">Audit Kinerja Pengajar</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 sm:gap-4">
+                <div class="relative hidden md:block w-48 sm:w-64">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
+                        <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                    </span>
+                    <input type="text" id="quick-search-input" oninput="applyFilters()" placeholder="Cari nama pengajar..."
+                        class="w-full pl-9 pr-12 py-2 bg-white border border-slate-200/80 rounded-xl text-xs font-semibold focus:outline-none focus:border-blue-500 transition-all">
+                </div>
+
+                <div class="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-slate-100">
+                    <div class="text-right hidden sm:block">
+                        <h4 id="user-display-name" class="text-xs font-bold text-slate-900 leading-tight">Super Administrator</h4>
+                        <p id="user-display-role" class="text-[9px] text-[#0A58CA] font-extrabold tracking-wider uppercase">SUPER ADMIN</p>
+                    </div>
+                    <div id="user-display-avatar" class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 border border-blue-200/20 flex items-center justify-center font-bold text-xs text-white shadow-sm overflow-hidden">
+                        SA
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN BODY -->
+        <main class="px-4 sm:px-6 lg:px-8 pb-12 flex-1 flex flex-col">
+
+            <!-- PAGE HEADER -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-6 mb-6 no-print">
+                <div>
+                    <div class="flex items-center gap-2.5">
+                        <span class="px-2.5 py-1 rounded-lg bg-blue-50 text-[#0A58CA] border border-blue-100 text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1.5">
+                            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+                            <span>Super Admin Command Center</span>
+                        </span>
+                        <span class="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-bold">
+                            Live Audit Engine
+                        </span>
+                    </div>
+                    <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight mt-2 flex items-center gap-2.5">
+                        <span>Audit & Pemantauan Kinerja Pengajar</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                        Pantau kedisiplinan kehadiran, ketepatan waktu masuk kelas (toleransi 10-15 mnt), realisasi kelas mengajar, kepatuhan input lembar nilai SB/WB siswa, dan deteksi siswa bermasalah dalam satu tab ringkas.
+                    </p>
+                </div>
+
+                <!-- Action Buttons: Export & Refresh -->
+                <div id="action-buttons" class="flex items-center gap-2 flex-wrap">
+                    <button onclick="refreshData()" class="px-3.5 py-2 text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-xl shadow-xs transition-all flex items-center gap-1.5" title="Muat ulang data">
+                        <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                        <span>Muat Ulang</span>
+                    </button>
+                    <button onclick="exportAuditExcel()" class="px-3.5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5" title="Ekspor data ke format Excel .xlsx">
+                        <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                        <span>Ekspor Excel (.xlsx)</span>
+                    </button>
+                    <button onclick="window.print()" class="px-3.5 py-2 text-xs font-bold bg-[#0A58CA] hover:bg-blue-700 text-white rounded-xl shadow-xs transition-all flex items-center gap-1.5" title="Cetak atau simpan ke PDF">
+                        <i data-lucide="printer" class="w-3.5 h-3.5"></i>
+                        <span>Cetak / PDF</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- SMART FILTER BAR -->
+            <section id="filter-section" class="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-xs mb-6 no-print">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="sliders-horizontal" class="w-4 h-4 text-[#0A58CA]"></i>
+                        <span class="text-xs font-extrabold text-slate-800 uppercase tracking-wider">Filter Pemantauan</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 flex-1 lg:max-w-4xl">
+                        <!-- Filter Tanggal -->
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase">Tanggal Audit:</label>
+                            <input type="date" id="filter-date" onchange="loadAuditData()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer">
+                        </div>
+
+                        <!-- Filter Unit Yayasan -->
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase">Unit Program:</label>
+                            <select id="filter-unit" onchange="applyFilters()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer">
+                                <option value="all">Semua Unit</option>
+                                <option value="KBEC">Unit KBEC</option>
+                                <option value="Bimbel">Unit Bimbel</option>
+                                <option value="Calistung">Unit Calistung</option>
+                                <option value="TK">Unit TK</option>
+                                <option value="Arabin">Unit Arabin</option>
+                            </select>
+                        </div>
+
+                        <!-- Filter Status Disiplin & Punctuality -->
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase">Status Disiplin Sesi:</label>
+                            <select id="filter-discipline" onchange="applyFilters()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all cursor-pointer">
+                                <option value="all">Semua Status</option>
+                                <option value="tepat_waktu">Tepat Waktu (On-time)</option>
+                                <option value="telat_saja">Terlambat Saja ⚠️</option>
+                                <option value="grading_menunggak">Nilai Siswa Menunggak ⚠️</option>
+                                <option value="siswa_bermasalah">Ada Siswa Bermasalah ⚠️</option>
+                            </select>
+                        </div>
+
+                        <!-- Filter Pencarian Pengajar -->
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-bold text-slate-400 uppercase">Cari Pengajar:</label>
+                            <input type="text" id="filter-search" oninput="applyFilters()" placeholder="Ketik nama pengajar..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-none focus:border-blue-500 transition-all">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5 KARTU KPI RINGKASAN EKSEKUTIF -->
+            <section class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                <!-- Card 1: Kehadiran Pengajar -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Hadir Hari Ini</span>
+                        <div class="p-2 rounded-xl bg-blue-50 text-[#0A58CA]">
+                            <i data-lucide="user-check" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <h3 id="stat-teachers-present" class="text-2xl font-extrabold text-slate-900 leading-tight">0 / 0</h3>
+                        <p id="stat-teachers-rate" class="text-[11px] font-semibold text-blue-600 mt-0.5">0% Pengajar Hadir</p>
+                    </div>
+                </div>
+
+                <!-- Card 2: Realisasi Kelas -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kelas Terlaksana</span>
+                        <div class="p-2 rounded-xl bg-indigo-50 text-indigo-600">
+                            <i data-lucide="book-open" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <h3 id="stat-classes-completed" class="text-2xl font-extrabold text-slate-900 leading-tight">0 / 0</h3>
+                        <p id="stat-classes-rate" class="text-[11px] font-semibold text-indigo-600 mt-0.5">0% Sesi Terlaksana</p>
+                    </div>
+                </div>
+
+                <!-- Card 3: Ketepatan Waktu Sesi (Toleransi 10-15 mnt) -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ketepatan Sesi</span>
+                        <div class="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                            <i data-lucide="clock" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <h3 id="stat-punctuality-rate" class="text-2xl font-extrabold text-slate-900 leading-tight">100%</h3>
+                        <p class="text-[11px] font-semibold text-emerald-600 mt-0.5">Toleransi 10–15 Mnt</p>
+                    </div>
+                </div>
+
+                <!-- Card 4: Kepatuhan Input Nilai Siswa (SB/WB) -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kepatuhan Nilai</span>
+                        <div class="p-2 rounded-xl bg-purple-50 text-purple-600">
+                            <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <h3 id="stat-grading-compliance" class="text-2xl font-extrabold text-slate-900 leading-tight">0%</h3>
+                        <p id="stat-grading-text" class="text-[11px] font-semibold text-purple-600 mt-0.5">Kelengkapan SB/WB</p>
+                    </div>
+                </div>
+
+                <!-- Card 5: Peringatan Siswa Bermasalah (High Priority) -->
+                <div class="bg-white p-4 rounded-2xl border border-rose-200 bg-rose-50/20 shadow-xs flex flex-col justify-between">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-bold text-rose-700 uppercase tracking-wider">Siswa Bermasalah</span>
+                        <div class="p-2 rounded-xl bg-rose-100 text-rose-700">
+                            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <h3 id="stat-problematic-students" class="text-2xl font-extrabold text-rose-600 leading-tight">0</h3>
+                        <p class="text-[11px] font-semibold text-rose-600 mt-0.5">Jarang Masuk / 3x Alpha</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TABEL AUDIT TERPADU (SINGLE MATRIX TABLE) -->
+            <section class="bg-white border border-slate-200/80 rounded-2xl shadow-xs overflow-hidden flex flex-col flex-1 print-full-width">
+                <div class="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
+                    <div class="flex items-center gap-2.5">
+                        <h3 class="text-sm font-extrabold text-slate-900">Rekapitulasi Audit Kinerja per Pengajar</h3>
+                        <span id="badge-teacher-count" class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-[#0A58CA]">0 Pengajar</span>
+                    </div>
+                    <div class="flex items-center gap-2 text-[11px] font-semibold text-slate-500">
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Disiplin Tinggi</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Perhatian / Toleransi</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Tindakan Diperlukan</span>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-slate-50/80 border-b border-slate-200/80 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                                <th class="py-3.5 px-4 font-bold">Pengajar</th>
+                                <th class="py-3.5 px-4 font-bold">Presensi Harian</th>
+                                <th class="py-3.5 px-4 font-bold">Kelas Hari Ini</th>
+                                <th class="py-3.5 px-4 font-bold">Ketepatan Sesi</th>
+                                <th class="py-3.5 px-4 font-bold">Input Nilai Siswa</th>
+                                <th class="py-3.5 px-4 font-bold">Keadaan Kelas & Siswa</th>
+                                <th class="py-3.5 px-4 font-bold text-center">Skor KPI</th>
+                                <th class="py-3.5 px-4 font-bold text-center no-print">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audit-table-body" class="divide-y divide-slate-100 font-medium text-slate-700">
+                            <tr>
+                                <td colspan="8" class="text-center py-16 text-slate-400">
+                                    <div class="flex flex-col items-center justify-center gap-2">
+                                        <div class="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                                        <p class="text-xs font-semibold">Mengambil data audit kinerja pengajar...</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Footer Tabel Info -->
+                <div class="p-4 border-t border-slate-100 bg-slate-50/30 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="info" class="w-4 h-4 text-[#0A58CA]"></i>
+                        <span>Ketepatan waktu sesi dievaluasi dengan toleransi resmi <b>10 – 15 menit</b> dari jam mulai kelas.</span>
+                    </div>
+                    <span id="table-timestamp" class="text-[11px] font-mono text-slate-400">Data terkini WIB</span>
+                </div>
+            </section>
+        </main>
+
+        <!-- FOOTER SYSTEM -->
+        <footer class="px-6 sm:px-8 py-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 font-medium gap-2 no-print">
+            <p>© 2026 Yayasan Ar-Rasyid Bintaro — KBEC Management System.</p>
+            <p>Fitur Eksklusif Super Administrator</p>
+        </footer>
+    </div>
+
+    <!-- MODAL POPUP DRILLDOWN: DETAIL AUDIT PENGAJAR -->
+    <div id="modal-drilldown" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center hidden opacity-0 transition-all duration-200 p-4 no-print">
+        <div class="bg-white w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transform scale-95 transition-all duration-200">
+            <!-- Modal Header -->
+            <div class="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+                <div class="flex items-center gap-3.5">
+                    <div id="modal-teacher-avatar" class="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold flex items-center justify-center text-sm shadow-sm overflow-hidden flex-shrink-0">
+                        T
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 id="modal-teacher-name" class="text-base font-extrabold text-slate-900">Nama Pengajar</h3>
+                            <span id="modal-teacher-id" class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-md bg-slate-200/80 text-slate-700">KBEC-T000</span>
+                            <span id="modal-teacher-kpi" class="px-2 py-0.5 text-[10px] font-bold rounded-md bg-emerald-100 text-emerald-800">Grade A</span>
+                        </div>
+                        <p id="modal-teacher-contact" class="text-xs text-slate-500 mt-0.5 font-medium">email@kbec.id • +62 812-0000</p>
+                    </div>
+                </div>
+                <button onclick="closeDrilldownModal()" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-all">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Content (Scrollable) -->
+            <div class="p-5 sm:p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+
+                <!-- BAGIAN 1: PRESENSI DATANG & PULANG HARI INI -->
+                <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                    <h4 class="font-extrabold text-slate-800 text-xs flex items-center gap-2">
+                        <i data-lucide="user-check" class="w-4 h-4 text-[#0A58CA]"></i>
+                        <span>1. Presensi Kehadiran & Jam Kerja Hari Ini</span>
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="p-3 bg-white border border-slate-200 rounded-xl">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">Status & Jam Datang</span>
+                            <p id="modal-presence-checkin" class="font-bold text-slate-800 text-xs mt-1">-</p>
+                        </div>
+                        <div class="p-3 bg-white border border-slate-200 rounded-xl">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">Jam Pulang & Durasi</span>
+                            <p id="modal-presence-checkout" class="font-bold text-slate-800 text-xs mt-1">-</p>
+                        </div>
+                        <div class="p-3 bg-white border border-slate-200 rounded-xl">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">Verifikasi Radius GPS</span>
+                            <p id="modal-presence-gps" class="font-bold text-slate-800 text-xs mt-1">-</p>
+                        </div>
+                    </div>
+                    <!-- Bukti Foto Live Kamera -->
+                    <div id="modal-proof-container" class="hidden pt-2 border-t border-slate-200">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase block mb-2">Foto Kamera Langsung Datang/Pulang:</span>
+                        <div class="w-32 h-24 rounded-xl overflow-hidden border border-slate-200 shadow-xs">
+                            <img id="modal-proof-img" src="" alt="Bukti Foto" class="w-full h-full object-cover">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BAGIAN 2: RINCIAN KELAS & AUDIT KETEPATAN WAKTU (SESI MENGAJAR) -->
+                <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                    <h4 class="font-extrabold text-slate-800 text-xs flex items-center gap-2">
+                        <i data-lucide="clock" class="w-4 h-4 text-[#0A58CA]"></i>
+                        <span>2. Jadwal Sesi Kelas vs Waktu Aktual Absen Pengajar</span>
+                    </h4>
+                    <div id="modal-classes-list" class="space-y-2.5">
+                        <!-- Render dynamic classes -->
+                    </div>
+                </div>
+
+                <!-- BAGIAN 3: KEADAAN KELAS SISWA & PERINGATAN SISWA BERMASALAH -->
+                <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/40 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="font-extrabold text-slate-800 text-xs flex items-center gap-2">
+                            <i data-lucide="users" class="w-4 h-4 text-[#0A58CA]"></i>
+                            <span>3. Keadaan Kelas & Deteksi Siswa Bermasalah</span>
+                        </h4>
+                        <span id="modal-class-health-badge" class="px-2.5 py-0.5 text-[10px] font-bold rounded-full">Kondusif</span>
+                    </div>
+
+                    <!-- Peringatan Siswa Bermasalah (Jika Ada) -->
+                    <div id="modal-problematic-box" class="hidden p-3.5 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
+                        <div class="flex items-center gap-2 text-rose-800 font-extrabold text-xs">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600 flex-shrink-0"></i>
+                            <span>Terdeteksi Siswa Bermasalah (Jarang Masuk / Akumulasi Alpha Tinggi):</span>
+                        </div>
+                        <div id="modal-problematic-list" class="space-y-1.5 pl-6 text-xs text-rose-900 font-medium">
+                            <!-- List of problematic students -->
+                        </div>
+                    </div>
+
+                    <div id="modal-no-problematic-box" class="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
+                        <span>Seluruh siswa di kelas pengajar ini memiliki tingkat kehadiran yang baik dan aktif.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="p-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2.5">
+                <button onclick="closeDrilldownModal()" class="px-5 py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all">
+                    Tutup
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
+        let globalAuditData = null;
+        let selectedTeacherForModal = null;
+
+        // Inisialisasi Tanggal Hari Ini (WIB)
+        function initDate() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const todayStr = `${year}-${month}-${day}`;
+            
+            const dateInput = document.getElementById('filter-date');
+            if (dateInput && !dateInput.value) {
+                dateInput.value = todayStr;
+            }
+        }
+
+        async function loadAuditData() {
+            const dateInput = document.getElementById('filter-date');
+            const targetDate = dateInput ? dateInput.value : '';
+
+            const tbody = document.getElementById('audit-table-body');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-16 text-slate-400">
+                        <div class="flex flex-col items-center justify-center gap-2">
+                            <div class="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                            <p class="text-xs font-semibold">Memuat rekapitulasi kinerja pengajar...</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/teachers/audit-monitoring?date=${targetDate}`);
+                if (!response.ok) {
+                    if (response.status === 403) {
+                        alert('Akses Ditolak: Halaman ini hanya dapat diakses oleh Super Administrator.');
+                        window.location.href = 'dashboard.html';
+                        return;
+                    }
+                    throw new Error(`HTTP error ${response.status}`);
+                }
+
+                globalAuditData = await response.json();
+                renderSummaryCards(globalAuditData.summary);
+                applyFilters();
+
+                const ts = document.getElementById('table-timestamp');
+                if (ts) ts.innerText = `Diperbarui pukul ${new Date().toLocaleTimeString('id-ID')} WIB`;
+            } catch (err) {
+                console.error('Error loading audit data:', err);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center py-12 text-rose-500 font-semibold">
+                            Gagal mengambil data audit kinerja pengajar: ${err.message}
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function renderSummaryCards(summary) {
+            if (!summary) return;
+            document.getElementById('stat-teachers-present').innerText = `${summary.teachers_present} / ${summary.total_teachers}`;
+            document.getElementById('stat-teachers-rate').innerText = `${summary.attendance_rate}% Pengajar Hadir`;
+            
+            document.getElementById('stat-classes-completed').innerText = `${summary.total_classes_completed} / ${summary.total_classes_scheduled}`;
+            document.getElementById('stat-classes-rate').innerText = `${summary.class_fulfillment_rate}% Sesi Terlaksana`;
+            
+            document.getElementById('stat-punctuality-rate').innerText = `${summary.punctuality_rate}%`;
+            
+            // Problematic students badge
+            const probEl = document.getElementById('stat-problematic-students');
+            probEl.innerText = summary.total_problematic_students || 0;
+            
+            lucide.createIcons();
+        }
+
+        function applyFilters() {
+            if (!globalAuditData || !globalAuditData.teachers) return;
+
+            const unitFilter = document.getElementById('filter-unit').value;
+            const disciplineFilter = document.getElementById('filter-discipline').value;
+            const searchVal = (document.getElementById('filter-search')?.value || document.getElementById('quick-search-input')?.value || '').toLowerCase().trim();
+
+            const filtered = globalAuditData.teachers.filter(t => {
+                // Filter Unit
+                let matchUnit = true;
+                if (unitFilter !== 'all') {
+                    matchUnit = (t.classes_summary.details || []).some(c => (c.unit && c.unit.toLowerCase().includes(unitFilter.toLowerCase())) || (c.program && c.program.toLowerCase().includes(unitFilter.toLowerCase())));
+                }
+
+                // Filter Search Nama / ID
+                let matchSearch = true;
+                if (searchVal) {
+                    matchSearch = t.name.toLowerCase().includes(searchVal) || t.teacher_id.toLowerCase().includes(searchVal);
+                }
+
+                // Filter Disiplin Sesi
+                let matchDiscipline = true;
+                if (disciplineFilter === 'tepat_waktu') {
+                    matchDiscipline = (t.classes_summary.details || []).some(c => c.is_taught && !c.is_late);
+                } else if (disciplineFilter === 'telat_saja') {
+                    matchDiscipline = (t.classes_summary.details || []).some(c => c.is_late);
+                } else if (disciplineFilter === 'grading_menunggak') {
+                    matchDiscipline = (t.classes_summary.details || []).some(c => c.is_taught && c.grading_status.includes('Belum'));
+                } else if (disciplineFilter === 'siswa_bermasalah') {
+                    matchDiscipline = t.student_health && t.student_health.has_problematic_students;
+                }
+
+                return matchUnit && matchSearch && matchDiscipline;
+            });
+
+            renderAuditTable(filtered);
+        }
+
+        function renderAuditTable(teachers) {
+            const tbody = document.getElementById('audit-table-body');
+            tbody.innerHTML = '';
+
+            const badgeCount = document.getElementById('badge-teacher-count');
+            if (badgeCount) badgeCount.innerText = `${teachers.length} Pengajar`;
+
+            if (teachers.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center py-12 text-slate-400 font-semibold">
+                            Tidak ada data pengajar yang sesuai dengan filter pencarian.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            teachers.forEach((t, idx) => {
+                // 1. Presensi Harian Badge
+                let presensiBadgeClass = 'bg-slate-100 text-slate-600';
+                if (t.daily_attendance.badge === 'green') presensiBadgeClass = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+                else if (t.daily_attendance.badge === 'blue') presensiBadgeClass = 'bg-blue-50 text-blue-700 border border-blue-200';
+                else if (t.daily_attendance.badge === 'amber') presensiBadgeClass = 'bg-amber-50 text-amber-700 border border-amber-200';
+
+                // 2. Kelas Hari Ini Badge
+                const clsSum = t.classes_summary;
+                const classRatioText = `${clsSum.completed_today_count} / ${clsSum.scheduled_today_count} Kelas`;
+                let classBadgeClass = 'bg-slate-100 text-slate-600';
+                if (clsSum.scheduled_today_count > 0 && clsSum.completed_today_count >= clsSum.scheduled_today_count) {
+                    classBadgeClass = 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+                } else if (clsSum.completed_today_count > 0) {
+                    classBadgeClass = 'bg-blue-50 text-blue-700 border border-blue-200';
+                } else if (clsSum.scheduled_today_count > 0) {
+                    classBadgeClass = 'bg-amber-50 text-amber-700 border border-amber-200';
+                }
+
+                // 3. Ketepatan Waktu Sesi (Audit Toleransi 10-15 mnt)
+                let punctualityHTML = '<span class="text-slate-400 text-[11px]">-</span>';
+                const taughtDetails = (clsSum.details || []).filter(c => c.is_taught);
+                if (taughtDetails.length > 0) {
+                    const lateDetails = taughtDetails.filter(c => c.is_late);
+                    if (lateDetails.length > 0) {
+                        const worstLate = lateDetails[0];
+                        punctualityHTML = `
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                                ⚠️ ${worstLate.punctuality_status}
+                            </span>
+                        `;
+                    } else {
+                        const hasTolerance = taughtDetails.some(c => c.punctuality_badge === 'amber');
+                        if (hasTolerance) {
+                            punctualityHTML = `
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                    🕒 Toleransi (10-15m)
+                                </span>
+                            `;
+                        } else {
+                            punctualityHTML = `
+                                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    ✅ Tepat Waktu
+                                </span>
+                            `;
+                        }
+                    }
+                } else if (clsSum.scheduled_today_count > 0) {
+                    punctualityHTML = '<span class="text-slate-400 text-[11px]">Menunggu Jadwal</span>';
+                }
+
+                // 4. Kepatuhan Input Nilai Siswa
+                let gradingHTML = '<span class="text-slate-400 text-[11px]">-</span>';
+                if (taughtDetails.length > 0) {
+                    const allFull = taughtDetails.every(c => c.grading_badge === 'green');
+                    const hasZero = taughtDetails.some(c => c.grading_badge === 'rose');
+                    if (allFull) {
+                        gradingHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Lengkap (100%)</span>`;
+                    } else if (hasZero) {
+                        gradingHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">⚠️ Belum Diinput</span>`;
+                    } else {
+                        gradingHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">Sebagian</span>`;
+                    }
+                }
+
+                // 5. Keadaan Kelas Siswa & Peringatan Siswa Bermasalah (Sesuai Catatan Super Admin)
+                let healthHTML = '';
+                const sHealth = t.student_health;
+                if (sHealth && sHealth.has_problematic_students) {
+                    healthHTML = `
+                        <div class="space-y-1">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-700 border border-rose-300 shadow-2xs">
+                                ⚠️ Siswa Bermasalah (${sHealth.problematic_count} Jarang Masuk)
+                            </span>
+                            <p class="text-[10px] text-rose-600 font-bold pl-1">Kehadiran Kelas: ${sHealth.attendance_rate}%</p>
+                        </div>
+                    `;
+                } else {
+                    healthHTML = `
+                        <div class="space-y-0.5">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                ✅ Kelas Kondusif
+                            </span>
+                            <p class="text-[10px] text-slate-400 pl-1">Kehadiran: ${sHealth.attendance_rate}%</p>
+                        </div>
+                    `;
+                }
+
+                // 6. Skor KPI & Grade Badge
+                const kpi = t.kpi_score;
+                let kpiBadgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                if (kpi.grade === 'B') kpiBadgeColor = 'bg-blue-100 text-blue-800 border-blue-300';
+                else if (kpi.grade === 'C') kpiBadgeColor = 'bg-amber-100 text-amber-800 border-amber-300';
+                else if (kpi.grade === 'D') kpiBadgeColor = 'bg-rose-100 text-rose-800 border-rose-300';
+
+                const tr = document.createElement('tr');
+                tr.className = `hover:bg-slate-50/80 transition-colors ${sHealth.has_problematic_students ? 'bg-rose-50/20' : ''}`;
+                tr.innerHTML = `
+                    <td class="py-3.5 px-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-9 h-9 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex-shrink-0 flex items-center justify-center font-bold text-xs text-slate-600">
+                                ${t.avatar ? `<img src="${t.avatar}" class="w-full h-full object-cover">` : t.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-slate-900 leading-tight">${t.name}</h4>
+                                <p class="text-[10px] font-mono font-bold text-slate-400 mt-0.5">${t.teacher_id} • ${t.status_kontrak}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="py-3.5 px-4">
+                        <div class="space-y-1">
+                            <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${presensiBadgeClass}">
+                                ${t.daily_attendance.status}
+                            </span>
+                            <p class="text-[11px] font-semibold text-slate-700">
+                                ${t.daily_attendance.checkin_time} → ${t.daily_attendance.checkout_time}
+                            </p>
+                            <p class="text-[10px] text-slate-400">Durasi: <b>${t.daily_attendance.work_duration}</b></p>
+                        </div>
+                    </td>
+                    <td class="py-3.5 px-4">
+                        <div class="space-y-1">
+                            <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${classBadgeClass}">
+                                ${classRatioText}
+                            </span>
+                            <div class="text-[10px] text-slate-500 max-w-[160px] truncate" title="${(clsSum.details || []).map(c => c.class_name).join(', ')}">
+                                ${(clsSum.details || []).map(c => c.class_name).join(', ') || 'Tidak ada jadwal hari ini'}
+                            </div>
+                        </div>
+                    </td>
+                    <td class="py-3.5 px-4">
+                        ${punctualityHTML}
+                    </td>
+                    <td class="py-3.5 px-4">
+                        ${gradingHTML}
+                    </td>
+                    <td class="py-3.5 px-4">
+                        ${healthHTML}
+                    </td>
+                    <td class="py-3.5 px-4 text-center">
+                        <div class="inline-flex flex-col items-center">
+                            <span class="px-2.5 py-0.5 rounded-md text-[11px] font-extrabold border ${kpiBadgeColor}">
+                                ${kpi.grade} (${kpi.overall})
+                            </span>
+                        </div>
+                    </td>
+                    <td class="py-3.5 px-4 text-center no-print">
+                        <button onclick="openDrilldownModal('${t.teacher_id}')" class="px-3 py-1.5 bg-[#0A58CA] hover:bg-blue-700 text-white font-bold rounded-xl text-[11px] shadow-xs transition-all flex items-center gap-1 mx-auto" title="Buka Detail Audit Pengajar">
+                            <i data-lucide="eye" class="w-3.5 h-3.5"></i>
+                            <span>Audit</span>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            lucide.createIcons();
+        }
+
+        // Buka Modal Detail Drill-Down Audit
+        function openDrilldownModal(teacherId) {
+            if (!globalAuditData || !globalAuditData.teachers) return;
+            const t = globalAuditData.teachers.find(item => item.teacher_id === teacherId);
+            if (!t) return;
+
+            selectedTeacherForModal = t;
+
+            // Header Modal
+            document.getElementById('modal-teacher-name').innerText = t.name;
+            document.getElementById('modal-teacher-id').innerText = t.teacher_id;
+            document.getElementById('modal-teacher-kpi').innerText = `Skor KPI: ${t.kpi_score.overall} (Grade ${t.kpi_score.grade})`;
+            document.getElementById('modal-teacher-contact').innerText = `${t.email} • ${t.kontak} • Kontrak: ${t.status_kontrak}`;
+
+            const avEl = document.getElementById('modal-teacher-avatar');
+            if (t.avatar) {
+                avEl.innerHTML = `<img src="${t.avatar}" class="w-full h-full object-cover">`;
+            } else {
+                avEl.innerText = t.name.slice(0, 2).toUpperCase();
+            }
+
+            // Bagian 1: Presensi
+            document.getElementById('modal-presence-checkin').innerText = `${t.daily_attendance.status} (${t.daily_attendance.checkin_time})`;
+            document.getElementById('modal-presence-checkout').innerText = `${t.daily_attendance.checkout_time} (Durasi: ${t.daily_attendance.work_duration})`;
+            
+            const gpsEl = document.getElementById('modal-presence-gps');
+            if (t.daily_attendance.gps_radius_meters !== null) {
+                gpsEl.innerText = `Radius: ${t.daily_attendance.gps_radius_meters}m (${t.daily_attendance.gps_is_valid ? 'Di Area KBEC' : 'Luar Radius'})`;
+            } else {
+                gpsEl.innerText = '-';
+            }
+
+            const proofBox = document.getElementById('modal-proof-container');
+            const proofImg = document.getElementById('modal-proof-img');
+            if (t.daily_attendance.proof_image) {
+                proofBox.classList.remove('hidden');
+                proofImg.src = t.daily_attendance.proof_image;
+            } else {
+                proofBox.classList.add('hidden');
+            }
+
+            // Bagian 2: Sesi Mengajar & Ketepatan Waktu
+            const classesContainer = document.getElementById('modal-classes-list');
+            classesContainer.innerHTML = '';
+            const details = t.classes_summary.details || [];
+
+            if (details.length === 0) {
+                classesContainer.innerHTML = `<p class="text-slate-400 py-3">Tidak ada kelas yang dijadwalkan pada hari ini.</p>`;
+            } else {
+                details.forEach(cls => {
+                    const row = document.createElement('div');
+                    row.className = `p-3.5 bg-white border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${cls.is_late ? 'border-rose-200 bg-rose-50/20' : 'border-slate-200'}`;
+                    row.innerHTML = `
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                <h5 class="font-extrabold text-slate-900">${cls.class_name}</h5>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">${cls.unit}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${cls.is_taught ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}">
+                                    ${cls.is_taught ? 'Sudah Diajar' : 'Belum Diajar'}
+                                </span>
+                            </div>
+                            <p class="text-[11px] text-slate-500">
+                                Jadwal: <b>${cls.scheduled_time}</b> • Absen Guru: <b>${cls.checkin_time}</b> • Ruang: <b>${cls.room}</b>
+                            </p>
+                            <p class="text-[11px] text-slate-600">
+                                Topik: <span class="italic font-medium">${cls.topic_material}</span>
+                            </p>
+                        </div>
+                        <div class="text-left sm:text-right space-y-1 flex-shrink-0">
+                            <div>
+                                <span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${cls.is_late ? 'bg-rose-100 text-rose-700 border border-rose-300' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}">
+                                    ${cls.punctuality_status}
+                                </span>
+                            </div>
+                            <div class="text-[10px] text-slate-500 font-medium">
+                                Nilai Siswa: <b class="${cls.grading_badge === 'green' ? 'text-emerald-600' : (cls.grading_badge === 'rose' ? 'text-rose-600' : 'text-amber-600')}">${cls.grading_status}</b>
+                            </div>
+                        </div>
+                    `;
+                    classesContainer.appendChild(row);
+                });
+            }
+
+            // Bagian 3: Siswa Bermasalah
+            const probBox = document.getElementById('modal-problematic-box');
+            const probList = document.getElementById('modal-problematic-list');
+            const noProbBox = document.getElementById('modal-no-problematic-box');
+            const healthBadge = document.getElementById('modal-class-health-badge');
+
+            if (t.student_health && t.student_health.has_problematic_students) {
+                probBox.classList.remove('hidden');
+                noProbBox.classList.add('hidden');
+                healthBadge.className = 'px-2.5 py-0.5 text-[10px] font-extrabold rounded-full bg-rose-100 text-rose-700 border border-rose-200';
+                healthBadge.innerText = `⚠️ ${t.student_health.problematic_count} Siswa Bermasalah`;
+
+                probList.innerHTML = '';
+                t.student_health.problematic_students.forEach(s => {
+                    const li = document.createElement('div');
+                    li.className = 'flex items-center justify-between border-b border-rose-100 pb-1';
+                    li.innerHTML = `
+                        <span><b>${s.student_name}</b> (NIS: ${s.student_id}) — Kelas: ${s.kelas}</span>
+                        <span class="px-2 py-0.5 bg-rose-200/80 text-rose-900 rounded font-bold text-[10px]">${s.reason}</span>
+                    `;
+                    probList.appendChild(li);
+                });
+            } else {
+                probBox.classList.add('hidden');
+                noProbBox.classList.remove('hidden');
+                healthBadge.className = 'px-2.5 py-0.5 text-[10px] font-bold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200';
+                healthBadge.innerText = 'Kondusif & Disiplin';
+            }
+
+            // Tampilkan Modal
+            const modal = document.getElementById('modal-drilldown');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('div').classList.remove('scale-95');
+            }, 10);
+
+            lucide.createIcons();
+        }
+
+        function closeDrilldownModal() {
+            const modal = document.getElementById('modal-drilldown');
+            modal.classList.add('opacity-0');
+            modal.querySelector('div').classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 200);
+        }
+
+        // Ekspor Audit ke Excel
+        function exportAuditExcel() {
+            if (!globalAuditData || !globalAuditData.teachers || globalAuditData.teachers.length === 0) {
+                alert('Tidak ada data audit untuk diekspor.');
+                return;
+            }
+
+            const rows = globalAuditData.teachers.map((t, i) => {
+                const taught = (t.classes_summary.details || []).filter(c => c.is_taught);
+                const worstLate = taught.find(c => c.is_late);
+                const probNames = (t.student_health.problematic_students || []).map(s => `${s.student_name} (${s.reason})`).join('; ');
+
+                return {
+                    'No': i + 1,
+                    'ID Pengajar': t.teacher_id,
+                    'Nama Pengajar': t.name,
+                    'Status Kontrak': t.status_kontrak,
+                    'Presensi Harian': t.daily_attendance.status,
+                    'Jam Datang': t.daily_attendance.checkin_time,
+                    'Jam Pulang': t.daily_attendance.checkout_time,
+                    'Durasi Jam Kerja': t.daily_attendance.work_duration,
+                    'Radius GPS': t.daily_attendance.gps_radius_meters ? `${t.daily_attendance.gps_radius_meters}m` : '-',
+                    'Jadwal Kelas Hari Ini': t.classes_summary.scheduled_today_count,
+                    'Kelas Selesai Diajar': t.classes_summary.completed_today_count,
+                    'Ketepatan Waktu Sesi': worstLate ? worstLate.punctuality_status : (taught.length > 0 ? 'Tepat Waktu' : '-'),
+                    'Input Nilai Siswa': taught.length > 0 ? (taught.every(c => c.grading_badge === 'green') ? 'Lengkap (100%)' : 'Belum Lengkap') : '-',
+                    'Kehadiran Siswa Kelas (%)': `${t.student_health.attendance_rate}%`,
+                    'Status Siswa Bermasalah': t.student_health.has_problematic_students ? `YA (${t.student_health.problematic_count} Siswa)` : 'Tidak Ada',
+                    'Daftar Siswa Bermasalah': probNames || '-',
+                    'Skor Kinerja (0-100)': t.kpi_score.overall,
+                    'Grade KPI': t.kpi_score.grade
+                };
+            });
+
+            const ws = XLSX.utils.json_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Audit Kinerja Pengajar');
+            const targetDate = document.getElementById('filter-date').value || 'Hari-Ini';
+            XLSX.writeFile(wb, `Audit_Kinerja_Pengajar_KBEC_${targetDate}.xlsx`);
+        }
+
+        function refreshData() {
+            loadAuditData();
+        }
+
+        // Inisialisasi awal saat halaman dimuat
+        document.addEventListener('DOMContentLoaded', () => {
+            initDate();
+            loadAuditData();
+        });
+    </script>
+</body>
+
+</html>

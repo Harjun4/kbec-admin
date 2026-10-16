@@ -163,7 +163,7 @@
     <div id="view-modal"
         class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
         <div
-            class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform scale-95 transition-transform duration-300 p-6 space-y-4 border border-slate-100">
+            class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden transform scale-95 transition-transform duration-300 p-6 space-y-4 border border-slate-100">
             <div class="flex items-center gap-4 border-b border-slate-100 pb-4">
                 <img id="view-avatar" src=""
                     class="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-100">
@@ -186,6 +186,10 @@
                 <div><span class="text-xs font-bold text-slate-400 block uppercase tracking-wide">Status Saat
                         Ini</span><span id="view-status"
                         class="inline-block mt-1 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm"></span></div>
+                <div>
+                    <span class="text-xs font-bold text-slate-400 block uppercase tracking-wide">Keadaan Kelas / Siswa</span>
+                    <div id="view-student-health" class="mt-1.5"></div>
+                </div>
             </div>
             <div class="flex justify-end pt-3 border-t border-slate-100">
                 <button onclick="closeModal('view-modal')"
@@ -340,6 +344,10 @@
 
 
                     <div class="flex items-center gap-3">
+                        <a href="audit-kinerja-pengajar.html" id="btn-audit-kinerja"
+                            class="hidden items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-blue-500/10 transition-all transform hover:translate-y-[-1px]">
+                            <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 📊 Audit Kinerja (Super Admin)
+                        </a>
                         <button onclick="exportTeachersPDF()"
                             class="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:bg-slate-50 transition-colors">
                             <i data-lucide="download" class="w-4 h-4 text-slate-400"></i> Ekspor PDF
@@ -423,6 +431,12 @@
                                 <option value="Aktif">Aktif</option>
                                 <option value="Cuti">Cuti</option>
                             </select>
+                            <select id="filter-student-health" onchange="renderTable()"
+                                class="bg-white border border-slate-200 text-xs font-semibold text-slate-600 px-4 py-2.5 rounded-xl outline-none min-w-[175px] shadow-sm cursor-pointer focus:border-blue-500 transition-colors">
+                                <option value="Semua Keadaan Siswa">Semua Keadaan Siswa</option>
+                                <option value="Bermasalah">⚠️ Ada Siswa Bermasalah</option>
+                                <option value="Kondusif">✅ Kelas Kondusif</option>
+                            </select>
                         </div>
                         <div>
                             <p class="text-xs text-slate-400 font-medium">Menampilkan <span id="showing-counter"
@@ -440,6 +454,7 @@
                                     <th class="py-4 px-6 font-semibold">Nomor ID</th>
                                     <th class="py-4 px-6 font-semibold">Bidang Keahlian</th>
                                     <th class="py-4 px-6 font-semibold">Informasi Kontak</th>
+                                    <th class="py-4 px-6 font-semibold">Keadaan Kelas / Siswa</th>
                                     <th class="py-4 px-6 font-semibold">Status</th>
                                     <th class="py-4 px-6 font-semibold text-center">Aksi</th>
                                 </tr>
@@ -567,22 +582,28 @@
             document.getElementById('card-total-aktif-count').innerText = totalAktif;
             document.getElementById('card-total-cuti').innerText = `${totalCuti} Pengajar`;
 
-            // Proses Penyaringan Kombinasi (Search + Filter Keahlian + Filter Status)
+            // Proses Penyaringan Kombinasi (Search + Filter Keahlian + Filter Status + Filter Keadaan Siswa)
+            const healthFilter = document.getElementById('filter-student-health')?.value || 'Semua Keadaan Siswa';
             const filteredData = teachersData.filter(teacher => {
                 const matchesExp = (expFilter === 'Semua Keahlian' || (Array.isArray(teacher.expertise) && teacher.expertise.includes(expFilter)));
                 const matchesStatus = (statusFilter === 'Semua Status' || teacher.status === statusFilter);
+                const hasProblematic = Boolean(teacher.has_problematic_students || (teacher.problematic_students_count && teacher.problematic_students_count > 0));
+                const matchesHealth = (healthFilter === 'Semua Keadaan Siswa') ||
+                    (healthFilter === 'Bermasalah' && hasProblematic) ||
+                    (healthFilter === 'Kondusif' && !hasProblematic);
+
                 const matchesSearch = (teacher.nama.toLowerCase().includes(searchValue) ||
                     teacher.id.toLowerCase().includes(searchValue) ||
                     (Array.isArray(teacher.expertise) && teacher.expertise.some(e => e.toLowerCase().includes(searchValue))));
 
-                return matchesExp && matchesStatus && matchesSearch;
+                return matchesExp && matchesStatus && matchesHealth && matchesSearch;
             });
 
             document.getElementById('total-counter').innerText = teachersData.length;
             document.getElementById('showing-counter').innerText = filteredData.length > 0 ? `1-${filteredData.length}` : '0-0';
 
             if (filteredData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center py-12 text-slate-400 font-medium">Data pengajar tidak teridentifikasi pada sistem.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-slate-400 font-medium">Data pengajar tidak teridentifikasi pada sistem.</td></tr>`;
                 return;
             }
 
@@ -595,8 +616,36 @@
                     `<span class="text-[10px] font-semibold px-2 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-100/50">${exp}</span>`
                 ).join(' ');
 
+                const hasProblematic = Boolean(teacher.has_problematic_students || (teacher.problematic_students_count && teacher.problematic_students_count > 0));
+                const probCount = teacher.problematic_students_count || (teacher.problematic_students ? teacher.problematic_students.length : 0);
+
+                let studentHealthBadge = '';
+                if (hasProblematic) {
+                    studentHealthBadge = `
+                        <div class="space-y-1">
+                            <span class="inline-flex items-center gap-1.5 text-[11px] font-extrabold px-3 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-300 shadow-2xs">
+                                ⚠️ Siswa Bermasalah (${probCount} jarang masuk)
+                            </span>
+                            <p class="text-[10px] text-rose-600 font-bold pl-1">Perlu Perhatian</p>
+                        </div>
+                    `;
+                } else if (teacher.total_classes === 0) {
+                    studentHealthBadge = `
+                        <span class="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                            Belum ada kelas
+                        </span>
+                    `;
+                } else {
+                    studentHealthBadge = `
+                        <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i>
+                            ✅ Kelas Kondusif
+                        </span>
+                    `;
+                }
+
                 tbody.innerHTML += `
-                <tr class="hover:bg-slate-50/60 transition-colors group border-b border-slate-100">
+                <tr class="hover:bg-slate-50/60 transition-colors group border-b border-slate-100 ${hasProblematic ? 'bg-rose-50/20' : ''}">
                     <td class="py-4 px-6">
                         <div class="flex items-center gap-3">
                             <img src="${teacher.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150'}" class="w-10 h-10 rounded-full object-cover shadow-sm border border-slate-100">
@@ -613,6 +662,9 @@
                             <p class="flex items-center gap-1.5"><i data-lucide="mail" class="w-3 h-3 text-slate-400"></i> ${teacher.email}</p>
                             <p class="flex items-center gap-1.5 text-slate-400"><i data-lucide="phone" class="w-3 h-3"></i> ${teacher.kontak}</p>
                         </div>
+                    </td>
+                    <td class="py-4 px-6">
+                        ${studentHealthBadge}
                     </td>
                     <td class="py-4 px-6"><span class="text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm ${statusClass}">${teacher.status}</span></td>
                     <td class="py-4 px-6 text-center">
@@ -697,7 +749,51 @@
             const expContainer = document.getElementById('view-expertise');
             expContainer.innerHTML = Array.isArray(teacher.expertise) ? teacher.expertise.map(exp => `<span class="text-[10px] font-semibold px-2.5 py-0.5 bg-blue-50 text-blue-600 rounded-md border border-blue-100/50">${exp}</span>`).join(' ') : '';
 
+            // Keadaan Kelas & Siswa (Siswa Bermasalah Alert Box)
+            const healthNode = document.getElementById('view-student-health');
+            const hasProblematic = Boolean(teacher.has_problematic_students || (teacher.problematic_students_count && teacher.problematic_students_count > 0));
+            const probStudents = teacher.problematic_students || [];
+
+            if (hasProblematic && probStudents.length > 0) {
+                healthNode.innerHTML = `
+                    <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
+                        <div class="flex items-center gap-2 text-rose-800 font-extrabold text-xs">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600 flex-shrink-0"></i>
+                            <span>⚠️ Terdeteksi Siswa Bermasalah (${probStudents.length} Jarang Masuk):</span>
+                        </div>
+                        <div class="space-y-1.5 pl-2 text-xs text-rose-900 font-medium max-h-40 overflow-y-auto">
+                            ${probStudents.map(s => `
+                                <div class="p-2 bg-white border border-rose-200 rounded-lg flex items-center justify-between">
+                                    <div>
+                                        <span class="font-extrabold text-slate-900">${s.nama}</span>
+                                        <p class="text-[10px] text-rose-600 font-semibold">${s.reason} • Kelas: ${s.kelas}</p>
+                                    </div>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">
+                                        Alpha: ${s.alpha_count}x • Hadir: ${s.hadir_count || 0}/${s.total_recorded || 0} (${s.attendance_rate}%)
+                                    </span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else if (teacher.total_classes === 0) {
+                healthNode.innerHTML = `
+                    <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-xs font-medium flex items-center gap-2">
+                        <i data-lucide="info" class="w-4 h-4 text-slate-400"></i>
+                        <span>Pengajar ini belum memiliki kelas aktif yang diampu.</span>
+                    </div>
+                `;
+            } else {
+                healthNode.innerHTML = `
+                    <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-semibold flex items-center gap-2">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600"></i>
+                        <span>Seluruh siswa di kelas pengajar ini memiliki kehadiran aktif dan kelas kondusif.</span>
+                    </div>
+                `;
+            }
+
             openModal('view-modal');
+            lucide.createIcons();
         }
 
         function closeTeacherModal() { closeModal('teacher-modal'); }
@@ -775,16 +871,22 @@
         function exportTeachersPDF() {
             const expFilter = document.getElementById('filter-expertise')?.value || 'Semua Keahlian';
             const statusFilter = document.getElementById('filter-status')?.value || 'Semua Status';
+            const healthFilter = document.getElementById('filter-student-health')?.value || 'Semua Keadaan Siswa';
             const searchValue = document.getElementById('search-input')?.value.toLowerCase() || '';
 
             const filteredData = teachersData.filter(teacher => {
                 const matchesExp = (expFilter === 'Semua Keahlian' || (Array.isArray(teacher.expertise) && teacher.expertise.includes(expFilter)));
                 const matchesStatus = (statusFilter === 'Semua Status' || teacher.status === statusFilter);
+                const hasProblematic = Boolean(teacher.has_problematic_students || (teacher.problematic_students_count && teacher.problematic_students_count > 0));
+                const matchesHealth = (healthFilter === 'Semua Keadaan Siswa') ||
+                    (healthFilter === 'Bermasalah' && hasProblematic) ||
+                    (healthFilter === 'Kondusif' && !hasProblematic);
+
                 const matchesSearch = (teacher.nama.toLowerCase().includes(searchValue) ||
                     teacher.id.toLowerCase().includes(searchValue) ||
                     (Array.isArray(teacher.expertise) && teacher.expertise.some(e => e.toLowerCase().includes(searchValue))));
 
-                return matchesExp && matchesStatus && matchesSearch;
+                return matchesExp && matchesStatus && matchesHealth && matchesSearch;
             });
 
             if (filteredData.length === 0) {
@@ -796,6 +898,12 @@
             let tableRows = filteredData.map((t, index) => {
                 const expStr = Array.isArray(t.expertise) ? t.expertise.join(', ') : '-';
                 const badgeClass = t.status === 'Aktif' ? 'badge-aktif' : 'badge-cuti';
+                const hasProblematic = Boolean(t.has_problematic_students || (t.problematic_students_count && t.problematic_students_count > 0));
+                const probCount = t.problematic_students_count || (t.problematic_students ? t.problematic_students.length : 0);
+                const healthHTML = hasProblematic ? 
+                    `<span style="color: #b91c1c; font-weight: 700; background: #fee2e2; padding: 2px 6px; border-radius: 4px; font-size: 9px;">⚠️ Bermasalah (${probCount})</span>` : 
+                    `<span style="color: #047857; font-weight: 600; background: #ecfdf5; padding: 2px 6px; border-radius: 4px; font-size: 9px;">✅ Kondusif</span>`;
+
                 return `
                     <tr>
                         <td style="text-align: center; font-weight: 600; color: #94a3b8;">${index + 1}</td>
@@ -803,6 +911,7 @@
                         <td style="font-weight: 700; color: #0f172a;">${t.nama}</td>
                         <td style="color: #475569;">${expStr}</td>
                         <td style="color: #475569;">${t.email || '-'}<br><span style="color: #94a3b8; font-size: 10px;">${t.kontak || '-'}</span></td>
+                        <td>${healthHTML}</td>
                         <td style="color: #475569;">${t.joined || '-'}</td>
                         <td style="text-align: center;">
                             <span class="badge ${badgeClass}">${t.status}</span>
@@ -944,6 +1053,7 @@
                                 <th>Nama Pengajar</th>
                                 <th>Bidang Keahlian</th>
                                 <th>Informasi Kontak</th>
+                                <th>Keadaan Kelas / Siswa</th>
                                 <th style="width: 90px;">Bergabung</th>
                                 <th style="width: 70px; text-align: center;">Status</th>
                             </tr>
@@ -970,6 +1080,18 @@
 
         window.onload = function () {
             fetchTeachers();
+
+            // Tampilkan tombol Audit Kinerja khusus jika role Super Admin
+            const rawUser = localStorage.getItem('currentUser');
+            const currentUser = rawUser ? JSON.parse(rawUser) : null;
+            const userRole = localStorage.getItem('userRole') || (currentUser && (currentUser.role || currentUser.role_name));
+            if (userRole === 'Super Admin') {
+                const btnAudit = document.getElementById('btn-audit-kinerja');
+                if (btnAudit) {
+                    btnAudit.classList.remove('hidden');
+                    btnAudit.classList.add('flex');
+                }
+            }
         };
     </script>
 </body>

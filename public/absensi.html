@@ -368,69 +368,84 @@
         </div>
     </div>
 
-    <!-- MODAL POPUP INPUT EVALUASI KINERJA SISWA (SB/WB PAGE NOTES) -->
-    <div id="eval-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center hidden opacity-0 transition-all duration-200">
-        <div class="bg-white w-full max-w-xl rounded-2xl shadow-2xl border border-slate-100 overflow-hidden transform scale-95 transition-all duration-200">
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                <div class="flex items-center gap-2.5 text-[#0A58CA]">
-                    <i data-lucide="book-open" class="w-5 h-5"></i>
-                    <h3 class="font-extrabold text-slate-900 text-sm">Input Evaluasi & Catatan Halaman SB / WB</h3>
+    <!-- MODAL POPUP INPUT EVALUASI KINERJA SISWA (SB/WB PAGE NOTES) - RESPONSIVE (MOBILE CARD & DESKTOP ROW) -->
+    <div id="eval-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-end sm:items-center justify-center hidden opacity-0 transition-all duration-200">
+        <div class="bg-white w-full sm:max-w-4xl lg:max-w-5xl h-[100dvh] sm:h-auto sm:max-h-[90vh] rounded-t-2xl sm:rounded-2xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden transform translate-y-4 sm:translate-y-0 sm:scale-95 transition-all duration-200">
+            <!-- STICKY HEADER -->
+            <div class="px-4 sm:px-6 py-3.5 bg-slate-50/95 backdrop-blur-sm border-b border-slate-200/80 shrink-0">
+                <div class="flex items-center justify-between gap-3 mb-2.5">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <div class="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200/60 flex items-center justify-center text-[#0A58CA] shrink-0">
+                            <i data-lucide="book-open" class="w-4 h-4"></i>
+                        </div>
+                        <div class="truncate">
+                            <h3 class="font-extrabold text-slate-900 text-sm leading-tight truncate">Input Evaluasi Sesi & Catatan SB/WB</h3>
+                            <p id="eval-modal-subtitle" class="text-[11px] text-slate-500 font-semibold truncate">-</p>
+                        </div>
+                    </div>
+                    <button type="button" onclick="closeEvalModal()" class="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer" title="Tutup">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
                 </div>
-                <button onclick="closeEvalModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-4 h-4"></i></button>
+
+                <!-- CONTROLS ROW: TANGGAL, SEARCH & FILTER PILLS -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl border border-slate-200/90 shadow-2xs">
+                            <i data-lucide="calendar" class="w-3.5 h-3.5 text-[#0A58CA]"></i>
+                            <label class="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Tanggal:</label>
+                            <input type="date" id="eval-tanggal" onchange="loadSessionEvaluations()" class="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 flex-1 sm:justify-end">
+                        <div class="relative flex-1 sm:max-w-xs">
+                            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                            <input type="text" id="eval-search-input" oninput="filterEvaluationCards()" placeholder="Cari nama siswa..." class="w-full text-xs font-medium bg-white border border-slate-200/90 rounded-xl pl-8 pr-3 py-1.5 focus:outline-none focus:border-blue-500 shadow-2xs">
+                        </div>
+                        
+                        <!-- FILTER PILLS -->
+                        <div class="flex items-center gap-1 bg-slate-200/70 p-1 rounded-xl shrink-0 text-[11px] font-bold">
+                            <button type="button" onclick="setEvalPresenceFilter('all')" id="eval-filter-all" class="px-2.5 py-1 rounded-lg bg-white text-blue-700 shadow-2xs transition-all cursor-pointer">Semua (<span id="eval-count-all">0</span>)</button>
+                            <button type="button" onclick="setEvalPresenceFilter('hadir')" id="eval-filter-hadir" class="px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 transition-all cursor-pointer">Hadir (<span id="eval-count-hadir">0</span>)</button>
+                            <button type="button" onclick="setEvalPresenceFilter('absen')" id="eval-filter-absen" class="px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 transition-all cursor-pointer">Izin/Alpha (<span id="eval-count-absen">0</span>)</button>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <form onsubmit="handleEvalSubmit(event)" class="p-6 space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-[10px] font-extrabold text-slate-400 uppercase mb-1">Pilih Siswa</label>
-                        <select id="eval-student-select" onchange="onEvalStudentOrDateChange()" required class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500">
-                            <!-- Option students -->
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-extrabold text-slate-400 uppercase mb-1">Tanggal Sesi Belajar</label>
-                        <input type="date" id="eval-tanggal" onchange="onEvalStudentOrDateChange()" required class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500">
-                    </div>
-                </div>
 
-                <div class="grid grid-cols-4 gap-3">
-                    <div>
-                        <label class="block text-[10px] font-extrabold text-slate-400 uppercase mb-1">Grade Level</label>
-                        <input type="text" id="eval-grade" placeholder="Contoh: 1A" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-extrabold text-slate-400 uppercase mb-1">Status Presensi</label>
-                        <select id="eval-presensi" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500">
-                            <option value="Hadir">Hadir</option>
-                            <option value="Izin">Izin</option>
-                            <option value="Sakit">Sakit</option>
-                            <option value="Alpha">Alpha</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-extrabold text-slate-400 uppercase mb-1">Catatan SB (Book)</label>
-                        <input type="text" id="eval-sb" placeholder="Contoh: Hal. 10-12" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-[10px] font-extrabold text-slate-400 uppercase mb-1">Catatan WB (Book)</label>
-                        <input type="text" id="eval-wb" placeholder="Contoh: Hal. 14-15" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500">
-                    </div>
-                </div>
+            <!-- DESKTOP TABLE HEADER (VISIBLE ONLY ON >= MD SCREENS) -->
+            <div class="hidden md:grid grid-cols-12 gap-3 px-6 py-2 bg-slate-100/90 border-b border-slate-200 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider shrink-0">
+                <div class="col-span-3">Siswa & Grade</div>
+                <div class="col-span-2 text-center">Presensi (1-Tap)</div>
+                <div class="col-span-2 text-center">Sesi Terakhir</div>
+                <div class="col-span-2 text-center">Halaman SB</div>
+                <div class="col-span-2 text-center">Halaman WB</div>
+                <div class="col-span-1 text-center">Catatan</div>
+            </div>
 
-                <div>
-                    <label class="block text-[10px] font-extrabold text-slate-400 uppercase mb-1">Materi Lesson / Bab</label>
-                    <input type="text" id="eval-lesson" placeholder="Contoh: Lesson 3: Speaking & Telling Story" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500">
-                </div>
+            <!-- SCROLLABLE LIST CONTAINER (MOBILE CARDS / DESKTOP COMPACT ROWS) -->
+            <div id="eval-cards-container" class="flex-1 overflow-y-auto p-3 sm:p-5 space-y-3 custom-scrollbar bg-slate-50/50">
+                <!-- Dynamically loaded student cards / rows -->
+            </div>
 
-                <div>
-                    <label class="block text-[10px] font-extrabold text-slate-400 uppercase mb-1">Material Tambahan / Catatan Evaluasi</label>
-                    <textarea id="eval-notes" rows="2" placeholder="Catatan perkembangan belajar siswa..." class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500"></textarea>
+            <!-- STICKY FOOTER -->
+            <div class="px-4 sm:px-6 py-3 bg-white border-t border-slate-200/80 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 shadow-lg sm:shadow-none">
+                <div class="flex items-center gap-2 text-xs font-semibold text-slate-600 w-full sm:w-auto justify-between sm:justify-start">
+                    <div class="flex items-center gap-1.5">
+                        <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span id="eval-summary-stats">Terisi: 0 dari 0 siswa hadir</span>
+                    </div>
+                    <span id="eval-summary-absent-badge" class="text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 hidden">0 Izin/Alpha</span>
                 </div>
-
-                <div class="flex justify-end gap-2 pt-2">
-                    <button type="button" onclick="closeEvalModal()" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-200">Batal</button>
-                    <button type="submit" class="px-5 py-2 bg-[#0A58CA] text-white text-xs font-bold rounded-xl hover:bg-blue-700 shadow-sm">Simpan Evaluasi</button>
+                <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button type="button" onclick="closeEvalModal()" class="hidden sm:inline-flex px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer">Batal</button>
+                    <button type="button" id="btn-save-batch-eval" onclick="submitBatchEvaluations()" class="w-full sm:w-auto px-6 py-2.5 bg-[#0A58CA] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i data-lucide="check" class="w-4 h-4"></i>
+                        <span id="btn-save-batch-text">Simpan Evaluasi Kelas</span>
+                    </button>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 
@@ -745,7 +760,7 @@
 
             let dateColsHtml = '';
             data.dates.forEach(d => {
-                dateColsHtml += `<th colspan="3" class="bg-blue-50 text-[#0A58CA] text-center font-extrabold border border-slate-300">${d}</th>`;
+                dateColsHtml += `<th colspan="3" onclick="openPerformanceEvalModal(null, '${d}')" class="bg-blue-50 hover:bg-blue-100 text-[#0A58CA] text-center font-extrabold border border-slate-300 cursor-pointer transition-colors" title="Klik untuk Input Evaluasi SB/WB pada tanggal ${d}">${d} <i data-lucide="edit-3" class="w-2.5 h-2.5 inline-block opacity-60 ml-0.5"></i></th>`;
             });
 
             let subDateColsHtml = '';
@@ -832,145 +847,563 @@
             if (window.lucide) lucide.createIcons();
         }
 
-        async function openPerformanceEvalModal(targetNis = null) {
-            if (!activeClass) return;
+        let evalSessionData = {
+            class_id: null,
+            class_name: '',
+            session_date: '',
+            students: []
+        };
+        let currentEvalPresenceFilter = 'all';
 
-            if (!currentMonthReport || !currentMonthReport.report || currentMonthReport.report.length === 0) {
-                await loadExcelPerformanceReport();
-            }
-
-            const select = document.getElementById('eval-student-select');
-            select.innerHTML = '';
-
-            let studentsList = (currentMonthReport && currentMonthReport.report) ? currentMonthReport.report : [];
-            if (studentsList.length === 0 && studentsData.length > 0) {
-                studentsList = studentsData.map(s => ({ nis: s.id, nama: s.nama, grade: '1A', lesson: '', material_tambahan: '' }));
-            }
-
-            studentsList.forEach(r => {
-                const nisVal = r.nis || r.id;
-                select.innerHTML += `<option value="${nisVal}">${nisVal} - ${r.nama}</option>`;
-            });
-
-            if (targetNis) {
-                select.value = targetNis;
-            }
-
-            await onEvalStudentOrDateChange();
-
-            const modal = document.getElementById('eval-modal');
-            modal.classList.remove('hidden');
-            setTimeout(() => { modal.classList.remove('opacity-0'); modal.querySelector('div').classList.remove('scale-95'); }, 10);
-            if (window.lucide) lucide.createIcons();
+        function escapeHtmlAttr(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
         }
 
-        async function onEvalStudentOrDateChange() {
-            const student_id = document.getElementById('eval-student-select').value;
-            const tanggal = document.getElementById('eval-tanggal').value;
-            if (!student_id) return;
-
-            let existingGrade = null;
+        function formatDateShort(dateStr) {
+            if (!dateStr || dateStr === '-') return '-';
             try {
-                const res = await fetch(`${API_BASE}/api/attendance/student-grades?student_id=${student_id}&tanggal=${tanggal}`);
-                const grades = await res.json();
-                if (Array.isArray(grades) && grades.length > 0) {
-                    existingGrade = grades[0];
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+                    const day = parseInt(parts[2], 10);
+                    const mIdx = parseInt(parts[1], 10) - 1;
+                    return `${day} ${months[mIdx] || parts[1]}`;
                 }
-            } catch (err) {
-                console.error(err);
+            } catch (e) {}
+            return dateStr;
+        }
+
+        async function openPerformanceEvalModal(targetNis = null, targetDate = null) {
+            if (!activeClass) {
+                showToast('Silakan pilih kelas terlebih dahulu sebelum mengisi evaluasi.', 'warning');
+                return;
             }
 
-            const targetStudentInReport = (currentMonthReport && currentMonthReport.report) ? currentMonthReport.report.find(r => String(r.nis) === String(student_id)) : null;
-
-            if (existingGrade) {
-                document.getElementById('eval-grade').value = existingGrade.grade || '1A';
-                document.getElementById('eval-presensi').value = existingGrade.presensi || 'Hadir';
-                document.getElementById('eval-sb').value = existingGrade.sb_page || '';
-                document.getElementById('eval-wb').value = existingGrade.wb_page || '';
-                document.getElementById('eval-lesson').value = existingGrade.lesson || '';
-                document.getElementById('eval-notes').value = existingGrade.material_tambahan || existingGrade.keterangan || existingGrade.notes || '';
-            } else {
-                document.getElementById('eval-grade').value = targetStudentInReport ? (targetStudentInReport.grade || '1A') : '1A';
-
-                let presVal = 'Hadir';
-                if (targetStudentInReport && targetStudentInReport.sessions && targetStudentInReport.sessions[tanggal]) {
-                    const p = targetStudentInReport.sessions[tanggal].presence;
-                    if (p && p !== '-') presVal = p;
-                }
-                document.getElementById('eval-presensi').value = presVal;
-                document.getElementById('eval-sb').value = (targetStudentInReport && targetStudentInReport.sessions && targetStudentInReport.sessions[tanggal] && targetStudentInReport.sessions[tanggal].sb !== '-') ? targetStudentInReport.sessions[tanggal].sb : '';
-                document.getElementById('eval-wb').value = (targetStudentInReport && targetStudentInReport.sessions && targetStudentInReport.sessions[tanggal] && targetStudentInReport.sessions[tanggal].wb !== '-') ? targetStudentInReport.sessions[tanggal].wb : '';
-                document.getElementById('eval-lesson').value = (targetStudentInReport && targetStudentInReport.lesson !== '-') ? targetStudentInReport.lesson : '';
-                document.getElementById('eval-notes').value = (targetStudentInReport && targetStudentInReport.material_tambahan !== '-') ? targetStudentInReport.material_tambahan : '';
+            const modal = document.getElementById('eval-modal');
+            const subtitleEl = document.getElementById('eval-modal-subtitle');
+            if (subtitleEl) {
+                subtitleEl.innerText = `${activeClass.nama || 'Kelas KBEC'} • Pengajar: ${activeClass.pengajar || 'Pengajar KBEC'}`;
             }
+
+            const tanggalInput = document.getElementById('eval-tanggal');
+            if (targetDate) {
+                tanggalInput.value = targetDate;
+            } else if (!tanggalInput.value) {
+                tanggalInput.value = new Date().toISOString().slice(0, 10);
+            }
+
+            // Reset search input & filter
+            const searchInp = document.getElementById('eval-search-input');
+            if (searchInp) searchInp.value = '';
+            currentEvalPresenceFilter = 'all';
+            setEvalPresenceFilter('all');
+
+            // Show modal with animation
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                const box = modal.querySelector('div');
+                if (box) box.classList.remove('scale-95', 'translate-y-4');
+            }, 10);
+
+            if (window.lucide) lucide.createIcons();
+            await loadSessionEvaluations(targetNis);
         }
 
         function closeEvalModal() {
             const modal = document.getElementById('eval-modal');
-            modal.classList.add('opacity-0'); modal.querySelector('div').classList.add('scale-95');
+            if (!modal) return;
+            modal.classList.add('opacity-0');
+            const box = modal.querySelector('div');
+            if (box) box.classList.add('scale-95', 'translate-y-4');
             setTimeout(() => modal.classList.add('hidden'), 200);
         }
 
-        async function handleEvalSubmit(e) {
-            e.preventDefault();
-            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.querySelector('#eval-modal button[type="submit"]');
-            const originalHTML = btn ? btn.innerHTML : '';
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+        async function loadSessionEvaluations(targetNis = null) {
+            const container = document.getElementById('eval-cards-container');
+            const tanggal = document.getElementById('eval-tanggal').value || new Date().toISOString().slice(0, 10);
+            const classId = activeClass ? activeClass.id : null;
+
+            if (!classId) {
+                container.innerHTML = '<div class="text-center py-12 text-slate-400 font-bold text-xs">Pilih kelas terlebih dahulu.</div>';
+                return;
             }
 
+            container.innerHTML = `
+                <div class="text-center py-16 text-slate-400">
+                    <span class="inline-block animate-spin rounded-full h-6 w-6 border-2 border-blue-600 border-t-transparent mr-2 align-middle"></span>
+                    <span class="text-xs font-semibold">Memuat data siswa & riwayat sesi...</span>
+                </div>
+            `;
+
             try {
-                const student_id = document.getElementById('eval-student-select').value;
-                let student_name = 'Siswa KBEC';
-                if (currentMonthReport && currentMonthReport.report) {
-                    const found = currentMonthReport.report.find(r => String(r.nis) === String(student_id));
-                    if (found) student_name = found.nama;
-                }
-                if (student_name === 'Siswa KBEC' && studentsData.length > 0) {
-                    const found = studentsData.find(s => String(s.id) === String(student_id));
-                    if (found) student_name = found.nama;
+                const res = await fetch(`${API_BASE}/api/attendance/session-evaluations?class_id=${classId}&tanggal=${tanggal}`);
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'Gagal mengambil data evaluasi sesi');
                 }
 
-                const payload = {
-                    student_id,
-                    student_name,
-                    class_id: activeClass ? activeClass.id : null,
-                    class_name: activeClass ? activeClass.nama : '-',
-                    tanggal: document.getElementById('eval-tanggal').value,
-                    presensi: document.getElementById('eval-presensi').value,
-                    grade: document.getElementById('eval-grade').value,
-                    sb_page: document.getElementById('eval-sb').value,
-                    wb_page: document.getElementById('eval-wb').value,
-                    lesson: document.getElementById('eval-lesson').value,
-                    material_tambahan: document.getElementById('eval-notes').value,
-                    keterangan: document.getElementById('eval-notes').value
+                evalSessionData = {
+                    class_id: classId,
+                    class_name: (activeClass && activeClass.nama) || (data.class && data.class.nama) || 'Kelas KBEC',
+                    session_date: data.session_date || tanggal,
+                    students: (data.students || []).map(s => ({
+                        student_id: s.student_id,
+                        full_name: s.full_name,
+                        nickname: s.nickname,
+                        grade: s.grade,
+                        default_lesson: s.default_lesson || '',
+                        presence: (s.current_evaluation && s.current_evaluation.presence) || 'Hadir',
+                        sb: (s.current_evaluation && s.current_evaluation.sb) || '',
+                        wb: (s.current_evaluation && s.current_evaluation.wb) || '',
+                        lesson: (s.current_evaluation && s.current_evaluation.lesson) || s.default_lesson || '',
+                        additional_material: (s.current_evaluation && s.current_evaluation.additional_material) || '',
+                        last_session: s.last_session || null
+                    }))
                 };
 
-                const res = await fetch(`${API_BASE}/api/attendance/student-grades`, {
+                renderEvaluationCards();
+                updateEvalSummaryStats();
+
+                if (targetNis) {
+                    setTimeout(() => {
+                        const targetEl = document.querySelector(`.eval-student-item[data-nis="${targetNis}"]`);
+                        if (targetEl) {
+                            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            targetEl.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50/50');
+                            setTimeout(() => {
+                                targetEl.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50/50');
+                            }, 2500);
+                        }
+                    }, 150);
+                }
+            } catch (err) {
+                console.error(err);
+                container.innerHTML = `
+                    <div class="text-center py-12 text-rose-500 font-semibold text-xs">
+                        Terjadi kesalahan: ${escapeHtmlAttr(err.message)}
+                        <div class="mt-2">
+                            <button type="button" onclick="loadSessionEvaluations()" class="px-3 py-1.5 bg-rose-50 text-rose-700 rounded-lg hover:bg-rose-100 font-bold text-xs cursor-pointer">Coba Lagi</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function renderEvaluationCards() {
+            const container = document.getElementById('eval-cards-container');
+            if (!container) return;
+
+            if (!evalSessionData.students || evalSessionData.students.length === 0) {
+                container.innerHTML = '<div class="text-center py-12 text-slate-400 font-bold text-xs">Belum ada siswa yang terdaftar di kelas ini.</div>';
+                return;
+            }
+
+            let html = '';
+            evalSessionData.students.forEach((s, idx) => {
+                const isAbsent = s.presence === 'Izin' || s.presence === 'Alpha' || s.presence === 'Sakit';
+                const lastSessHtml = s.last_session ? `
+                    <span class="text-[9px] font-bold text-slate-400 block">${formatDateShort(s.last_session.date)}</span>
+                    <span class="text-[10px] font-extrabold text-slate-700">SB: <b class="text-blue-600">${escapeHtmlAttr(s.last_session.sb || '-')}</b> | WB: <b class="text-indigo-600">${escapeHtmlAttr(s.last_session.wb || '-')}</b></span>
+                ` : `<span class="text-[10px] text-slate-400 italic">Sesi Pertama</span>`;
+
+                html += `
+                <div class="eval-student-item bg-white rounded-xl border border-slate-200/90 shadow-2xs p-3 transition-all hover:border-blue-400" data-nis="${s.student_id}" data-nama="${escapeHtmlAttr(s.full_name.toLowerCase())} ${escapeHtmlAttr(s.nickname.toLowerCase())}" data-presence="${escapeHtmlAttr(s.presence.toLowerCase())}">
+                    <!-- DESKTOP GRID ROW (VISIBLE >= MD) -->
+                    <div class="hidden md:grid grid-cols-12 items-center gap-3">
+                        <!-- Col 1: Info Siswa (Col 3) -->
+                        <div class="col-span-3 flex items-center gap-2.5 min-w-0">
+                            <span class="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 font-extrabold text-[11px] flex items-center justify-center shrink-0">${idx + 1}</span>
+                            <div class="min-w-0">
+                                <div class="font-extrabold text-slate-900 text-xs truncate flex items-center gap-1.5">
+                                    <span class="truncate">${escapeHtmlAttr(s.nickname)}</span>
+                                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-[#0A58CA] border border-blue-200/60 uppercase shrink-0">${escapeHtmlAttr(s.grade)}</span>
+                                </div>
+                                <div class="text-[10px] text-slate-400 font-medium truncate">${escapeHtmlAttr(s.full_name)}</div>
+                            </div>
+                        </div>
+
+                        <!-- Col 2: Presensi 1-Tap (Col 2) -->
+                        <div class="col-span-2 flex items-center justify-center">
+                            <div class="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200/80 text-[10px] font-extrabold">
+                                <button type="button" onclick="setStudentPresence('${s.student_id}', 'Hadir')" class="btn-presence-hadir px-2.5 py-1 rounded-md transition-all cursor-pointer ${s.presence === 'Hadir' ? 'bg-emerald-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}">Hadir</button>
+                                <button type="button" onclick="setStudentPresence('${s.student_id}', 'Izin')" class="btn-presence-izin px-2.5 py-1 rounded-md transition-all cursor-pointer ${s.presence === 'Izin' ? 'bg-amber-500 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}">Izin</button>
+                                <button type="button" onclick="setStudentPresence('${s.student_id}', 'Alpha')" class="btn-presence-alpha px-2.5 py-1 rounded-md transition-all cursor-pointer ${s.presence === 'Alpha' ? 'bg-rose-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}">Alpha</button>
+                            </div>
+                        </div>
+
+                        <!-- Col 3: Sesi Terakhir (Col 2) -->
+                        <div class="col-span-2 text-center">
+                            <div class="inline-flex flex-col items-center bg-slate-50 border border-slate-200/60 px-2 py-0.5 rounded-lg">
+                                ${lastSessHtml}
+                            </div>
+                        </div>
+
+                        <!-- Col 4: Halaman SB (Col 2) -->
+                        <div class="col-span-2">
+                            <div class="input-sb-wrap flex items-center gap-1 ${isAbsent ? 'opacity-30 pointer-events-none' : ''}">
+                                <input type="text" data-student-index="${idx}" data-field="sb" value="${escapeHtmlAttr(s.sb)}" oninput="updateStudentValue('${s.student_id}', 'sb', this.value)" onkeydown="handleExcelKeyNav(event, ${idx}, 'sb')" placeholder="Hal" class="w-full text-xs font-bold text-center bg-slate-50 border border-slate-200 rounded-lg py-1 px-1.5 focus:bg-white focus:outline-none focus:border-blue-500" inputmode="numeric" ${isAbsent ? 'disabled' : ''}>
+                                <button type="button" onclick="incrementStudentPage('${s.student_id}', 'sb')" title="Tambah 1 Halaman (+1)" class="px-1.5 py-1 text-[10px] font-extrabold bg-blue-50 hover:bg-blue-100 text-[#0A58CA] border border-blue-200 rounded-lg cursor-pointer shrink-0">+1</button>
+                                <button type="button" onclick="copyLastSessionPage('${s.student_id}', 'sb')" title="Salin Halaman Sesi Lalu (=)" class="px-1.5 py-1 text-[10px] font-extrabold bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 rounded-lg cursor-pointer shrink-0">=</button>
+                            </div>
+                        </div>
+
+                        <!-- Col 5: Halaman WB (Col 2) -->
+                        <div class="col-span-2">
+                            <div class="input-wb-wrap flex items-center gap-1 ${isAbsent ? 'opacity-30 pointer-events-none' : ''}">
+                                <input type="text" data-student-index="${idx}" data-field="wb" value="${escapeHtmlAttr(s.wb)}" oninput="updateStudentValue('${s.student_id}', 'wb', this.value)" onkeydown="handleExcelKeyNav(event, ${idx}, 'wb')" placeholder="Hal" class="w-full text-xs font-bold text-center bg-slate-50 border border-slate-200 rounded-lg py-1 px-1.5 focus:bg-white focus:outline-none focus:border-blue-500" inputmode="numeric" ${isAbsent ? 'disabled' : ''}>
+                                <button type="button" onclick="incrementStudentPage('${s.student_id}', 'wb')" title="Tambah 1 Halaman (+1)" class="px-1.5 py-1 text-[10px] font-extrabold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg cursor-pointer shrink-0">+1</button>
+                                <button type="button" onclick="copyLastSessionPage('${s.student_id}', 'wb')" title="Salin Halaman Sesi Lalu (=)" class="px-1.5 py-1 text-[10px] font-extrabold bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200 rounded-lg cursor-pointer shrink-0">=</button>
+                            </div>
+                        </div>
+
+                        <!-- Col 6: Catatan Toggle (Col 1) -->
+                        <div class="col-span-1 text-center">
+                            <button type="button" onclick="toggleStudentNotes('${s.student_id}')" class="btn-notes-toggle p-1.5 rounded-lg border transition-all cursor-pointer ${s.additional_material || (s.lesson && s.lesson !== s.default_lesson) ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-700'}" title="Lihat / Edit Catatan & Materi">
+                                <i data-lucide="message-square" class="w-3.5 h-3.5 mx-auto"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- MOBILE CARD VIEW (< MD) -->
+                    <div class="block md:hidden space-y-2.5">
+                        <!-- Header Kartu Mobile -->
+                        <div class="flex items-start justify-between gap-2 border-b border-slate-100 pb-2">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 font-extrabold text-[11px] flex items-center justify-center shrink-0">${idx + 1}</span>
+                                <div class="min-w-0">
+                                    <h4 class="font-extrabold text-slate-900 text-xs leading-tight truncate">${escapeHtmlAttr(s.nickname)} <span class="text-slate-400 font-normal">(${escapeHtmlAttr(s.full_name)})</span></h4>
+                                    <span class="text-[9px] font-bold text-blue-600 uppercase">${escapeHtmlAttr(s.grade)}</span>
+                                </div>
+                            </div>
+                            <div class="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[10px] font-extrabold shrink-0">
+                                <button type="button" onclick="setStudentPresence('${s.student_id}', 'Hadir')" class="btn-presence-hadir px-2 py-0.5 rounded-md cursor-pointer ${s.presence === 'Hadir' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-600'}">Hadir</button>
+                                <button type="button" onclick="setStudentPresence('${s.student_id}', 'Izin')" class="btn-presence-izin px-2 py-0.5 rounded-md cursor-pointer ${s.presence === 'Izin' ? 'bg-amber-500 text-white font-bold' : 'text-slate-600'}">Izin</button>
+                                <button type="button" onclick="setStudentPresence('${s.student_id}', 'Alpha')" class="btn-presence-alpha px-2 py-0.5 rounded-md cursor-pointer ${s.presence === 'Alpha' ? 'bg-rose-600 text-white font-bold' : 'text-slate-600'}">Alpha</button>
+                            </div>
+                        </div>
+
+                        <!-- Sesi Lalu Context Helper Mobile -->
+                        ${s.last_session ? `
+                            <div class="text-[10px] font-semibold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-md flex items-center justify-between border border-slate-200/50">
+                                <span>Sesi Lalu (${formatDateShort(s.last_session.date)}):</span>
+                                <span>SB: <b class="text-blue-600">${escapeHtmlAttr(s.last_session.sb || '-')}</b> | WB: <b class="text-indigo-600">${escapeHtmlAttr(s.last_session.wb || '-')}</b></span>
+                            </div>
+                        ` : ''}
+
+                        <!-- Inputs SB & WB Row Mobile -->
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-[9px] font-extrabold text-slate-400 uppercase mb-0.5">Catatan SB</label>
+                                <div class="input-sb-wrap flex items-center gap-1 ${isAbsent ? 'opacity-30 pointer-events-none' : ''}">
+                                    <input type="text" data-student-index="${idx}" data-field="sb" value="${escapeHtmlAttr(s.sb)}" oninput="updateStudentValue('${s.student_id}', 'sb', this.value)" placeholder="Hal. SB" enterkeyhint="next" inputmode="numeric" class="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:bg-white focus:outline-none focus:border-blue-500" ${isAbsent ? 'disabled' : ''}>
+                                    <button type="button" onclick="incrementStudentPage('${s.student_id}', 'sb')" class="px-2 py-1.5 text-[10px] font-bold bg-blue-50 hover:bg-blue-100 text-[#0A58CA] border border-blue-200 rounded-lg shrink-0 cursor-pointer">+1</button>
+                                    <button type="button" onclick="copyLastSessionPage('${s.student_id}', 'sb')" class="px-1.5 py-1.5 text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 rounded-lg shrink-0 cursor-pointer">=</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-extrabold text-slate-400 uppercase mb-0.5">Catatan WB</label>
+                                <div class="input-wb-wrap flex items-center gap-1 ${isAbsent ? 'opacity-30 pointer-events-none' : ''}">
+                                    <input type="text" data-student-index="${idx}" data-field="wb" value="${escapeHtmlAttr(s.wb)}" oninput="updateStudentValue('${s.student_id}', 'wb', this.value)" placeholder="Hal. WB" enterkeyhint="next" inputmode="numeric" class="w-full text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 focus:bg-white focus:outline-none focus:border-blue-500" ${isAbsent ? 'disabled' : ''}>
+                                    <button type="button" onclick="incrementStudentPage('${s.student_id}', 'wb')" class="px-2 py-1.5 text-[10px] font-bold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-lg shrink-0 cursor-pointer">+1</button>
+                                    <button type="button" onclick="copyLastSessionPage('${s.student_id}', 'wb')" class="px-1.5 py-1.5 text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 rounded-lg shrink-0 cursor-pointer">=</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Toggle Catatan Button Mobile -->
+                        <button type="button" onclick="toggleStudentNotes('${s.student_id}')" class="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer">
+                            <i data-lucide="plus" class="w-3 h-3"></i>
+                            <span>${s.additional_material || (s.lesson && s.lesson !== s.default_lesson) ? 'Lihat / Edit Catatan & Materi' : 'Tambah Catatan / Materi'}</span>
+                        </button>
+                    </div>
+
+                    <!-- COLLAPSIBLE NOTES (COMMON FOR BOTH DESKTOP & MOBILE) -->
+                    <div id="notes-container-${s.student_id}" class="hidden pt-2.5 mt-2.5 border-t border-slate-100 space-y-2">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                            <div>
+                                <label class="block text-[9px] font-extrabold text-slate-400 uppercase mb-1">Materi Lesson / Bab</label>
+                                <input type="text" value="${escapeHtmlAttr(s.lesson)}" oninput="updateStudentValue('${s.student_id}', 'lesson', this.value)" placeholder="Contoh: Speaking, Reading, Telling Story" class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:bg-white focus:outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-[9px] font-extrabold text-slate-400 uppercase mb-1">Material Tambahan / Catatan Evaluasi</label>
+                                <input type="text" value="${escapeHtmlAttr(s.additional_material)}" oninput="updateStudentValue('${s.student_id}', 'additional_material', this.value)" placeholder="Catatan perkembangan belajar siswa..." class="w-full text-xs font-semibold bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:bg-white focus:outline-none focus:border-blue-500">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                `;
+            });
+
+            container.innerHTML = html;
+            if (window.lucide) lucide.createIcons();
+            filterEvaluationCards();
+        }
+
+        function setStudentPresence(studentId, newPresence) {
+            const s = evalSessionData.students.find(st => String(st.student_id) === String(studentId));
+            if (!s) return;
+
+            s.presence = newPresence;
+            const isAbsent = newPresence === 'Izin' || newPresence === 'Alpha' || newPresence === 'Sakit';
+
+            const item = document.querySelector(`.eval-student-item[data-nis="${studentId}"]`);
+            if (item) {
+                item.setAttribute('data-presence', newPresence.toLowerCase());
+
+                // Update Hadir / Izin / Alpha buttons
+                ['hadir', 'izin', 'alpha'].forEach(p => {
+                    const isActive = newPresence.toLowerCase() === p;
+                    item.querySelectorAll(`.btn-presence-${p}`).forEach(btn => {
+                        btn.className = `btn-presence-${p} px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                            isActive 
+                                ? (p === 'hadir' ? 'bg-emerald-600 text-white font-bold shadow-xs' : (p === 'izin' ? 'bg-amber-500 text-white font-bold shadow-xs' : 'bg-rose-600 text-white font-bold shadow-xs'))
+                                : 'text-slate-600 hover:text-slate-900'
+                        }`;
+                    });
+                });
+
+                // Update disabled / opacity state of inputs
+                item.querySelectorAll('.input-sb-wrap, .input-wb-wrap').forEach(wrap => {
+                    if (isAbsent) {
+                        wrap.classList.add('opacity-30', 'pointer-events-none');
+                    } else {
+                        wrap.classList.remove('opacity-30', 'pointer-events-none');
+                    }
+                });
+                item.querySelectorAll('input[data-field="sb"], input[data-field="wb"]').forEach(inp => {
+                    inp.disabled = isAbsent;
+                });
+            }
+
+            updateEvalSummaryStats();
+            filterEvaluationCards();
+        }
+
+        function updateStudentValue(studentId, field, value) {
+            const s = evalSessionData.students.find(st => String(st.student_id) === String(studentId));
+            if (!s) return;
+            s[field] = value;
+
+            // Synchronize both mobile & desktop inputs in DOM
+            document.querySelectorAll(`.eval-student-item[data-nis="${studentId}"] input[data-field="${field}"]`).forEach(inp => {
+                if (inp.value !== value) inp.value = value;
+            });
+
+            // Update notes icon badge indicator if notes updated
+            if (field === 'additional_material' || field === 'lesson') {
+                const btnToggle = document.querySelector(`.eval-student-item[data-nis="${studentId}"] .btn-notes-toggle`);
+                if (btnToggle) {
+                    if (s.additional_material || (s.lesson && s.lesson !== s.default_lesson)) {
+                        btnToggle.className = 'btn-notes-toggle p-1.5 rounded-lg border transition-all cursor-pointer bg-amber-50 text-amber-700 border-amber-300';
+                    } else {
+                        btnToggle.className = 'btn-notes-toggle p-1.5 rounded-lg border transition-all cursor-pointer bg-slate-50 text-slate-400 border-slate-200 hover:text-slate-700';
+                    }
+                }
+            }
+
+            updateEvalSummaryStats();
+        }
+
+        function incrementStudentPage(studentId, field) {
+            const s = evalSessionData.students.find(st => String(st.student_id) === String(studentId));
+            if (!s) return;
+
+            let baseVal = 0;
+            const curVal = parseInt(s[field], 10);
+            if (!isNaN(curVal) && curVal > 0) {
+                baseVal = curVal;
+            } else if (s.last_session && s.last_session[field]) {
+                const lastVal = parseInt(s.last_session[field], 10);
+                if (!isNaN(lastVal) && lastVal > 0) {
+                    baseVal = lastVal;
+                }
+            }
+
+            const newVal = String(baseVal + 1);
+            updateStudentValue(studentId, field, newVal);
+        }
+
+        function copyLastSessionPage(studentId, field) {
+            const s = evalSessionData.students.find(st => String(st.student_id) === String(studentId));
+            if (!s || !s.last_session || !s.last_session[field]) return;
+
+            const newVal = String(s.last_session[field]);
+            updateStudentValue(studentId, field, newVal);
+        }
+
+        function toggleStudentNotes(studentId) {
+            const container = document.getElementById(`notes-container-${studentId}`);
+            if (!container) return;
+            const isHidden = container.classList.contains('hidden');
+            if (isHidden) {
+                container.classList.remove('hidden');
+                const firstInput = container.querySelector('input');
+                if (firstInput) firstInput.focus();
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        function handleExcelKeyNav(event, currentIndex, field) {
+            if (event.key === 'ArrowDown' || (event.key === 'Enter' && !event.shiftKey)) {
+                event.preventDefault();
+                const nextInput = document.querySelector(`input[data-student-index="${currentIndex + 1}"][data-field="${field}"]`);
+                if (nextInput && !nextInput.disabled) {
+                    nextInput.focus();
+                    nextInput.select();
+                }
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                const prevInput = document.querySelector(`input[data-student-index="${currentIndex - 1}"][data-field="${field}"]`);
+                if (prevInput && !prevInput.disabled) {
+                    prevInput.focus();
+                    prevInput.select();
+                }
+            }
+        }
+
+        function setEvalPresenceFilter(filterType) {
+            currentEvalPresenceFilter = filterType;
+            ['all', 'hadir', 'absen'].forEach(f => {
+                const btn = document.getElementById(`eval-filter-${f}`);
+                if (!btn) return;
+                if (f === filterType) {
+                    btn.className = 'px-2.5 py-1 rounded-lg bg-white text-blue-700 shadow-2xs transition-all cursor-pointer font-bold';
+                } else {
+                    btn.className = 'px-2.5 py-1 rounded-lg text-slate-600 hover:text-slate-900 transition-all cursor-pointer font-bold';
+                }
+            });
+            filterEvaluationCards();
+        }
+
+        function filterEvaluationCards() {
+            const query = (document.getElementById('eval-search-input').value || '').trim().toLowerCase();
+            const filter = currentEvalPresenceFilter; // 'all' | 'hadir' | 'absen'
+
+            document.querySelectorAll('.eval-student-item').forEach(item => {
+                const nama = item.getAttribute('data-nama') || '';
+                const nis = item.getAttribute('data-nis') || '';
+                const presence = (item.getAttribute('data-presence') || '').toLowerCase();
+
+                let matchSearch = !query || nama.includes(query) || nis.includes(query);
+                let matchPresence = true;
+                if (filter === 'hadir') matchPresence = presence === 'hadir';
+                if (filter === 'absen') matchPresence = presence === 'izin' || presence === 'alpha' || presence === 'sakit';
+
+                item.style.display = (matchSearch && matchPresence) ? '' : 'none';
+            });
+        }
+
+        function updateEvalSummaryStats() {
+            if (!evalSessionData.students) return;
+
+            const total = evalSessionData.students.length;
+            let hadirCount = 0;
+            let absentCount = 0;
+            let filledCount = 0;
+
+            evalSessionData.students.forEach(s => {
+                const isHadir = (s.presence || '').toLowerCase() === 'hadir';
+                if (isHadir) {
+                    hadirCount++;
+                    if ((s.sb && s.sb.trim()) || (s.wb && s.wb.trim())) {
+                        filledCount++;
+                    }
+                } else {
+                    absentCount++;
+                }
+            });
+
+            const countAllEl = document.getElementById('eval-count-all');
+            const countHadirEl = document.getElementById('eval-count-hadir');
+            const countAbsenEl = document.getElementById('eval-count-absen');
+            const statsEl = document.getElementById('eval-summary-stats');
+            const absentBadgeEl = document.getElementById('eval-summary-absent-badge');
+
+            if (countAllEl) countAllEl.innerText = total;
+            if (countHadirEl) countHadirEl.innerText = hadirCount;
+            if (countAbsenEl) countAbsenEl.innerText = absentCount;
+
+            if (statsEl) {
+                statsEl.innerText = `Terisi: ${filledCount} dari ${hadirCount} siswa hadir`;
+            }
+
+            if (absentBadgeEl) {
+                if (absentCount > 0) {
+                    absentBadgeEl.innerText = `${absentCount} Izin/Alpha`;
+                    absentBadgeEl.classList.remove('hidden');
+                } else {
+                    absentBadgeEl.classList.add('hidden');
+                }
+            }
+        }
+
+        async function submitBatchEvaluations() {
+            const btn = document.getElementById('btn-save-batch-eval');
+            const btnText = document.getElementById('btn-save-batch-text');
+            const originalText = btnText ? btnText.innerText : 'Simpan Evaluasi Kelas';
+
+            if (btn) btn.disabled = true;
+            if (btnText) btnText.innerHTML = `<span class="inline-block animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent mr-1.5 align-middle"></span> Menyimpan...`;
+
+            try {
+                const tanggal = document.getElementById('eval-tanggal').value || new Date().toISOString().slice(0, 10);
+                const payload = {
+                    class_id: activeClass ? activeClass.id : null,
+                    class_name: activeClass ? activeClass.nama : '-',
+                    session_date: tanggal,
+                    evaluations: evalSessionData.students.map(s => ({
+                        student_id: s.student_id,
+                        student_name: s.full_name,
+                        nama_panggilan: s.nickname,
+                        grade: s.grade,
+                        presence: s.presence,
+                        sb: s.sb,
+                        wb: s.wb,
+                        lesson: s.lesson,
+                        additional_material: s.additional_material
+                    }))
+                };
+
+                const res = await fetch(`${API_BASE}/api/attendance/batch-student-grades`, {
                     method: 'POST',
-                    headers: { 
+                    headers: {
                         'Content-Type': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
                     },
                     body: JSON.stringify(payload)
                 });
+
                 const data = await res.json();
-                if (!res.ok || !data.success) throw new Error(data.message || 'Gagal menyimpan evaluasi');
-                showToast('Catatan Evaluasi Kinerja Siswa berhasil disimpan.');
+                if (!res.ok || !data.success) {
+                    throw new Error(data.message || 'Gagal menyimpan evaluasi massal');
+                }
+
+                showToast(data.message || 'Evaluasi kinerja kelas berhasil disimpan.');
                 closeEvalModal();
+
+                // Refresh Excel report while preserving scroll position
+                const scrollX = window.scrollX;
+                const scrollY = window.scrollY;
                 await loadExcelPerformanceReport();
+                window.scrollTo(scrollX, scrollY);
+
                 if (activeMode === 'daily') await loadClassAttendanceDirect();
                 if (activeMode === 'monthly') await loadMonthlyAttendance();
             } catch (err) {
                 console.error(err);
                 showToast(`Gagal menyimpan evaluasi: ${err.message}`, 'error');
             } finally {
-                if (btn) {
-                    btn.disabled = false;
-                    btn.innerHTML = originalHTML;
-                    if (window.lucide) lucide.createIcons();
-                }
+                if (btn) btn.disabled = false;
+                if (btnText) btnText.innerText = originalText;
+                if (window.lucide) lucide.createIcons();
             }
         }
 

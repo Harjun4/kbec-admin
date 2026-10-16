@@ -16,4 +16,8 @@ router.get(['/checkin-logs', '/attendance-logs'], requireAuth, teacherController
 router.get(['/attendance-summary', '/checkin-summary'], requireAuth, teacherController.getAttendanceSummary);
 router.get('/my-classes-today', requireAuth, teacherController.getMyClassesToday);
 
+// Teacher Performance & Audit Monitoring (Khusus Super Admin)
+router.get(['/audit-monitoring', '/performance-monitoring'], requireAuth, requireRole('Super Admin'), teacherController.getTeacherAuditMonitoring);
+
 module.exports = router;
+

@@ -105,14 +105,22 @@
     // =========================================================================
     // 5. Pemetaan Hak Akses Halaman Terkini (RBAC Matrix)
     // =========================================================================
+    // Catatan Keamanan Khusus: 'audit-kinerja-pengajar.html' HANYA diizinkan untuk Super Admin!
     const rolePermissions = {
         'Pengajar': ['/jadwal.html', '/absensi.html', '/absensi-pengajar.html', '/profile.html', 'jadwal.html', 'absensi.html', 'absensi-pengajar.html', 'profile.html'],
         'Guru': ['/jadwal.html', '/absensi.html', '/absensi-pengajar.html', '/profile.html', 'jadwal.html', 'absensi.html', 'absensi-pengajar.html', 'profile.html'],
         'Staff': ['/siswa.html', '/pengajar.html', '/kelas.html', '/jadwal.html', '/absensi-pengajar.html', '/inventaris.html', '/profile.html', 'siswa.html', 'pengajar.html', 'kelas.html', 'jadwal.html', 'absensi-pengajar.html', 'inventaris.html', 'profile.html'],
         'Staf': ['/siswa.html', '/pengajar.html', '/kelas.html', '/jadwal.html', '/absensi-pengajar.html', '/inventaris.html', '/profile.html', 'siswa.html', 'pengajar.html', 'kelas.html', 'jadwal.html', 'absensi-pengajar.html', 'inventaris.html', 'profile.html'],
         'Admin': ['/dashboard.html', '/siswa.html', '/pembayaran.html', '/biaya-lain.html', '/voucher.html', '/laporan.html', '/rekap-kehadiran.html', '/absensi-pengajar.html', '/profile.html', 'dashboard.html', 'siswa.html', 'pembayaran.html', 'biaya-lain.html', 'voucher.html', 'laporan.html', 'rekap-kehadiran.html', 'absensi-pengajar.html', 'profile.html'],
-        'Super Admin': ['*'] // Akses ke semua halaman
+        'Super Admin': ['*'] // Akses ke seluruh halaman termasuk audit-kinerja-pengajar.html
     };
+
+    // Perlindungan Khusus Halaman Audit Kinerja Pengajar (Super Admin Only)
+    if (currentPath.endsWith('audit-kinerja-pengajar.html') && effectiveRole !== 'Super Admin') {
+        alert('Akses Ditolak: Halaman Audit Kinerja Pengajar hanya dapat diakses oleh Super Administrator.');
+        window.location.href = 'dashboard.html';
+        return;
+    }
 
     // profile.html bebas diakses oleh seluruh role yang terautentikasi
     if (!currentPath.endsWith('profile.html')) {
@@ -123,6 +131,7 @@
             if (!isAllowed) {
                 alert('Akses Ditolak: Anda tidak memiliki izin mengakses halaman ini.');
                 let fallbackUrl = 'dashboard.html';
+
                 const roleLower = String(effectiveRole).toLowerCase();
                 if (roleLower.includes('pengajar') || roleLower.includes('guru') || roleLower.includes('teacher')) {
                     fallbackUrl = 'jadwal.html';

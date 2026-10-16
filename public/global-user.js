@@ -139,7 +139,7 @@ function renderDynamicGlobalSidebar() {
 
     // Tentukan Submenu mana yang harus terbuka secara otomatis
     let openSiswa = currentPath === 'siswa.html';
-    let openAkademik = ['pengajar.html', 'kelas.html', 'absensi.html', 'jadwal.html', 'absensi-pengajar.html'].includes(currentPath);
+    let openAkademik = ['pengajar.html', 'kelas.html', 'absensi.html', 'jadwal.html', 'absensi-pengajar.html', 'audit-kinerja-pengajar.html'].includes(currentPath);
     let openKeuangan = ['pembayaran.html', 'biaya-lain.html', 'voucher.html'].includes(currentPath);
     let openInventaris = currentPath === 'inventaris.html' || fullHash.includes('inventaris');
     let openLaporan = currentPath === 'laporan.html' || currentPath === 'rekap-kehadiran.html';
@@ -286,9 +286,11 @@ function renderDynamicGlobalSidebar() {
                         ${(isSuperAdmin || isAdmin || isStaff || isTeacher) ? `<a href="jadwal.html" class="${getSubmenuItemClass(currentPath === 'jadwal.html')}">Jadwal Kursus</a>` : ''}
                         ${(isSuperAdmin || isAdmin || isStaff || isTeacher) ? `<a href="absensi-pengajar.html" class="${getSubmenuItemClass(isAbsensiPengajarActive)} flex items-center justify-between"><span>Absensi Pengajar</span>${isTeacher ? '<span class="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">Presensi</span>' : ''}</a>` : ''}
                         ${(isSuperAdmin || isAdmin || isTeacher) ? `<a href="absensi.html?mode=excel" class="${getSubmenuItemClass(isAbsensiActive)}">Absensi Siswa & Matrik</a>` : ''}
+                        ${isSuperAdmin ? `<a href="audit-kinerja-pengajar.html" class="${getSubmenuItemClass(currentPath === 'audit-kinerja-pengajar.html', 'bg-[#0A58CA] text-white font-bold shadow-sm shadow-blue-500/20')} flex items-center justify-between"><span>Audit Kinerja Pengajar</span><span class="text-[9px] bg-blue-100 text-[#0A58CA] font-bold px-1.5 py-0.5 rounded ${currentPath === 'audit-kinerja-pengajar.html' ? 'bg-white text-blue-900' : ''}">SA Only</span></a>` : ''}
                     </div>
                 </div>
                 ` : ''}
+
 
                 <!-- 💰 Keuangan (Hanya Super Admin & Admin — Disembunyikan dari Staff & Pengajar) -->
                 ${(isSuperAdmin || isAdmin) ? `

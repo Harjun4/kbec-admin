@@ -105,6 +105,7 @@
                             <option value="" disabled selected>Pilih Hari / Serial Belajar</option>
                             <option value="Serial 1">Serial 1 (Senin, Rabu, Jumat)</option>
                             <option value="Serial 2">Serial 2 (Selasa, Kamis, Sabtu)</option>
+                            <option value="Senin - Jumat">Senin - Jumat</option>
                             <option value="Senin">Senin</option>
                             <option value="Selasa">Selasa</option>
                             <option value="Rabu">Rabu</option>
@@ -363,6 +364,7 @@
                                 <option value="Semua Hari">Semua Serial / Hari</option>
                                 <option value="Serial 1">Serial 1 (Sen, Rab, Jum)</option>
                                 <option value="Serial 2">Serial 2 (Sel, Kam, Sab)</option>
+                                <option value="Senin - Jumat">Senin - Jumat</option>
                                 <option value="Senin">Senin</option>
                                 <option value="Selasa">Selasa</option>
                                 <option value="Rabu">Rabu</option>
@@ -443,7 +445,7 @@
                                 <div class="flex justify-between items-center pb-2.5 border-b border-slate-200/60">
                                     <div class="flex flex-col gap-0.5">
                                         <span class="text-sm font-extrabold text-slate-800 flex items-center gap-1.5"><i data-lucide="calendar" class="w-4 h-4 text-amber-500"></i> Hari Lainnya</span>
-                                        <span class="text-[10px] text-slate-400 font-semibold pl-5.5">Hari Minggu / Custom</span>
+                                        <span class="text-[10px] text-slate-400 font-semibold pl-5.5">Senin - Jumat / Hari Lain</span>
                                     </div>
                                     <span id="badge-count-Lainnya" class="bg-amber-50 text-amber-600 font-extrabold px-2 py-0.5 rounded-lg text-xs">0</span>
                                 </div>
@@ -561,7 +563,9 @@
                 const matchesSearch = itemKelas.includes(searchVal) ||
                     itemPengajar.includes(searchVal) ||
                     itemRuang.includes(searchVal);
-                const matchesHari = (filterHari === "Semua Hari" || item.hari === filterHari);
+                const matchesHari = (filterHari === "Semua Hari") ||
+                    (item.hari === filterHari) ||
+                    (item.hari === 'Senin - Jumat' && ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'].includes(filterHari));
                 const matchesProg = (filterProg === "Semua Program" || item.program === filterProg);
                 const matchesTipe = (filterTipe === "Semua Tipe" || (item.tipe || 'Tatap Muka') === filterTipe);
 
@@ -890,6 +894,16 @@
             fetchSchedules();
             fetchTeachers();
             fetchPrograms();
+
+            const progSelect = document.getElementById('form-program');
+            if (progSelect) {
+                progSelect.addEventListener('change', function() {
+                    const hariSelect = document.getElementById('form-hari');
+                    if (this.value === 'TK' && hariSelect && (!hariSelect.value || hariSelect.value === '' || hariSelect.value === 'Serial 1' || hariSelect.value === 'Serial 2')) {
+                        hariSelect.value = 'Senin - Jumat';
+                    }
+                });
+            }
         };
 
         function exportSchedulesCSV() {
