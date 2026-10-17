@@ -59,8 +59,12 @@ const teacherSchema = z.object({
 }).passthrough();
 
 const classSchema = z.object({
-    nama: z.string().min(1, 'Nama kelas wajib diisi'),
+    nama: z.string().optional(),
+    kelas: z.string().optional(),
     program: z.string().min(1, 'Program/Unit wajib diisi')
+}).refine(data => Boolean((data.nama && String(data.nama).trim()) || (data.kelas && String(data.kelas).trim())), {
+    message: 'Nama kelas wajib diisi',
+    path: ['nama']
 }).passthrough();
 
 const attendanceItemSchema = z.object({

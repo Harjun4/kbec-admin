@@ -112,15 +112,18 @@ app.use('/api/students', studentRoutes);
 
 app.use('/api/teachers', teacherRoutes);
 
-const { getSchedules } = require('./src/controllers/class.controller');
+const { getSchedules, createClass, updateClass, deleteClass } = require('./src/controllers/class.controller');
+const { validate, classSchema, paymentSchema } = require('./src/middlewares/validate.middleware');
 app.get(['/api/schedules', '/api/classes/schedules', '/api/classes/schedule'], requireAuth, getSchedules);
+app.post(['/api/schedules'], requireAuth, requireRole('Super Admin', 'Staff'), validate(classSchema), createClass);
+app.put(['/api/schedules/:id'], requireAuth, requireRole('Super Admin', 'Staff'), validate(classSchema), updateClass);
+app.delete(['/api/schedules/:id'], requireAuth, requireRole('Super Admin', 'Staff'), deleteClass);
 
 app.use('/api/classes', classRoutes);
 
 app.use('/api/programs', programRoutes);
 
 const { getStudentBillsSummary, getBills, createBill, updateBill, deleteBill, getPayments, getReceipt, createPayment, updatePayment, deletePayment } = require('./src/controllers/finance.controller');
-const { validate, paymentSchema } = require('./src/middlewares/validate.middleware');
 
 app.get(['/api/finance/bills/per-student', '/api/bills/per-student'], requireAuth, getStudentBillsSummary);
 app.get(['/api/finance/bills', '/api/bills'], requireAuth, getBills);

@@ -3,10 +3,13 @@ const router = express.Router();
 const classController = require('../controllers/class.controller');
 const { requireAuth, requireRole } = require('../middlewares/auth.middleware');
 
+const { validate, classSchema } = require('../middlewares/validate.middleware');
+
 router.get('/schedule', requireAuth, classController.getSchedules);
 router.get('/schedules', requireAuth, classController.getSchedules);
-
-const { validate, classSchema } = require('../middlewares/validate.middleware');
+router.post('/schedules', requireAuth, requireRole('Super Admin', 'Staff'), validate(classSchema), classController.createClass);
+router.put('/schedules/:id', requireAuth, requireRole('Super Admin', 'Staff'), validate(classSchema), classController.updateClass);
+router.delete('/schedules/:id', requireAuth, requireRole('Super Admin', 'Staff'), classController.deleteClass);
 
 router.get('/', requireAuth, classController.getClasses);
 router.post('/', requireAuth, requireRole('Super Admin', 'Staff'), validate(classSchema), classController.createClass);

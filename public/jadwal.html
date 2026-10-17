@@ -469,22 +469,40 @@
     <script>
         const API_BASE = window.location.protocol === 'file:' ? 'http://localhost:3000' : window.location.origin;
         let scheduleData = [];
+        let editScheduleId = null;
+
+        function getAuthHeaders(isJson = true) {
+            const token = localStorage.getItem('authToken') || localStorage.getItem('token') || '';
+            const headers = {
+                'X-Requested-With': 'XMLHttpRequest'
+            };
+            if (isJson) {
+                headers['Content-Type'] = 'application/json';
+            }
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+            return headers;
+        }
 
         async function fetchSchedules() {
             try {
-                const token = localStorage.getItem('token') || '';
-                const headers = { 'Content-Type': 'application/json' };
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-
-                const response = await fetch(`${API_BASE}/api/schedules`, {
+                const headers = getAuthHeaders(true);
+                let response = await fetch(`${API_BASE}/api/schedules`, {
                     method: 'GET',
                     headers: headers
                 });
+                if (!response.ok && response.status === 404) {
+                    response = await fetch(`${API_BASE}/api/classes`, {
+                        method: 'GET',
+                        headers: headers
+                    });
+                }
                 if (!response.ok) {
                     scheduleData = [];
                 } else {
                     const data = await response.json();
-                    scheduleData = Array.isArray(data) ? data : [];
+                    scheduleData = Array.isArray(data) ? data.map(d => ({ ...d, kelas: d.kelas || d.nama })) : [];
                 }
                 renderTable();
             } catch (err) {
@@ -736,18 +754,30 @@
         async function deleteScheduleDirect(id, namaKelas) {
             if (confirm(`Apakah Anda yakin ingin menghapus jadwal untuk kelas ${namaKelas}?`)) {
                 try {
-                    const res = await fetch(`${API_BASE}/api/schedules/${id}`, {
-                        method: 'DELETE'
+                    const headers = getAuthHeaders(true);
+                    let res = await fetch(`${API_BASE}/api/schedules/${id}`, {
+                        method: 'DELETE',
+                        headers: headers
                     });
-                    if (!res.ok) throw new Error();
-                    showToast(`Jadwal kelas "${namaKelas}" berhasil dicabut harian!`, 'error');
+                    if (!res.ok && res.status === 404) {
+                        res = await fetch(`${API_BASE}/api/classes/${id}`, {
+                            method: 'DELETE',
+                            headers: headers
+                        });
+                    }
+                    if (!res.ok) {
+                        const errData = await res.json().catch(() => ({}));
+                        throw new Error(errData.message || 'Gagal menghapus jadwal');
+                    }
+                    showToast(`Jadwal kelas "${namaKelas}" berhasil dihapus.`);
                     await fetchSchedules();
                 } catch (err) {
                     console.error(err);
-                    showToast('Gagal menghapus jadwal dari database.', 'error');
+                    showToast(err.message || 'Gagal menghapus jadwal dari database.', 'error');
                 }
             }
         }
+        const deleteSchedule = deleteScheduleDirect;
 
         // Tampilan Notifikasi Mengambang (Toast System)
         function showToast(message, type = 'success') {
@@ -770,7 +800,47 @@
 
         // Operasional Kontrol Jendela Dialog Modal
         function openScheduleModal() {
-            document.getElementById('schedule-form').reset();
+            editScheduleId = null;
+            const form = document.getElementById('schedule-form');
+            if (form) form.reset();
+
+            const modalTitle = document.querySelector('#schedule-modal h3');
+            if (modalTitle) modalTitle.innerText = 'Tambah Jadwal Mengajar';
+            const modalSub = document.querySelector('#schedule-modal p');
+            if (modalSub) modalSub.innerText = 'Alokasikan sesi, pengajar, dan ruang kelas baru';
+            const submitBtn = document.querySelector('#schedule-modal button[type="submit"]');
+            if (submitBtn) submitBtn.innerText = 'Simpan Jadwal';
+
+            const modal = document.getElementById('schedule-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('div').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function editScheduleDirect(id) {
+            const item = scheduleData.find(s => String(s.id) === String(id));
+            if (!item) return;
+
+            editScheduleId = id;
+
+            document.getElementById('form-kelas').value = item.kelas || item.nama || '';
+            document.getElementById('form-program').value = item.program || '';
+            document.getElementById('form-hari').value = item.hari || '';
+            document.getElementById('form-mulai').value = item.mulai || '';
+            document.getElementById('form-selesai').value = item.selesai || '';
+            document.getElementById('form-pengajar').value = item.pengajar || '';
+            document.getElementById('form-tipe').value = item.tipe || 'Tatap Muka';
+            document.getElementById('form-ruang').value = item.ruangan || item.ruang || '';
+
+            const modalTitle = document.querySelector('#schedule-modal h3');
+            if (modalTitle) modalTitle.innerText = 'Edit Jadwal Mengajar';
+            const modalSub = document.querySelector('#schedule-modal p');
+            if (modalSub) modalSub.innerText = 'Perbarui sesi, pengajar, atau ruang kelas';
+            const submitBtn = document.querySelector('#schedule-modal button[type="submit"]');
+            if (submitBtn) submitBtn.innerText = 'Perbarui Jadwal';
+
             const modal = document.getElementById('schedule-modal');
             modal.classList.remove('hidden');
             setTimeout(() => {
@@ -780,71 +850,97 @@
         }
 
         function closeScheduleModal() {
+            editScheduleId = null;
             const modal = document.getElementById('schedule-modal');
             modal.classList.add('opacity-0');
             modal.querySelector('div').classList.add('scale-95');
-            setTimeout(() => modal.classList.add('hidden'), 300);
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                const form = document.getElementById('schedule-form');
+                if (form) form.reset();
+            }, 300);
         }
 
-        // Menangani Submisi Form Input Data Jadwal Baru
+        // Menangani Submisi Form Input Data Jadwal Baru / Edit
         async function handleFormSubmit(e) {
             e.preventDefault();
-            const kelas = document.getElementById('form-kelas').value;
+            const btn = (e && e.submitter) || (e && e.target && e.target.querySelector('button[type="submit"]')) || document.querySelector('#schedule-modal button[type="submit"]');
+            const originalHTML = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<span class="inline-block animate-spin rounded-full h-3.5 w-3.5 border-2 border-current border-t-transparent mr-1.5 align-middle" role="status"></span> Menyimpan...`;
+            }
+
+            const kelas = (document.getElementById('form-kelas').value || '').trim();
             const program = document.getElementById('form-program').value;
             const hari = document.getElementById('form-hari').value;
-            const mulai = document.getElementById('form-mulai').value;
-            const selesai = document.getElementById('form-selesai').value;
-            const pengajar = document.getElementById('form-pengajar').value;
+            const mulai = (document.getElementById('form-mulai').value || '').trim();
+            const selesai = (document.getElementById('form-selesai').value || '').trim();
+            const selectPengajar = document.getElementById('form-pengajar');
+            const pengajar = selectPengajar ? selectPengajar.value : '';
             const tipe = document.getElementById('form-tipe').value;
-            const ruang = document.getElementById('form-ruang').value;
+            const ruang = (document.getElementById('form-ruang').value || '').trim();
 
-            const payload = { hari, mulai, selesai, kelas, program, tipe, pengajar, ruang };
+            const payload = {
+                nama: kelas,
+                kelas: kelas,
+                program,
+                hari,
+                mulai,
+                selesai,
+                pengajar,
+                tipe,
+                ruang
+            };
 
             try {
+                const headers = getAuthHeaders(true);
                 const url = editScheduleId ? `${API_BASE}/api/schedules/${editScheduleId}` : `${API_BASE}/api/schedules`;
                 const method = editScheduleId ? 'PUT' : 'POST';
 
-                const res = await fetch(url, {
+                let res = await fetch(url, {
                     method: method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: headers,
                     body: JSON.stringify(payload)
                 });
-                if (!res.ok) throw new Error();
+
+                if (!res.ok && res.status === 404) {
+                    const fallbackUrl = editScheduleId ? `${API_BASE}/api/classes/${editScheduleId}` : `${API_BASE}/api/classes`;
+                    res = await fetch(fallbackUrl, {
+                        method: method,
+                        headers: headers,
+                        body: JSON.stringify(payload)
+                    });
+                }
+
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.message || 'Gagal menyimpan jadwal');
+                }
+
                 showToast(editScheduleId ? `Jadwal kelas "${kelas}" berhasil diperbarui!` : `Jadwal kelas "${kelas}" berhasil dialokasikan harian!`);
                 closeScheduleModal();
                 await fetchSchedules();
             } catch (err) {
                 console.error(err);
-                showToast('Gagal mengalokasikan jadwal ke database.', 'error');
-            }
-        }
-
-        // Menghapus Item Jadwal Tertentu Berdasarkan Indeks Master Array
-        async function deleteSchedule(index) {
-            const item = scheduleData[index];
-            const namaKelas = item.kelas;
-            if (confirm(`Apakah Anda yakin ingin menghapus jadwal untuk kelas ${namaKelas}?`)) {
-                try {
-                    const res = await fetch(`${API_BASE}/api/schedules/${item.id}`, {
-                        method: 'DELETE'
-                    });
-                    if (!res.ok) throw new Error();
-                    showToast(`Jadwal kelas "${namaKelas}" berhasil dicabut harian!`, 'error');
-                    await fetchSchedules();
-                } catch (err) {
-                    console.error(err);
-                    showToast('Gagal menghapus jadwal dari database.', 'error');
+                showToast(err.message || 'Gagal mengalokasikan jadwal ke database.', 'error');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalHTML;
+                    if (window.lucide) lucide.createIcons();
                 }
             }
         }
 
         async function fetchTeachers() {
             try {
-                const response = await fetch(`${API_BASE}/api/teachers`);
+                const headers = getAuthHeaders(false);
+                const response = await fetch(`${API_BASE}/api/teachers`, { headers });
                 const teachers = await response.json();
                 const select = document.getElementById('form-pengajar');
                 select.innerHTML = '<option value="" disabled selected>Pilih Pengajar</option>';
-                teachers.forEach(t => {
+                (Array.isArray(teachers) ? teachers : []).forEach(t => {
                     const opt = document.createElement('option');
                     opt.value = t.nama;
                     opt.innerText = t.nama;
@@ -858,7 +954,8 @@
 
         async function fetchPrograms() {
             try {
-                const response = await fetch(`${API_BASE}/api/programs`);
+                const headers = getAuthHeaders(false);
+                const response = await fetch(`${API_BASE}/api/programs`, { headers });
                 const programs = await response.json();
                 
                 const select = document.getElementById('form-program');
@@ -869,7 +966,7 @@
                     filterSelect.innerHTML = '<option value="Semua Program">Semua Program</option>';
                 }
 
-                programs.forEach(p => {
+                (Array.isArray(programs) ? programs : []).forEach(p => {
                     // Populate Form
                     const opt = document.createElement('option');
                     opt.value = p.nama;
@@ -907,25 +1004,26 @@
         };
 
         function exportSchedulesCSV() {
-            if (!schedulesData || schedulesData.length === 0) {
+            const dataToExport = scheduleData;
+            if (!dataToExport || dataToExport.length === 0) {
                 showToast('Tidak ada data jadwal untuk diekspor!', 'error');
                 return;
             }
             let csvContent = "\uFEFF";
             csvContent += "No,ID,Nama Kelas,Program,Pengajar,Hari / Serial,Jam Mulai,Jam Selesai,Tipe Kelas,Ruang\n";
 
-            schedulesData.forEach((s, idx) => {
+            dataToExport.forEach((s, idx) => {
                 const row = [
                     idx + 1,
                     s.id,
-                    `"${(s.kelas || '').replace(/"/g, '""')}"`,
+                    `"${(s.kelas || s.nama || '').replace(/"/g, '""')}"`,
                     `"${(s.program || '').replace(/"/g, '""')}"`,
                     `"${(s.pengajar || '').replace(/"/g, '""')}"`,
                     `"${(s.hari || '').replace(/"/g, '""')}"`,
                     `"${s.mulai || ''}"`,
                     `"${s.selesai || ''}"`,
                     `"${(s.tipe || '').replace(/"/g, '""')}"`,
-                    `"${(s.ruang || '').replace(/"/g, '""')}"`
+                    `"${(s.ruangan || s.ruang || '').replace(/"/g, '""')}"`
                 ].join(',');
                 csvContent += row + "\n";
             });

@@ -80,7 +80,9 @@ async function getClasses(req, res, next) {
 }
 
 async function createClass(req, res, next) {
-    const { nama, program, unit, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
+    const rawNama = req.body.nama || req.body.kelas || 'Kelas Baru';
+    const { program, unit, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
+    const room = ruang || req.body.ruangan || 'Ruang 1';
     try {
         const { name: validProgram, unit: validUnit, programId } = await resolveClassProgram(program, unit);
         const resolvedTeacherId = await resolveTeacherId(pengajar);
@@ -95,14 +97,14 @@ async function createClass(req, res, next) {
 
         await db.query(
             'INSERT INTO classes (id, nama, program, unit, program_id, pengajar, teacher_id, kapasitas, hari, mulai, selesai, tipe, ruang) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            [nextId, escapeHTML(nama || 'Kelas Baru'), validProgram, validUnit, programId, escapeHTML(pengajar || '-'), resolvedTeacherId, kapasitas || 20, escapeHTML(hari || 'Senin'), escapeHTML(mulai || '08:00'), escapeHTML(selesai || '09:30'), escapeHTML(tipe || 'Reguler'), escapeHTML(ruang || 'Ruang 1')]
+            [nextId, escapeHTML(rawNama), validProgram, validUnit, programId, escapeHTML(pengajar || '-'), resolvedTeacherId, kapasitas || 20, escapeHTML(hari || 'Senin'), escapeHTML(mulai || '08:00'), escapeHTML(selesai || '09:30'), escapeHTML(tipe || 'Tatap Muka'), escapeHTML(room)]
         );
 
         try {
             const { createActivityLog } = require('../utils/logger');
             createActivityLog({
                 user_name: (req.user && req.user.name) || 'Admin',
-                action: `Tambah Kelas Baru (${nama || 'Kelas Baru'})`,
+                action: `Tambah Kelas Baru (${rawNama})`,
                 program: validProgram || 'KBEC',
                 status: 'Berhasil'
             }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));
@@ -116,21 +118,38 @@ async function createClass(req, res, next) {
 
 async function updateClass(req, res, next) {
     const { id } = req.params;
-    const { nama, program, unit, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
+    const rawNama = req.body.nama || req.body.kelas;
+    const { program, unit, pengajar, kapasitas, hari, mulai, selesai, tipe, ruang } = req.body;
     try {
-        const { name: validProgram, unit: validUnit, programId } = await resolveClassProgram(program, unit);
-        const resolvedTeacherId = await resolveTeacherId(pengajar);
+        const [[existingClass]] = await db.query('SELECT * FROM classes WHERE id = ?', [id]);
+        if (!existingClass) {
+            return res.status(404).json({ success: false, message: 'Data kelas atau jadwal tidak ditemukan.' });
+        }
+
+        const targetNama = rawNama !== undefined && rawNama !== null ? String(rawNama).trim() : existingClass.nama;
+        const targetProgram = program !== undefined && program !== null ? program : existingClass.program;
+        const targetUnit = unit !== undefined && unit !== null ? unit : existingClass.unit;
+
+        const { name: validProgram, unit: validUnit, programId } = await resolveClassProgram(targetProgram, targetUnit);
+        const resolvedTeacherId = pengajar !== undefined ? await resolveTeacherId(pengajar) : existingClass.teacher_id;
+        const finalPengajar = pengajar !== undefined ? escapeHTML(pengajar || '-') : existingClass.pengajar;
+        const finalKapasitas = kapasitas !== undefined && kapasitas !== null ? kapasitas : (existingClass.kapasitas || 20);
+        const finalHari = hari !== undefined ? escapeHTML(hari) : existingClass.hari;
+        const finalMulai = mulai !== undefined ? escapeHTML(mulai) : existingClass.mulai;
+        const finalSelesai = selesai !== undefined ? escapeHTML(selesai) : existingClass.selesai;
+        const finalTipe = tipe !== undefined ? escapeHTML(tipe) : (existingClass.tipe || 'Tatap Muka');
+        const finalRuang = escapeHTML(ruang !== undefined ? ruang : (req.body.ruangan !== undefined ? req.body.ruangan : (existingClass.ruang || existingClass.ruangan || 'Ruang 1')));
 
         await db.query(
             'UPDATE classes SET nama = ?, program = ?, unit = ?, program_id = ?, pengajar = ?, teacher_id = ?, kapasitas = ?, hari = ?, mulai = ?, selesai = ?, tipe = ?, ruang = ? WHERE id = ?',
-            [escapeHTML(nama), validProgram, validUnit, programId, escapeHTML(pengajar), resolvedTeacherId, kapasitas, escapeHTML(hari), escapeHTML(mulai), escapeHTML(selesai), escapeHTML(tipe), escapeHTML(ruang), id]
+            [escapeHTML(targetNama), validProgram, validUnit, programId, finalPengajar, resolvedTeacherId, finalKapasitas, finalHari, finalMulai, finalSelesai, finalTipe, finalRuang, id]
         );
 
         try {
             const { createActivityLog } = require('../utils/logger');
             createActivityLog({
                 user_name: (req.user && req.user.name) || 'Admin',
-                action: `Update Data Kelas (${nama || id})`,
+                action: `Update Data Kelas (${targetNama || id})`,
                 program: validProgram || 'KBEC',
                 status: 'Berhasil'
             }).catch(err => console.error('[LOGGER NON-BLOCKING ERR]:', err.message));

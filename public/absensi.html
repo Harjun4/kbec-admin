@@ -36,11 +36,57 @@
             border-radius: 4px;
         }
 
+        .excel-table {
+            border-collapse: separate !important;
+            border-spacing: 0 !important;
+        }
+
         .excel-table th, .excel-table td {
-            border: 1px solid #CBD5E1;
+            border-right: 1px solid #CBD5E1;
+            border-bottom: 1px solid #CBD5E1;
             padding: 6px 8px;
             font-size: 11px;
             white-space: nowrap;
+        }
+
+        .excel-table thead tr:first-child th {
+            border-top: 1px solid #CBD5E1;
+        }
+
+        .excel-table th:first-child, .excel-table td:first-child {
+            border-left: 1px solid #CBD5E1;
+        }
+
+        /* Sticky Freeze Panes untuk Data Siswa (NO, NIS, NAMA SISWA, NAMA PANGGILAN, GRADE, LESSON) */
+        .excel-table th.freeze-col {
+            position: sticky;
+            z-index: 30;
+            background-color: #F1F5F9 !important; /* solid slate-100 */
+        }
+
+        .excel-table td.freeze-col {
+            position: sticky;
+            z-index: 15;
+            background-color: #FFFFFF !important; /* solid white */
+        }
+
+        .excel-table tbody tr:hover td.freeze-col {
+            background-color: #F8FAFC !important; /* sinkron dengan hover:bg-slate-50 */
+        }
+
+        /* Border pembatas Excel Freeze Pane pada kolom LESSON */
+        .excel-table th.freeze-col-divider,
+        .excel-table td.freeze-col-divider {
+            border-right: 2px solid #0A58CA !important;
+            box-shadow: 4px 0 8px -2px rgba(10, 88, 202, 0.16);
+        }
+
+        @media print {
+            .excel-table th.freeze-col,
+            .excel-table td.freeze-col {
+                position: static !important;
+                box-shadow: none !important;
+            }
         }
     </style>
 </head>
@@ -330,8 +376,8 @@
                     </div>
 
                     <!-- Area Komponen Tabel Excel View -->
-                    <div class="overflow-x-auto border border-slate-200 rounded-xl">
-                        <table class="w-full text-left border-collapse excel-table bg-white">
+                    <div class="overflow-x-auto border border-slate-200 rounded-xl relative shadow-xs">
+                        <table class="w-full text-left border-separate excel-table bg-white">
                             <thead id="excel-table-header">
                                 <!-- Header bertingkat Excel (Judul Sesi Tanggal, SB/WB/Presence, Rekap Mingguan) -->
                             </thead>
@@ -774,13 +820,13 @@
 
             header.innerHTML = `
                 <tr>
-                    <th rowspan="2" class="bg-slate-100 text-slate-700 text-center font-extrabold">NO</th>
-                    <th rowspan="2" class="bg-slate-100 text-slate-700 text-center font-extrabold">NIS</th>
-                    <th rowspan="2" class="bg-slate-100 text-slate-700 font-extrabold">NAMA SISWA</th>
-                    <th rowspan="2" class="bg-slate-100 text-slate-700 font-extrabold">NAMA PANGGILAN</th>
-                    <th rowspan="2" class="bg-slate-100 text-slate-700 font-extrabold">GRADE</th>
-                    <th rowspan="2" class="bg-slate-100 text-slate-700 font-extrabold">LESSON</th>
-                    <th rowspan="2" class="bg-slate-100 text-slate-700 font-extrabold">MATERIAL TAMBAHAN</th>
+                    <th rowspan="2" class="freeze-col bg-slate-100 text-slate-700 text-center font-extrabold min-w-[38px]">NO</th>
+                    <th rowspan="2" class="freeze-col bg-slate-100 text-slate-700 text-center font-extrabold min-w-[95px] hidden md:table-cell">NIS</th>
+                    <th rowspan="2" class="freeze-col freeze-col-divider bg-slate-100 text-slate-700 font-extrabold min-w-[140px] md:min-w-[170px]">NAMA SISWA</th>
+                    <th rowspan="2" class="bg-slate-100 text-slate-700 font-extrabold min-w-[110px]">NAMA PANGGILAN</th>
+                    <th rowspan="2" class="bg-slate-100 text-slate-700 font-extrabold text-center min-w-[95px]">GRADE</th>
+                    <th rowspan="2" class="bg-slate-100 text-slate-700 font-extrabold min-w-[130px]">LESSON</th>
+                    <th rowspan="2" class="bg-slate-100 text-slate-700 font-extrabold min-w-[130px]">MATERIAL TAMBAHAN</th>
                     ${dateColsHtml}
                     <th colspan="5" class="bg-emerald-50 text-emerald-800 text-center font-extrabold">TOTAL KEHADIRAN & REKAP STATUS</th>
                     <th rowspan="2" class="bg-slate-100 text-slate-700 font-extrabold">KETERANGAN</th>
@@ -800,6 +846,7 @@
             if (!data.report || data.report.length === 0) {
                 const totalCols = 14 + (data.dates ? data.dates.length * 3 : 0);
                 tbody.innerHTML = `<tr><td colspan="${totalCols}" class="text-center py-12 text-slate-400 font-bold">Belum ada siswa pada kelas ini.</td></tr>`;
+                requestAnimationFrame(() => syncFreezeColumns());
                 return;
             }
 
@@ -821,10 +868,13 @@
                 const totalStr = r.totals ? `<span class="text-emerald-700 font-bold">${r.totals.hadir}H</span> <span class="text-blue-700 font-bold">${r.totals.izin}I</span> <span class="text-amber-700 font-bold">${r.totals.sakit}S</span> <span class="text-rose-700 font-bold">${r.totals.alpha}A</span>` : '-';
 
                 tbody.innerHTML += `
-                    <tr class="hover:bg-slate-50">
-                        <td class="text-center font-bold text-slate-400">${r.no}</td>
-                        <td class="font-mono font-bold text-[#0A58CA] text-center">${r.nis}</td>
-                        <td class="font-bold text-slate-900">${r.nama}</td>
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="freeze-col text-center font-bold text-slate-400">${r.no}</td>
+                        <td class="freeze-col font-mono font-bold text-[#0A58CA] text-center hidden md:table-cell">${r.nis}</td>
+                        <td class="freeze-col freeze-col-divider">
+                            <div class="font-bold text-slate-900 leading-tight">${r.nama}</div>
+                            <div class="text-[9.5px] font-mono font-bold text-[#0A58CA] md:hidden mt-0.5">NIS: ${r.nis}</div>
+                        </td>
                         <td class="font-semibold text-slate-700">${r.nama_panggilan}</td>
                         <td class="font-bold text-blue-600 text-center">${r.grade}</td>
                         <td class="font-medium text-slate-700">${r.lesson}</td>
@@ -845,7 +895,41 @@
                 `;
             });
             if (window.lucide) lucide.createIcons();
+            requestAnimationFrame(() => syncFreezeColumns());
         }
+
+        function syncFreezeColumns() {
+            const table = document.querySelector('.excel-table');
+            if (!table) return;
+            const headerRow = table.querySelector('thead tr:first-child');
+            if (!headerRow) return;
+            const frozenThs = Array.from(headerRow.querySelectorAll('th.freeze-col')).filter(th => th.offsetParent !== null);
+            if (!frozenThs || frozenThs.length === 0) return;
+
+            const leftOffsets = [];
+            let currentLeft = 0;
+            frozenThs.forEach((th, idx) => {
+                leftOffsets[idx] = currentLeft;
+                th.style.left = `${currentLeft}px`;
+                currentLeft += th.offsetWidth;
+            });
+
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const frozenTds = Array.from(row.querySelectorAll('td.freeze-col')).filter(td => td.offsetParent !== null);
+                frozenTds.forEach((td, idx) => {
+                    if (leftOffsets[idx] !== undefined) {
+                        td.style.left = `${leftOffsets[idx]}px`;
+                    }
+                });
+            });
+        }
+
+        window.addEventListener('resize', () => {
+            if (activeMode === 'monthly' || activeMode === 'performance') {
+                syncFreezeColumns();
+            }
+        });
 
         let evalSessionData = {
             class_id: null,
@@ -1423,12 +1507,23 @@
                     <title>Laporan Kinerja Siswa - KBEC</title>
                     <script src="https://cdn.tailwindcss.com"><\/script>
                     <style>
-                        body { font-family: sans-serif; padding: 20px; font-size: 10px; background: white; }
-                        table, th, td { border: 1px solid #cbd5e1; border-collapse: collapse; padding: 5px 6px; }
+                        body { font-family: sans-serif; padding: 20px; font-size: 10px; background: white; margin: 0; }
+                        .table-wrapper { overflow-x: auto; max-width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; position: relative; }
+                        table { border-collapse: separate !important; border-spacing: 0 !important; width: 100%; font-size: 11px; white-space: nowrap; }
+                        th, td { border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; padding: 6px 8px; }
+                        thead tr:first-child th { border-top: 1px solid #cbd5e1; }
+                        th:first-child, td:first-child { border-left: 1px solid #cbd5e1; }
                         th { background-color: #f1f5f9; font-weight: bold; }
+                        .freeze-col { position: sticky; }
+                        th.freeze-col { z-index: 30; background-color: #f1f5f9 !important; }
+                        td.freeze-col { z-index: 15; background-color: #ffffff !important; }
+                        tr:hover td.freeze-col { background-color: #f8fafc !important; }
+                        .freeze-col-divider { border-right: 2px solid #0A58CA !important; box-shadow: 4px 0 8px -2px rgba(10, 88, 202, 0.16); }
                         @media print {
                             .no-print { display: none !important; }
                             body { padding: 0 !important; }
+                            .table-wrapper { overflow: visible !important; border: none !important; }
+                            .freeze-col { position: static !important; box-shadow: none !important; }
                         }
                     </style>
                 </head>
@@ -1444,10 +1539,37 @@
                             <button onclick="window.close()" class="bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-300">Tutup</button>
                         </div>
                     </div>
-                    <table class="w-full">
-                        ${document.getElementById('excel-table-header').innerHTML}
-                        ${document.getElementById('excel-table-body').innerHTML}
-                    </table>
+                    <div class="table-wrapper">
+                        <table class="w-full">
+                            ${document.getElementById('excel-table-header').innerHTML}
+                            ${document.getElementById('excel-table-body').innerHTML}
+                        </table>
+                    </div>
+                    <script>
+                        function syncPopupFreeze() {
+                            const table = document.querySelector('table');
+                            if (!table) return;
+                            const headerRow = table.querySelector('thead tr:first-child');
+                            if (!headerRow) return;
+                            const frozenThs = Array.from(headerRow.querySelectorAll('th.freeze-col')).filter(th => th.offsetParent !== null);
+                            const leftOffsets = [];
+                            let currentLeft = 0;
+                            frozenThs.forEach((th, idx) => {
+                                leftOffsets[idx] = currentLeft;
+                                th.style.left = currentLeft + 'px';
+                                currentLeft += th.offsetWidth;
+                            });
+                            const rows = table.querySelectorAll('tbody tr');
+                            rows.forEach(row => {
+                                const frozenTds = Array.from(row.querySelectorAll('td.freeze-col')).filter(td => td.offsetParent !== null);
+                                frozenTds.forEach((td, idx) => {
+                                    if (leftOffsets[idx] !== undefined) td.style.left = leftOffsets[idx] + 'px';
+                                });
+                            });
+                        }
+                        window.onload = syncPopupFreeze;
+                        window.onresize = syncPopupFreeze;
+                    <\/script>
                 </body>
                 </html>
             `;
@@ -1511,8 +1633,10 @@
                     const origTable = document.querySelector('.excel-table');
                     if (origTable) {
                         const clonedTable = origTable.cloneNode(true);
-                        // Bersihkan kolom aksi / catatan pada excel
+                        // Bersihkan kolom aksi / catatan pada excel & tampilkan kolom NIS penuh
                         clonedTable.querySelectorAll('.print\\:hidden').forEach(el => el.remove());
+                        clonedTable.querySelectorAll('.hidden').forEach(el => el.classList.remove('hidden'));
+                        clonedTable.querySelectorAll('.md\\:hidden').forEach(el => el.remove());
 
                         const wb = XLSX.utils.table_to_book(clonedTable, { 
                             sheet: `Kinerja ${monthStr}`,
@@ -1533,6 +1657,8 @@
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = `<table><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table>`;
             tempDiv.querySelectorAll('.print\\:hidden').forEach(el => el.remove());
+            tempDiv.querySelectorAll('.hidden').forEach(el => el.classList.remove('hidden'));
+            tempDiv.querySelectorAll('.md\\:hidden').forEach(el => el.remove());
 
             const excelContent = `
                 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -1590,6 +1716,8 @@
             if (!origTable) return;
             const tableClone = origTable.cloneNode(true);
             tableClone.querySelectorAll('.print\\:hidden').forEach(el => el.remove());
+            tableClone.querySelectorAll('.hidden').forEach(el => el.classList.remove('hidden'));
+            tableClone.querySelectorAll('.md\\:hidden').forEach(el => el.remove());
 
             const printWindow = window.open('', '_blank');
             if (!printWindow) {
@@ -1724,6 +1852,14 @@
                             font-weight: bold;
                             border-bottom: 1px solid #0f172a;
                             padding-bottom: 2px;
+                        }
+                        .freeze-col {
+                            position: static !important;
+                            box-shadow: none !important;
+                            left: auto !important;
+                        }
+                        .freeze-col-divider {
+                            box-shadow: none !important;
                         }
                         @media print {
                             .no-print-bar {
