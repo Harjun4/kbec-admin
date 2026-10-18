@@ -316,13 +316,13 @@
 
         <!-- FOOTER SYSTEM -->
         <footer class="px-6 sm:px-8 py-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-400 font-medium gap-2 no-print">
-            <p>© 2026 Yayasan Ar-Rasyid Bintaro — KBEC Management System.</p>
+            <p>© 2026 Yayasan Ar-Rasyid Bintaro - KBEC Management System.</p>
             <p>Fitur Eksklusif Super Administrator</p>
         </footer>
     </div>
 
     <!-- MODAL POPUP DRILLDOWN: DETAIL AUDIT PENGAJAR -->
-    <div id="modal-drilldown" class="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center hidden opacity-0 transition-all duration-200 p-4 no-print">
+    <div id="modal-drilldown" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center hidden opacity-0 transition-all duration-200 p-4 no-print">
         <div class="bg-white w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transform scale-95 transition-all duration-200">
             <!-- Modal Header -->
             <div class="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
@@ -533,7 +533,7 @@
                 } else if (disciplineFilter === 'telat_saja') {
                     matchDiscipline = (t.classes_summary.details || []).some(c => c.is_late);
                 } else if (disciplineFilter === 'grading_menunggak') {
-                    matchDiscipline = (t.classes_summary.details || []).some(c => c.is_taught && c.grading_status.includes('Belum'));
+                    matchDiscipline = (t.classes_summary.details || []).some(c => c.is_taught && c.grading_status.includes('Belum') && c.uses_sb_wb !== false);
                 } else if (disciplineFilter === 'siswa_bermasalah') {
                     matchDiscipline = t.student_health && t.student_health.has_problematic_students;
                 }
@@ -618,8 +618,12 @@
                 if (taughtDetails.length > 0) {
                     const allFull = taughtDetails.every(c => c.grading_badge === 'green');
                     const hasZero = taughtDetails.some(c => c.grading_badge === 'rose');
+                    const allNonKBEC = taughtDetails.every(c => c.uses_sb_wb === false);
+
                     if (allFull) {
-                        gradingHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Lengkap (100%)</span>`;
+                        gradingHTML = allNonKBEC
+                            ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Presensi Lengkap</span>`
+                            : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">Lengkap (100%)</span>`;
                     } else if (hasZero) {
                         gradingHTML = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">⚠️ Belum Diinput</span>`;
                     } else {
@@ -821,7 +825,7 @@
                     const li = document.createElement('div');
                     li.className = 'flex items-center justify-between border-b border-rose-100 pb-1';
                     li.innerHTML = `
-                        <span><b>${s.student_name}</b> (NIS: ${s.student_id}) — Kelas: ${s.kelas}</span>
+                        <span><b>${s.student_name}</b> (NIS: ${s.student_id}) • Kelas: ${s.kelas}</span>
                         <span class="px-2 py-0.5 bg-rose-200/80 text-rose-900 rounded font-bold text-[10px]">${s.reason}</span>
                     `;
                     probList.appendChild(li);

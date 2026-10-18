@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { escapeHTML, normalizeUnit, resolveStudentUnit, matchProgramMaster } = require('../utils/helpers');
+const { escapeHTML, normalizeUnit, resolveStudentUnit, matchProgramMaster, isUnitUsingSBWB } = require('../utils/helpers');
 
 async function resolveValidProgramName(programInput) {
     if (!programInput || !String(programInput).trim()) return 'KBEC';
@@ -73,7 +73,11 @@ async function getClasses(req, res, next) {
 
         sql += ' ORDER BY c.id ASC';
         const [rows] = await db.query(sql, params);
-        res.json(rows || []);
+        const mapped = (rows || []).map(c => ({
+            ...c,
+            uses_sb_wb: isUnitUsingSBWB(c.unit, c.program)
+        }));
+        res.json(mapped);
     } catch (err) {
         next(err);
     }

@@ -279,6 +279,16 @@ function formatWIBTime(date = new Date()) {
     }).format(d);
 }
 
+/**
+ * Menentukan apakah suatu unit / program menggunakan buku SB (Student Book) & WB (Workbook).
+ * Berdasarkan aturan akademik KBEC: Hanya Unit KBEC yang memakai SB/WB.
+ * Unit non-KBEC (TK, Bimbel, Calistung, Arabin) hanya presensi & materi reguler.
+ */
+function isUnitUsingSBWB(unit, program = '') {
+    const u = normalizeUnit(unit) || normalizeUnit(program) || '';
+    return u === 'KBEC';
+}
+
 module.exports = {
     UNITS,
     STUDENT_STATUSES,
@@ -293,5 +303,6 @@ module.exports = {
     escapeHTML,
     getWIBDate,
     getWIBMonth,
-    formatWIBTime
+    formatWIBTime,
+    isUnitUsingSBWB
 };

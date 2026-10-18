@@ -1,7 +1,7 @@
 const db = require('../config/db');
-const { escapeHTML, getWIBDate, getWIBMonth } = require('../utils/helpers');
+const { escapeHTML, getWIBDate, getWIBMonth, isUnitUsingSBWB } = require('../utils/helpers');
 
-// Koordinat Resmi Yayasan Ar-Rasyid Bintaro — KBEC Jakarta (https://maps.app.goo.gl/gjiAmuJcTriC3VX49)
+// Koordinat Resmi Yayasan Ar-Rasyid Bintaro - KBEC Jakarta (https://maps.app.goo.gl/gjiAmuJcTriC3VX49)
 const KBEC_LAT = -6.2545644;
 const KBEC_LNG = 106.7340093;
 const KBEC_ALLOWED_RADIUS = parseInt(process.env.KBEC_RADIUS_METERS || '150', 10); // Toleransi radius GPS (150 meter)
@@ -1220,34 +1220,71 @@ async function getTeacherAuditMonitoring(req, res, next) {
                 // Cek kepatuhan input evaluasi siswa untuk kelas ini
                 const enrolledStudents = classStudentsMap[String(cls.id)] || [];
                 const enrolledStudentIds = enrolledStudents.map(s => String(s.student_id));
-                
-                const evaluatedInClass = gradeRows.filter(g => 
-                    (g.class_name && g.class_name.toLowerCase().replace(/&amp;/g, '&') === clsCleanName) ||
-                    enrolledStudentIds.includes(String(g.student_id))
-                );
-
                 const studentCount = enrolledStudents.length;
-                const evalCount = evaluatedInClass.length;
+
+                // Hanya Unit KBEC yang mewajibkan input lembar evaluasi SB/WB
+                const usesSBWB = isUnitUsingSBWB(cls.unit, cls.program);
+
+                let evalCount = 0;
                 let gradingStatus = 'Belum Diinput (0%)';
                 let gradingBadge = 'rose';
 
-                if (studentCount === 0) {
-                    gradingStatus = 'Tidak Ada Siswa';
-                    gradingBadge = 'slate';
-                } else if (evalCount >= studentCount) {
-                    gradingStatus = 'Lengkap (100%)';
-                    gradingBadge = 'green';
-                    totalGradingFull++;
-                } else if (evalCount > 0) {
-                    gradingStatus = `Sebagian (${Math.round((evalCount / studentCount) * 100)}%)`;
-                    gradingBadge = 'amber';
+                if (!usesSBWB) {
+                    // Unit non-KBEC (TK, Bimbel, Calistung, Arabin): Cukup presensi biasa
+                    const attendedInClass = attendanceRows.filter(a => {
+                        const aDate = a.tanggal ? String(a.tanggal).slice(0, 10) : '';
+                        const aClass = (a.kelas || '').toLowerCase().replace(/&amp;/g, '&');
+                        return aDate === targetDate && (
+                            (aClass && aClass === clsCleanName) ||
+                            enrolledStudentIds.includes(String(a.student_id))
+                        );
+                    });
+
+                    if (studentCount === 0) {
+                        gradingStatus = 'Tidak Ada Siswa';
+                        gradingBadge = 'slate';
+                        evalCount = 0;
+                    } else if (isTaught || attendedInClass.length >= studentCount) {
+                        gradingStatus = 'Lengkap (Presensi Reguler)';
+                        gradingBadge = 'green';
+                        evalCount = studentCount;
+                        totalGradingFull++;
+                    } else if (attendedInClass.length > 0) {
+                        gradingStatus = `Sebagian (${Math.round((attendedInClass.length / studentCount) * 100)}%)`;
+                        gradingBadge = 'amber';
+                        evalCount = attendedInClass.length;
+                    } else {
+                        gradingStatus = 'Presensi Belum Diisi';
+                        gradingBadge = 'slate';
+                        evalCount = 0;
+                    }
+                } else {
+                    // Unit KBEC: Wajib evaluasi lembar kerja siswa (SB/WB)
+                    const evaluatedInClass = gradeRows.filter(g => 
+                        (g.class_name && g.class_name.toLowerCase().replace(/&amp;/g, '&') === clsCleanName) ||
+                        enrolledStudentIds.includes(String(g.student_id))
+                    );
+                    evalCount = evaluatedInClass.length;
+
+                    if (studentCount === 0) {
+                        gradingStatus = 'Tidak Ada Siswa';
+                        gradingBadge = 'slate';
+                    } else if (evalCount >= studentCount) {
+                        gradingStatus = 'Lengkap (100%)';
+                        gradingBadge = 'green';
+                        totalGradingFull++;
+                    } else if (evalCount > 0) {
+                        gradingStatus = `Sebagian (${Math.round((evalCount / studentCount) * 100)}%)`;
+                        gradingBadge = 'amber';
+                    }
                 }
 
                 return {
                     class_id: cls.id,
                     class_name: cls.nama,
                     program: cls.program || cls.unit || '-',
-                    unit: cls.unit || 'KBEC',
+                    unit: cls.unit || (usesSBWB ? 'KBEC' : 'Reguler'),
+                    uses_sb_wb: usesSBWB,
                     room: cls.ruang || '-',
                     scheduled_time: `${cls.mulai || '08:00'} - ${cls.selesai || '09:30'}`,
                     is_taught: isTaught,

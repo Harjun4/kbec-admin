@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const { resolveStudentUnit, escapeHTML } = require('../utils/helpers');
+const { resolveStudentUnit, escapeHTML, isUnitUsingSBWB } = require('../utils/helpers');
 
 function getAllDaysInMonth(yearMonthStr) {
     const parts = (yearMonthStr || new Date().toISOString().slice(0, 7)).split('-');
@@ -451,10 +451,11 @@ async function getPerformanceReport(req, res, next) {
                 class_id = teacherClasses[0].id;
             } else {
                 return res.json({
-                    class: { nama: 'Belum Ada Kelas', pengajar: tName || 'Pengajar KBEC' },
+                    class: { nama: 'Belum Ada Kelas', pengajar: tName || 'Pengajar KBEC', uses_sb_wb: false },
                     bulan: targetBulan,
                     dates: getAllDaysInMonth(targetBulan),
-                    report: []
+                    report: [],
+                    uses_sb_wb: false
                 });
             }
         }
@@ -488,14 +489,19 @@ async function getPerformanceReport(req, res, next) {
             classObj.nama = 'Kelas KBEC';
         }
 
+        const usesSBWB = isUnitUsingSBWB(classObj ? classObj.unit : null, classObj ? classObj.program : null);
         const dates = getAllDaysInMonth(targetBulan);
 
         if (!students || students.length === 0) {
             return res.json({
-                class: classObj,
+                class: {
+                    ...(classObj || {}),
+                    uses_sb_wb: usesSBWB
+                },
                 bulan: targetBulan,
                 dates,
-                report: []
+                report: [],
+                uses_sb_wb: usesSBWB
             });
         }
 
@@ -581,10 +587,14 @@ async function getPerformanceReport(req, res, next) {
         });
 
         res.json({
-            class: classObj,
+            class: {
+                ...(classObj || {}),
+                uses_sb_wb: usesSBWB
+            },
             bulan: targetBulan,
             dates,
-            report
+            report,
+            uses_sb_wb: usesSBWB
         });
     } catch (err) {
         next(err);
@@ -892,10 +902,17 @@ async function getSessionEvaluations(req, res, next) {
             };
         });
 
+        const usesSBWB = classObj ? isUnitUsingSBWB(classObj.unit, classObj.program) : true;
+
         res.json({
             success: true,
             session_date: finalDate,
-            class: classObj,
+            class: {
+                ...(classObj || {}),
+                uses_sb_wb: usesSBWB,
+                unit: (classObj && classObj.unit) || (usesSBWB ? 'KBEC' : 'Reguler')
+            },
+            uses_sb_wb: usesSBWB,
             students: studentsResult
         });
     } catch (err) {
