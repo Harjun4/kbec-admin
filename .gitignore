@@ -17,6 +17,15 @@ scratch/
 scratch_*.js
 temp_*.js
 temp*
+anti-slop/
+
+# Local Testing & Utility Scripts (Local RnD only, not deployed)
+tests/
+scripts/
+
+# Documentation & Internal Notes
+docs/
+*.md
 
 # Agent & AI Tooling
 .agent/
