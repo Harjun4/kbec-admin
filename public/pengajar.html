@@ -187,7 +187,8 @@
                         Ini</span><span id="view-status"
                         class="inline-block mt-1 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm"></span></div>
                 <div>
-                    <span class="text-xs font-bold text-slate-400 block uppercase tracking-wide">Keadaan Kelas / Siswa</span>
+                    <span class="text-xs font-bold text-slate-400 block uppercase tracking-wide">Keadaan Kelas /
+                        Siswa</span>
                     <div id="view-student-health" class="mt-1.5"></div>
                 </div>
             </div>
@@ -346,7 +347,7 @@
                     <div class="flex items-center gap-3">
                         <a href="audit-kinerja-pengajar.html" id="btn-audit-kinerja"
                             class="hidden items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-blue-500/10 transition-all transform hover:translate-y-[-1px]">
-                            <i data-lucide="bar-chart-3" class="w-4 h-4"></i> 📊 Audit Kinerja (Super Admin)
+                            <i data-lucide="bar-chart-3" class="w-4 h-4"></i> Audit Kinerja (Super Admin)
                         </a>
                         <button onclick="exportTeachersPDF()"
                             class="flex items-center gap-2 bg-white border border-slate-200 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:bg-slate-50 transition-colors">
@@ -900,8 +901,8 @@
                 const badgeClass = t.status === 'Aktif' ? 'badge-aktif' : 'badge-cuti';
                 const hasProblematic = Boolean(t.has_problematic_students || (t.problematic_students_count && t.problematic_students_count > 0));
                 const probCount = t.problematic_students_count || (t.problematic_students ? t.problematic_students.length : 0);
-                const healthHTML = hasProblematic ? 
-                    `<span style="color: #b91c1c; font-weight: 700; background: #fee2e2; padding: 2px 6px; border-radius: 4px; font-size: 9px;">⚠️ Bermasalah (${probCount})</span>` : 
+                const healthHTML = hasProblematic ?
+                    `<span style="color: #b91c1c; font-weight: 700; background: #fee2e2; padding: 2px 6px; border-radius: 4px; font-size: 9px;">⚠️ Bermasalah (${probCount})</span>` :
                     `<span style="color: #047857; font-weight: 600; background: #ecfdf5; padding: 2px 6px; border-radius: 4px; font-size: 9px;">✅ Kondusif</span>`;
 
                 return `
