@@ -1153,7 +1153,7 @@
 
             let html = '';
             evalSessionData.students.forEach((s, idx) => {
-                const isAbsent = s.presence === 'Izin' || s.presence === 'Alpha' || s.presence === 'Sakit';
+                const isAbsent = s.presence === 'Izin' || s.presence === 'Alpha' || s.presence === 'Sakit' || s.presence === '-';
                 const lastSessHtml = s.last_session ? `
                     <span class="text-[9px] font-bold text-slate-400 block">${formatDateShort(s.last_session.date)}</span>
                     <span class="text-[10px] font-extrabold text-slate-700">SB: <b class="text-blue-600">${escapeHtmlAttr(s.last_session.sb || '-')}</b> | WB: <b class="text-indigo-600">${escapeHtmlAttr(s.last_session.wb || '-')}</b></span>
@@ -1180,6 +1180,7 @@
                             <!-- Col 2: Presensi 1-Tap (Col 2) -->
                             <div class="col-span-2 flex items-center justify-center">
                                 <div class="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200/80 text-[10px] font-extrabold">
+                                    <button type="button" onclick="setStudentPresence('${s.student_id}', '-')" title="Kosongkan (tidak ada kelas / belum datang)" aria-label="Kosongkan presensi" class="btn-presence-kosong px-2.5 py-1 rounded-md transition-all cursor-pointer ${s.presence === '-' ? 'bg-slate-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}">-</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Hadir')" class="btn-presence-hadir px-2.5 py-1 rounded-md transition-all cursor-pointer ${s.presence === 'Hadir' ? 'bg-emerald-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}">Hadir</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Izin')" class="btn-presence-izin px-2.5 py-1 rounded-md transition-all cursor-pointer ${s.presence === 'Izin' ? 'bg-amber-500 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}">Izin</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Alpha')" class="btn-presence-alpha px-2.5 py-1 rounded-md transition-all cursor-pointer ${s.presence === 'Alpha' ? 'bg-rose-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}">Alpha</button>
@@ -1231,6 +1232,7 @@
                                     </div>
                                 </div>
                                 <div class="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[10px] font-extrabold shrink-0">
+                                    <button type="button" onclick="setStudentPresence('${s.student_id}', '-')" title="Kosongkan (tidak ada kelas / belum datang)" aria-label="Kosongkan presensi" class="btn-presence-kosong px-2 py-0.5 rounded-md cursor-pointer ${s.presence === '-' ? 'bg-slate-600 text-white font-bold' : 'text-slate-600'}">-</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Hadir')" class="btn-presence-hadir px-2 py-0.5 rounded-md cursor-pointer ${s.presence === 'Hadir' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-600'}">Hadir</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Izin')" class="btn-presence-izin px-2 py-0.5 rounded-md cursor-pointer ${s.presence === 'Izin' ? 'bg-amber-500 text-white font-bold' : 'text-slate-600'}">Izin</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Alpha')" class="btn-presence-alpha px-2 py-0.5 rounded-md cursor-pointer ${s.presence === 'Alpha' ? 'bg-rose-600 text-white font-bold' : 'text-slate-600'}">Alpha</button>
@@ -1308,6 +1310,7 @@
                             <!-- Col 2: Presensi 1-Tap (Col 3) -->
                             <div class="col-span-3 flex items-center justify-center">
                                 <div class="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200/80 text-[10px] font-extrabold">
+                                    <button type="button" onclick="setStudentPresence('${s.student_id}', '-')" title="Kosongkan (tidak ada kelas / belum datang)" aria-label="Kosongkan presensi" class="btn-presence-kosong px-2.5 py-1 rounded-md transition-all cursor-pointer ${s.presence === '-' ? 'bg-slate-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}">-</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Hadir')" class="btn-presence-hadir px-2.5 py-1 rounded-md transition-all cursor-pointer ${s.presence === 'Hadir' ? 'bg-emerald-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}">Hadir</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Izin')" class="btn-presence-izin px-2.5 py-1 rounded-md transition-all cursor-pointer ${s.presence === 'Izin' ? 'bg-amber-500 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}">Izin</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Alpha')" class="btn-presence-alpha px-2.5 py-1 rounded-md transition-all cursor-pointer ${s.presence === 'Alpha' ? 'bg-rose-600 text-white font-bold shadow-xs' : 'text-slate-600 hover:text-slate-900'}">Alpha</button>
@@ -1334,6 +1337,7 @@
                                     </div>
                                 </div>
                                 <div class="inline-flex p-0.5 rounded-lg bg-slate-100 border border-slate-200 text-[10px] font-extrabold shrink-0">
+                                    <button type="button" onclick="setStudentPresence('${s.student_id}', '-')" title="Kosongkan (tidak ada kelas / belum datang)" aria-label="Kosongkan presensi" class="btn-presence-kosong px-2 py-0.5 rounded-md cursor-pointer ${s.presence === '-' ? 'bg-slate-600 text-white font-bold' : 'text-slate-600'}">-</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Hadir')" class="btn-presence-hadir px-2 py-0.5 rounded-md cursor-pointer ${s.presence === 'Hadir' ? 'bg-emerald-600 text-white font-bold' : 'text-slate-600'}">Hadir</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Izin')" class="btn-presence-izin px-2 py-0.5 rounded-md cursor-pointer ${s.presence === 'Izin' ? 'bg-amber-500 text-white font-bold' : 'text-slate-600'}">Izin</button>
                                     <button type="button" onclick="setStudentPresence('${s.student_id}', 'Alpha')" class="btn-presence-alpha px-2 py-0.5 rounded-md cursor-pointer ${s.presence === 'Alpha' ? 'bg-rose-600 text-white font-bold' : 'text-slate-600'}">Alpha</button>
@@ -1361,21 +1365,28 @@
             if (!s) return;
 
             s.presence = newPresence;
-            const isAbsent = newPresence === 'Izin' || newPresence === 'Alpha' || newPresence === 'Sakit';
+            const isAbsent = newPresence === 'Izin' || newPresence === 'Alpha' || newPresence === 'Sakit' || newPresence === '-';
 
             const item = document.querySelector(`.eval-student-item[data-nis="${studentId}"]`);
             if (item) {
                 item.setAttribute('data-presence', newPresence.toLowerCase());
 
-                // Update Hadir / Izin / Alpha buttons
-                ['hadir', 'izin', 'alpha'].forEach(p => {
-                    const isActive = newPresence.toLowerCase() === p;
-                    item.querySelectorAll(`.btn-presence-${p}`).forEach(btn => {
-                        btn.className = `btn-presence-${p} px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                            isActive 
-                                ? (p === 'hadir' ? 'bg-emerald-600 text-white font-bold shadow-xs' : (p === 'izin' ? 'bg-amber-500 text-white font-bold shadow-xs' : 'bg-rose-600 text-white font-bold shadow-xs'))
-                                : 'text-slate-600 hover:text-slate-900'
-                        }`;
+                const presenceButtons = [
+                    { key: 'kosong', value: '-', active: 'bg-slate-600 text-white font-bold' },
+                    { key: 'hadir', value: 'Hadir', active: 'bg-emerald-600 text-white font-bold' },
+                    { key: 'izin', value: 'Izin', active: 'bg-amber-500 text-white font-bold' },
+                    { key: 'alpha', value: 'Alpha', active: 'bg-rose-600 text-white font-bold' }
+                ];
+                presenceButtons.forEach(p => {
+                    const isActive = newPresence === p.value;
+                    item.querySelectorAll(`.btn-presence-${p.key}`).forEach(btn => {
+                        // Keep the size of the desktop vs mobile variant
+                        const isDesktop = btn.classList.contains('px-2.5');
+                        const sizeCls = isDesktop ? 'px-2.5 py-1 transition-all' : 'px-2 py-0.5';
+                        const stateCls = isActive
+                            ? p.active + (isDesktop ? ' shadow-xs' : '')
+                            : 'text-slate-600' + (isDesktop ? ' hover:text-slate-900' : '');
+                        btn.className = `btn-presence-${p.key} ${sizeCls} rounded-md cursor-pointer ${stateCls}`;
                     });
                 });
 
@@ -1518,11 +1529,14 @@
             const usesSBWB = evalSessionData.uses_sb_wb !== false;
             let hadirCount = 0;
             let absentCount = 0;
+            let blankCount = 0;
             let filledCount = 0;
 
             evalSessionData.students.forEach(s => {
                 const isHadir = (s.presence || '').toLowerCase() === 'hadir';
-                if (isHadir) {
+                if (s.presence === '-') {
+                    blankCount++;
+                } else if (isHadir) {
                     hadirCount++;
                     if (!usesSBWB) {
                         // Untuk unit non-KBEC (TK, Bimbel, Calistung, Arabin), presensi biasa sudah lengkap
@@ -1546,10 +1560,11 @@
             if (countAbsenEl) countAbsenEl.innerText = absentCount;
 
             if (statsEl) {
+                const blankText = blankCount > 0 ? ` • ${blankCount} dikosongkan` : '';
                 if (!usesSBWB) {
-                    statsEl.innerText = `Presensi: ${hadirCount} Hadir (${absentCount} Izin/Alpha) • Lengkap`;
+                    statsEl.innerText = `Presensi: ${hadirCount} Hadir (${absentCount} Izin/Alpha)${blankText} • Lengkap`;
                 } else {
-                    statsEl.innerText = `Terisi: ${filledCount} dari ${hadirCount} siswa hadir`;
+                    statsEl.innerText = `Terisi: ${filledCount} dari ${hadirCount} siswa hadir${blankText}`;
                 }
             }
 
@@ -2126,7 +2141,7 @@
             const icon = type === 'success' ? '<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-500"></i>' : '<i data-lucide="alert-triangle" class="w-5 h-5 text-rose-500"></i>';
             toast.innerHTML = `<div class="flex items-center justify-center">${icon}</div><div class="flex-1"><p class="text-xs font-bold text-slate-900">${message}</p></div>`;
             container.appendChild(toast);
-            lucide.createIcons();
+            if (window.lucide) lucide.createIcons();
             setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
         }
     </script>

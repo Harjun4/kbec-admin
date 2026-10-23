@@ -871,13 +871,19 @@ async function getSessionEvaluations(req, res, next) {
             }
         });
 
+        // Once a session has been saved for this date, a student with no record was
+        // deliberately left blank ('-'), so don't fall back to 'Hadir' for them.
+        const sessionAlreadySaved = currentGradeRows.length > 0 || currentAttRows.length > 0;
+
         const studentsResult = students.map(std => {
             const sId = String(std.id);
             const sGrade = currentGradeRows.find(g => String(g.student_id) === sId) || {};
             const sAtt = currentAttRows.find(a => String(a.student_id) === sId) || {};
             const lastSess = lastSessionMap[sId] || null;
 
-            const currentPresensi = (sAtt.status && sAtt.status !== '-') ? sAtt.status : (sGrade.presensi || 'Hadir');
+            const currentPresensi = (sAtt.status && sAtt.status !== '-')
+                ? sAtt.status
+                : (sGrade.presensi || (sessionAlreadySaved ? '-' : 'Hadir'));
 
             return {
                 student_id: std.id,
@@ -981,6 +987,14 @@ async function saveBatchStudentGrades(req, res, next) {
                 const finalNick = ev.nama_panggilan || ev.nickname || (student_name ? student_name.split(' ')[0] : 'Siswa');
                 const finalGrade = ev.grade || '1A';
                 const finalPresensi = ev.presensi || ev.presence || 'Hadir';
+
+                if (finalPresensi === '-' || finalPresensi === 'Kosong') {
+                    await conn.query('DELETE FROM student_grades WHERE student_id = ? AND tanggal::text = ?', [student_id, finalDate]);
+                    await conn.query('DELETE FROM attendance WHERE student_id = ? AND tanggal::text = ?', [student_id, finalDate]);
+                    savedCount++;
+                    continue;
+                }
+
                 const sbPage = ev.sb || ev.sb_page || '';
                 const wbPage = ev.wb || ev.wb_page || '';
                 const lesson = ev.lesson || '';
