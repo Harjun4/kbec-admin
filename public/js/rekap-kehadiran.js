@@ -9,6 +9,22 @@ let rawClassDetails = [];
 let donutChartInstance = null;
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Role Check: Jika role Staff, sembunyikan navigasi tab laporan lainnya
+    try {
+        const rawUser = localStorage.getItem('currentUser');
+        const u = rawUser ? JSON.parse(rawUser) : {};
+        const role = (localStorage.getItem('userRole') || u.role || u.role_name || u.type || '').toLowerCase();
+        if (role.includes('staff') || role.includes('staf')) {
+            const tabContainer = document.getElementById('rekap-tab-container');
+            if (tabContainer) {
+                tabContainer.style.display = 'none';
+                tabContainer.classList.add('hidden');
+            }
+        }
+    } catch (e) {
+        console.warn('Role check error:', e);
+    }
+
     // Set default filter-bulan ke bulan saat ini (YYYY-MM)
     const filterBulan = document.getElementById('filter-bulan');
     if (filterBulan && !filterBulan.value) {

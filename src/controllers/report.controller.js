@@ -533,7 +533,444 @@ async function getStudentPerformanceReport(req, res, next) {
     }
 }
 
+/**
+ * 3. GET /api/reports/problematic-students
+ * Laporan rekap siswa bermasalah (Alpha >= 3 atau kehadiran < 75%)
+ */
+async function getProblematicStudentsReport(req, res, next) {
+    try {
+        let { startDate, endDate, unit, severity, search } = req.query;
+
+        const today = new Date();
+        if (!startDate) {
+            startDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+        }
+        if (!endDate) {
+            endDate = today.toISOString().split('T')[0];
+        }
+
+        // 1. Ambil data siswa aktif
+        const [students] = await db.query(`
+            SELECT id, nama, kontak, unit, program, level, nama_ibu, nama_ayah, status
+            FROM students
+            WHERE (status IS NULL OR status ILIKE 'Aktif' OR status = '')
+            ORDER BY nama ASC
+        `);
+
+        // 2. Ambil relasi kelas & pengajar
+        const [classStudentRows] = await db.query(`
+            SELECT cs.student_id, cs.class_id, c.nama AS class_name, c.unit AS class_unit,
+                   c.pengajar, c.teacher_id, t.nama AS teacher_name, t.kontak AS teacher_phone
+            FROM class_students cs
+            JOIN classes c ON cs.class_id = c.id
+            LEFT JOIN teachers t ON c.teacher_id = t.id
+        `);
+
+        const studentClassMap = {};
+        (classStudentRows || []).forEach(row => {
+            const sid = String(row.student_id);
+            if (!studentClassMap[sid]) {
+                studentClassMap[sid] = {
+                    class_id: row.class_id,
+                    class_name: row.class_name,
+                    unit: row.class_unit,
+                    pengajar: row.teacher_name || row.pengajar || 'Belum Ditugaskan',
+                    teacher_phone: row.teacher_phone || '-'
+                };
+            }
+        });
+
+        // 3. Ambil absensi harian dan grade dalam rentang tanggal
+        const [attRows] = await db.query(`
+            SELECT student_id, LOWER(TRIM(status)) AS status, TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') AS tgl, kelas
+            FROM attendance
+            WHERE TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') >= ? AND TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') <= ?
+            ORDER BY tanggal ASC
+        `, [startDate, endDate]);
+
+        const [gradeRows] = await db.query(`
+            SELECT student_id, LOWER(TRIM(presensi)) AS presensi, TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') AS tgl, class_name
+            FROM student_grades
+            WHERE TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') >= ? AND TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') <= ?
+            ORDER BY tanggal ASC
+        `, [startDate, endDate]);
+
+        // Gabungkan catatan kehadiran per siswa
+        const studentAttMap = {};
+        (attRows || []).forEach(a => {
+            const sid = String(a.student_id);
+            if (!studentAttMap[sid]) studentAttMap[sid] = {};
+            if (a.tgl) studentAttMap[sid][a.tgl] = { status: a.status, class: a.kelas };
+        });
+
+        (gradeRows || []).forEach(g => {
+            const sid = String(g.student_id);
+            if (!studentAttMap[sid]) studentAttMap[sid] = {};
+            if (g.tgl && !studentAttMap[sid][g.tgl]) {
+                studentAttMap[sid][g.tgl] = { status: g.presensi || 'hadir', class: g.class_name };
+            }
+        });
+
+        // 4. Hitung statistik dan evaluasi kriteria bermasalah
+        const problematicList = [];
+        let totalCritical = 0;
+        let totalWarning = 0;
+
+        (students || []).forEach(s => {
+            const sid = String(s.id);
+            const dateMap = studentAttMap[sid] || {};
+            const dates = Object.keys(dateMap).sort();
+            const totalSesi = dates.length;
+
+            let hadirCount = 0;
+            let izinCount = 0;
+            let sakitCount = 0;
+            let alphaCount = 0;
+
+            dates.forEach(d => {
+                const st = String(dateMap[d].status || '').toLowerCase().trim();
+                if (st.includes('hadir') || st === 'h') hadirCount++;
+                else if (st.includes('izin') || st.includes('ijin') || st === 'i') izinCount++;
+                else if (st.includes('sakit') || st === 's') sakitCount++;
+                else if (st.includes('alpha') || st.includes('alfa') || st === 'a') alphaCount++;
+            });
+
+            const rate = totalSesi > 0 ? Math.round((hadirCount / totalSesi) * 100) : 100;
+
+            let isProblematic = false;
+            let severityLevel = 'normal'; // 'critical' | 'warning'
+            let reasons = [];
+
+            // Kriteria Kritis: Alpha >= 4 ATAU rate < 50% (dengan min 3 sesi)
+            if (alphaCount >= 4 || (totalSesi >= 3 && rate < 50)) {
+                isProblematic = true;
+                severityLevel = 'critical';
+                if (alphaCount >= 4) reasons.push(`${alphaCount}x Alpha Tanpa Keterangan`);
+                if (totalSesi >= 3 && rate < 50) reasons.push(`Kehadiran Kritis (${rate}%)`);
+            } else if (alphaCount === 3 || (totalSesi >= 3 && rate < 75)) {
+                // Kriteria Peringatan: Alpha = 3 ATAU rate 50-74%
+                isProblematic = true;
+                severityLevel = 'warning';
+                if (alphaCount === 3) reasons.push(`3x Alpha Tanpa Keterangan`);
+                if (totalSesi >= 3 && rate < 75) reasons.push(`Kehadiran Rendah (${rate}%)`);
+            }
+
+            if (isProblematic) {
+                if (severityLevel === 'critical') totalCritical++;
+                if (severityLevel === 'warning') totalWarning++;
+
+                const clsInfo = studentClassMap[sid] || {
+                    class_name: (dates.length > 0 && dateMap[dates[dates.length - 1]].class) ? dateMap[dates[dates.length - 1]].class : 'Reguler',
+                    unit: s.unit || resolveStudentUnit(s.id, s.program, s.level),
+                    pengajar: 'Belum Ditugaskan'
+                };
+
+                const cleanKontak = String(s.kontak || '').replace(/[^0-9]/g, '');
+                let formattedWa = '';
+                if (cleanKontak) {
+                    if (cleanKontak.startsWith('0')) formattedWa = '62' + cleanKontak.slice(1);
+                    else if (cleanKontak.startsWith('62')) formattedWa = cleanKontak;
+                    else formattedWa = '62' + cleanKontak;
+                }
+
+                problematicList.push({
+                    id: s.id,
+                    nis: s.id,
+                    nama: s.nama || 'Siswa KBEC',
+                    nama_ortu: s.nama_ibu || s.nama_ayah || 'Wali Murid',
+                    kontak: s.kontak || '',
+                    wa_number: formattedWa,
+                    unit: clsInfo.unit || s.unit || resolveStudentUnit(s.id, s.program, s.level),
+                    program: s.program || s.level || 'KBEC',
+                    kelas: clsInfo.class_name || '-',
+                    pengajar: clsInfo.pengajar || 'Belum Ditugaskan',
+                    hadir: hadirCount,
+                    izin: izinCount,
+                    sakit: sakitCount,
+                    alpha: alphaCount,
+                    total_sesi: totalSesi,
+                    rate: rate,
+                    severity: severityLevel,
+                    severity_label: severityLevel === 'critical' ? 'Kritis' : 'Peringatan',
+                    reasons: reasons,
+                    reason_text: reasons.join(' • ')
+                });
+            }
+        });
+
+        // Filter unit & severity jika ada query param
+        let filtered = problematicList;
+        if (unit && unit !== 'Semua') {
+            filtered = filtered.filter(p => (p.unit || '').toLowerCase().includes(unit.toLowerCase()));
+        }
+        if (severity && severity !== 'Semua') {
+            filtered = filtered.filter(p => p.severity === severity.toLowerCase());
+        }
+        if (search) {
+            const sTerm = search.toLowerCase();
+            filtered = filtered.filter(p => 
+                p.nama.toLowerCase().includes(sTerm) || 
+                String(p.nis).toLowerCase().includes(sTerm) || 
+                p.kelas.toLowerCase().includes(sTerm) ||
+                p.pengajar.toLowerCase().includes(sTerm)
+            );
+        }
+
+        const avgRate = filtered.length > 0
+            ? Math.round(filtered.reduce((sum, item) => sum + item.rate, 0) / filtered.length)
+            : 0;
+
+        res.json({
+            success: true,
+            summary: {
+                total_problematic: filtered.length,
+                critical_count: filtered.filter(f => f.severity === 'critical').length,
+                warning_count: filtered.filter(f => f.severity === 'warning').length,
+                avg_rate: avgRate
+            },
+            data: filtered,
+            report: filtered
+        });
+    } catch (err) {
+        console.error('Error in getProblematicStudentsReport:', err);
+        res.json({
+            success: true,
+            summary: { total_problematic: 0, critical_count: 0, warning_count: 0, avg_rate: 0 },
+            data: [],
+            report: [],
+            message: 'Data siswa bermasalah belum tersedia.'
+        });
+    }
+}
+
+/**
+ * 4. GET /api/reports/teacher-monthly-performance
+ * Laporan rekapitulasi kinerja bulanan pengajar (KPI, kedisiplinan, realisasi, kepatuhan administrasi)
+ */
+async function getTeacherMonthlyPerformanceReport(req, res, next) {
+    try {
+        let { bulan, unit, grade, search } = req.query;
+        if (!bulan || !/^\d{4}-\d{2}$/.test(bulan.trim())) {
+            bulan = new Date().toISOString().slice(0, 7);
+        } else {
+            bulan = bulan.trim();
+        }
+
+        // 1. Ambil daftar guru
+        const [teachers] = await db.query(`
+            SELECT id, nama, email, kontak, status, unit
+            FROM teachers
+            WHERE (status IS NULL OR status ILIKE 'Aktif' OR status = '')
+            ORDER BY nama ASC
+        `);
+
+        // 2. Ambil daftar kelas
+        const [classes] = await db.query(`
+            SELECT id, nama, program, unit, hari, mulai, selesai, teacher_id, pengajar
+            FROM classes
+        `);
+
+        // 3. Ambil checkin pengajar dalam bulan terkait
+        const [checkinRows] = await db.query(`
+            SELECT id, teacher_id, teacher_name, class_id, class_name, attendance_type,
+                   status, notes, duration_minutes,
+                   TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM-DD') AS tanggal,
+                   TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'HH24:MI') AS jam
+            FROM teacher_checkins
+            WHERE TO_CHAR((COALESCE(check_time, created_at) AT TIME ZONE 'Asia/Jakarta'), 'YYYY-MM') = ?
+        `, [bulan]);
+
+        // 4. Ambil absensi siswa bulan ini untuk hitung siswa bermasalah per kelas
+        const [attRows] = await db.query(`
+            SELECT a.student_id, a.kelas, a.status, TO_CHAR(a.tanggal::timestamp, 'YYYY-MM-DD') AS tanggal
+            FROM attendance a
+            WHERE a.tanggal::text LIKE ?
+        `, [`${bulan}-%`]);
+
+        // 5. Ambil data pengisian grade/nilai siswa
+        const [gradeRows] = await db.query(`
+            SELECT class_name, student_id, presensi, sb_page, wb_page, TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') AS tanggal
+            FROM student_grades
+            WHERE tanggal::text LIKE ?
+        `, [`${bulan}-%`]);
+
+        // Hitung siswa bermasalah global per kelas
+        const classProblematicMap = {};
+        const studentClassAtt = {};
+        (attRows || []).forEach(a => {
+            const sid = String(a.student_id);
+            const cls = (a.kelas || '').toLowerCase();
+            if (!studentClassAtt[sid]) studentClassAtt[sid] = { class: cls, alpha: 0, hadir: 0, total: 0 };
+            studentClassAtt[sid].total++;
+            const st = String(a.status || '').toLowerCase();
+            if (st.includes('hadir') || st === 'h') studentClassAtt[sid].hadir++;
+            if (st.includes('alpha') || st.includes('alfa') || st === 'a') studentClassAtt[sid].alpha++;
+        });
+
+        Object.values(studentClassAtt).forEach(s => {
+            const rate = s.total > 0 ? (s.hadir / s.total) * 100 : 100;
+            if (s.alpha >= 3 || (s.total >= 3 && rate < 75)) {
+                classProblematicMap[s.class] = (classProblematicMap[s.class] || 0) + 1;
+            }
+        });
+
+        const reportList = (teachers || []).map((t, idx) => {
+            const tId = t.id;
+            const tNameLower = (t.nama || '').toLowerCase();
+
+            // Saring kelas yang diampu
+            const myClasses = (classes || []).filter(c => 
+                (c.teacher_id && c.teacher_id === tId) ||
+                (c.pengajar && c.pengajar.toLowerCase().includes(tNameLower))
+            );
+
+            // Saring checkin pengajar ini
+            const myCheckins = (checkinRows || []).filter(c => 
+                c.teacher_id === tId || 
+                (c.teacher_name && c.teacher_name.toLowerCase().includes(tNameLower))
+            );
+
+            const teachingSessions = myCheckins.filter(c => c.attendance_type === 'sesi_mengajar');
+            const totalTeachingSessions = teachingSessions.length;
+
+            // Hitung ketepatan waktu
+            let punctualCount = 0;
+            let lateCount = 0;
+            teachingSessions.forEach(s => {
+                const cls = myClasses.find(c => String(c.id) === String(s.class_id) || (c.nama && c.nama.toLowerCase() === (s.class_name || '').toLowerCase()));
+                if (cls && cls.mulai && s.jam) {
+                    const [cHour, cMin] = cls.mulai.split(':').map(Number);
+                    const [sHour, sMin] = s.jam.split(':').map(Number);
+                    const diff = (sHour * 60 + sMin) - (cHour * 60 + cMin);
+                    if (diff > 15) lateCount++;
+                    else punctualCount++;
+                } else {
+                    punctualCount++;
+                }
+            });
+
+            const punctualityRate = (punctualCount + lateCount) > 0 
+                ? Math.round((punctualCount / (punctualCount + lateCount)) * 100) 
+                : 100;
+
+            // Kepatuhan input nilai/evaluasi
+            let totalGradeRecords = 0;
+            myClasses.forEach(c => {
+                const cName = (c.nama || '').toLowerCase();
+                const count = (gradeRows || []).filter(g => (g.class_name || '').toLowerCase() === cName).length;
+                totalGradeRecords += count;
+            });
+
+            // Siswa bermasalah di kelas guru ini
+            let problematicCount = 0;
+            myClasses.forEach(c => {
+                const cName = (c.nama || '').toLowerCase();
+                problematicCount += (classProblematicMap[cName] || 0);
+            });
+
+            // Hitung KPI Score (0 - 100)
+            const sAttendance = totalTeachingSessions > 0 ? Math.min(100, totalTeachingSessions * 10) : 70;
+            const sPunctuality = punctualityRate;
+            const sGrading = myClasses.length > 0 ? (totalGradeRecords > 0 ? 95 : 60) : 85;
+            const sHealth = Math.max(50, 100 - (problematicCount * 10));
+
+            const overallScore = Math.round((sAttendance * 0.35) + (sPunctuality * 0.30) + (sGrading * 0.20) + (sHealth * 0.15));
+
+            let kpiGrade = 'B';
+            let kpiPredikat = 'Baik';
+            let badgeClass = 'text-blue-700 bg-blue-50 border-blue-200';
+
+            if (overallScore >= 85) {
+                kpiGrade = 'A';
+                kpiPredikat = 'Sangat Baik';
+                badgeClass = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+            } else if (overallScore >= 70) {
+                kpiGrade = 'B';
+                kpiPredikat = 'Baik';
+                badgeClass = 'text-blue-700 bg-blue-50 border-blue-200';
+            } else if (overallScore >= 55) {
+                kpiGrade = 'C';
+                kpiPredikat = 'Cukup';
+                badgeClass = 'text-amber-700 bg-amber-50 border-amber-200';
+            } else {
+                kpiGrade = 'D';
+                kpiPredikat = 'Perlu Pembinaan';
+                badgeClass = 'text-rose-700 bg-rose-50 border-rose-200';
+            }
+
+            return {
+                no: idx + 1,
+                id: t.id,
+                nama: t.nama || 'Pengajar KBEC',
+                email: t.email || '-',
+                phone: t.phone || '-',
+                unit: t.unit || (myClasses.length > 0 ? myClasses[0].unit : 'KBEC Reguler'),
+                total_classes: myClasses.length,
+                total_sessions_taught: totalTeachingSessions,
+                punctual_count: punctualCount,
+                late_count: lateCount,
+                punctuality_rate: punctualityRate,
+                grading_records_count: totalGradeRecords,
+                problematic_students_count: problematicCount,
+                kpi_score: overallScore,
+                kpi_grade: kpiGrade,
+                kpi_predikat: kpiPredikat,
+                badge_class: badgeClass
+            };
+        });
+
+        // Filter unit & grade
+        let filtered = reportList;
+        if (unit && unit !== 'Semua') {
+            filtered = filtered.filter(t => (t.unit || '').toLowerCase().includes(unit.toLowerCase()));
+        }
+        if (grade && grade !== 'Semua') {
+            filtered = filtered.filter(t => t.kpi_grade === grade.toUpperCase().trim());
+        }
+        if (search) {
+            const sTerm = search.toLowerCase();
+            filtered = filtered.filter(t => 
+                t.nama.toLowerCase().includes(sTerm) || 
+                String(t.id).toLowerCase().includes(sTerm) || 
+                t.email.toLowerCase().includes(sTerm)
+            );
+        }
+
+        const avgKpi = filtered.length > 0 
+            ? Math.round(filtered.reduce((sum, item) => sum + item.kpi_score, 0) / filtered.length) 
+            : 0;
+        const avgPunctual = filtered.length > 0
+            ? Math.round(filtered.reduce((sum, item) => sum + item.punctuality_rate, 0) / filtered.length)
+            : 0;
+
+        res.json({
+            success: true,
+            bulan: bulan,
+            summary: {
+                total_teachers: filtered.length,
+                avg_kpi: avgKpi,
+                avg_punctuality: avgPunctual,
+                grade_a_count: filtered.filter(f => f.kpi_grade === 'A').length
+            },
+            data: filtered,
+            report: filtered
+        });
+    } catch (err) {
+        console.error('Error in getTeacherMonthlyPerformanceReport:', err);
+        res.json({
+            success: true,
+            summary: { total_teachers: 0, avg_kpi: 0, avg_punctuality: 0, grade_a_count: 0 },
+            data: [],
+            report: [],
+            message: 'Data kinerja pengajar belum tersedia.'
+        });
+    }
+}
+
 module.exports = {
     getAttendanceRecap,
-    getStudentPerformanceReport
+    getStudentPerformanceReport,
+    getProblematicStudentsReport,
+    getTeacherMonthlyPerformanceReport
 };
+

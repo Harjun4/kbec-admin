@@ -14,7 +14,7 @@ router.get('/student-grades', requireAuth, attendanceController.getStudentGrades
 router.post('/student-grades', requireAuth, requireRole('Super Admin', 'Pengajar'), attendanceController.saveStudentGrade);
 router.get('/session-evaluations', requireAuth, attendanceController.getSessionEvaluations);
 router.post('/batch-student-grades', requireAuth, requireRole('Super Admin', 'Pengajar'), attendanceController.saveBatchStudentGrades);
-router.get('/performance-report', requireAuth, requireRole('Super Admin', 'Admin', 'Staff', 'Pengajar'), attendanceController.getPerformanceReport);
-router.get('/report', requireAuth, requireRole('Super Admin', 'Admin'), attendanceController.getAttendanceReport);
+router.get('/performance-report', requireAuth, requireRole('Super Admin', 'Staff', 'Pengajar'), attendanceController.getPerformanceReport);
+router.get('/report', requireAuth, requireRole('Super Admin'), attendanceController.getAttendanceReport);
 
 module.exports = router;

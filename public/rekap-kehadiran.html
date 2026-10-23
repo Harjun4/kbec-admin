@@ -90,16 +90,16 @@
             </div>
 
             <!-- MODUL LAPORAN TAB SELECTION (PUSAT LAPORAN TERPADU) -->
-            <div class="bg-white p-2 rounded-2xl border border-slate-200/80 shadow-sm mb-6 flex items-center gap-1.5 overflow-x-auto">
-                <a href="laporan.html?type=pembayaran"
+            <div id="rekap-tab-container" data-role-deny="staff,staf" class="bg-white p-2 rounded-2xl border border-slate-200/80 shadow-sm mb-6 flex items-center gap-1.5 overflow-x-auto">
+                <a href="laporan.html?type=pembayaran" data-role-deny="staff,staf"
                     class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all whitespace-nowrap cursor-pointer">
                     <i data-lucide="credit-card" class="w-4 h-4"></i> Laporan Pembayaran
                 </a>
-                <a href="laporan.html?type=setoran"
+                <a href="laporan.html?type=setoran" data-role-deny="staff,staf"
                     class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all whitespace-nowrap cursor-pointer">
                     <i data-lucide="landmark" class="w-4 h-4"></i> Laporan Setoran
                 </a>
-                <a href="laporan.html?type=kas"
+                <a href="laporan.html?type=kas" data-role-deny="staff,staf"
                     class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all whitespace-nowrap cursor-pointer">
                     <i data-lucide="wallet" class="w-4 h-4"></i> Laporan Kas Besar
                 </a>
@@ -107,13 +107,21 @@
                     class="tab-btn active flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold whitespace-nowrap cursor-pointer">
                     <i data-lucide="user-check" class="w-4 h-4"></i> Laporan Kehadiran
                 </a>
-                <a href="laporan.html?type=kas_kecil"
+                <a href="laporan.html?type=kas_kecil" data-role-deny="staff,staf"
                     class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all whitespace-nowrap cursor-pointer">
                     <i data-lucide="wallet" class="w-4 h-4"></i> Laporan Kas Kecil (Independen)
                 </a>
-                <a href="laporan.html?type=kinerja"
+                <a href="laporan.html?type=kinerja" data-role-deny="staff,staf"
                     class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all whitespace-nowrap cursor-pointer">
                     <i data-lucide="award" class="w-4 h-4"></i> Laporan Kinerja Siswa
+                </a>
+                <a href="laporan.html?type=bermasalah" data-role-deny="staff,staf"
+                    class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 transition-all whitespace-nowrap cursor-pointer">
+                    <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-500"></i> Siswa Bermasalah
+                </a>
+                <a href="laporan.html?type=kinerja-pengajar" data-role-deny="staff,staf"
+                    class="tab-btn flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition-all whitespace-nowrap cursor-pointer">
+                    <i data-lucide="briefcase" class="w-4 h-4"></i> Kinerja Pengajar
                 </a>
             </div>
 
