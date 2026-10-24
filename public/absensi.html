@@ -360,6 +360,9 @@
                             <p id="excel-report-subtitle" class="text-xs text-slate-500 font-semibold">-</p>
                         </div>
                         <div class="flex items-center flex-wrap gap-2">
+                            <a href="nilai.html" onclick="if(activeClass && activeClass.id) { window.location.href = `nilai.html?class_id=${activeClass.id}`; return false; }" class="flex items-center gap-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3.5 py-2 rounded-xl shadow-sm transition-all cursor-pointer" title="Buka Form Nilai Siswa">
+                                <i data-lucide="award" class="w-3.5 h-3.5"></i> Form Nilai Siswa
+                            </a>
                             <button onclick="openPerformanceEvalModal()" class="flex items-center gap-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 rounded-xl shadow-sm transition-all cursor-pointer">
                                 <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Input Catatan SB/WB
                             </button>

@@ -142,6 +142,9 @@ app.use('/api/vouchers', voucherRoutes);
 
 app.use('/api/attendance', attendanceRoutes);
 
+const gradeRoutes = require('./src/routes/grade.routes');
+app.use('/api/grades', gradeRoutes);
+
 app.use('/api/inventory', inventoryRoutes);
 
 const reportRoutes = require('./src/routes/report.routes');

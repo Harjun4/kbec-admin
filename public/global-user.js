@@ -139,7 +139,7 @@ function renderDynamicGlobalSidebar() {
 
     // Tentukan Submenu mana yang harus terbuka secara otomatis
     let openSiswa = currentPath === 'siswa.html';
-    let openAkademik = ['pengajar.html', 'kelas.html', 'absensi.html', 'jadwal.html', 'absensi-pengajar.html', 'audit-kinerja-pengajar.html'].includes(currentPath);
+    let openAkademik = ['pengajar.html', 'kelas.html', 'absensi.html', 'jadwal.html', 'absensi-pengajar.html', 'audit-kinerja-pengajar.html', 'nilai.html'].includes(currentPath);
     let openKeuangan = ['pembayaran.html', 'biaya-lain.html', 'voucher.html'].includes(currentPath);
     let openInventaris = currentPath === 'inventaris.html' || fullHash.includes('inventaris');
     let openLaporan = currentPath === 'laporan.html' || currentPath === 'rekap-kehadiran.html';
@@ -170,6 +170,7 @@ function renderDynamicGlobalSidebar() {
     const isKelasActive = currentPath === 'kelas.html';
     const isAbsensiActive = currentPath === 'absensi.html';
     const isAbsensiPengajarActive = currentPath === 'absensi-pengajar.html';
+    const isNilaiActive = currentPath === 'nilai.html';
 
     const isTagihanActive = currentPath === 'pembayaran.html' && (!fullHash || fullHash.includes('bills'));
     const isPembayaranActive = currentPath === 'pembayaran.html' && fullHash.includes('payments');
@@ -290,6 +291,7 @@ function renderDynamicGlobalSidebar() {
                         ${(isSuperAdmin || isStaff || isTeacher) ? `<a href="jadwal.html" class="${getSubmenuItemClass(currentPath === 'jadwal.html')}">Jadwal Kursus</a>` : ''}
                         ${(isSuperAdmin || isStaff || isTeacher) ? `<a href="absensi-pengajar.html" class="${getSubmenuItemClass(isAbsensiPengajarActive)} flex items-center justify-between"><span>Absensi Pengajar</span>${isTeacher ? '<span class="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded">Presensi</span>' : ''}</a>` : ''}
                         ${(isSuperAdmin || isTeacher) ? `<a href="absensi.html?mode=excel" class="${getSubmenuItemClass(isAbsensiActive)}">Absensi Siswa & Matrik</a>` : ''}
+                        ${(isSuperAdmin || isTeacher || isStaff) ? `<a href="nilai.html" class="${getSubmenuItemClass(isNilaiActive)} flex items-center justify-between"><span>Form Nilai Siswa</span></a>` : ''}
                         ${isSuperAdmin ? `<a href="audit-kinerja-pengajar.html" class="${getSubmenuItemClass(currentPath === 'audit-kinerja-pengajar.html', 'bg-[#0A58CA] text-white font-bold shadow-sm shadow-blue-500/20')} flex items-center justify-between"><span>Audit Kinerja Pengajar</span><span class="text-[9px] bg-blue-100 text-[#0A58CA] font-bold px-1.5 py-0.5 rounded ${currentPath === 'audit-kinerja-pengajar.html' ? 'bg-white text-blue-900' : ''}">SA Only</span></a>` : ''}
                     </div>
                 </div>

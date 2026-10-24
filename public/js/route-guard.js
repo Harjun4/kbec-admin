@@ -107,10 +107,10 @@
     // =========================================================================
     // Catatan Keamanan Khusus: 'audit-kinerja-pengajar.html' HANYA diizinkan untuk Super Admin!
     const rolePermissions = {
-        'Pengajar': ['/jadwal.html', '/absensi.html', '/absensi-pengajar.html', '/profile.html', 'jadwal.html', 'absensi.html', 'absensi-pengajar.html', 'profile.html'],
-        'Guru': ['/jadwal.html', '/absensi.html', '/absensi-pengajar.html', '/profile.html', 'jadwal.html', 'absensi.html', 'absensi-pengajar.html', 'profile.html'],
-        'Staff': ['/siswa.html', '/pengajar.html', '/kelas.html', '/jadwal.html', '/absensi-pengajar.html', '/inventaris.html', '/rekap-kehadiran.html', '/profile.html', 'siswa.html', 'pengajar.html', 'kelas.html', 'jadwal.html', 'absensi-pengajar.html', 'inventaris.html', 'rekap-kehadiran.html', 'profile.html'],
-        'Staf': ['/siswa.html', '/pengajar.html', '/kelas.html', '/jadwal.html', '/absensi-pengajar.html', '/inventaris.html', '/rekap-kehadiran.html', '/profile.html', 'siswa.html', 'pengajar.html', 'kelas.html', 'jadwal.html', 'absensi-pengajar.html', 'inventaris.html', 'rekap-kehadiran.html', 'profile.html'],
+        'Pengajar': ['/jadwal.html', '/absensi.html', '/absensi-pengajar.html', '/nilai.html', '/profile.html', 'jadwal.html', 'absensi.html', 'absensi-pengajar.html', 'nilai.html', 'profile.html'],
+        'Guru': ['/jadwal.html', '/absensi.html', '/absensi-pengajar.html', '/nilai.html', '/profile.html', 'jadwal.html', 'absensi.html', 'absensi-pengajar.html', 'nilai.html', 'profile.html'],
+        'Staff': ['/siswa.html', '/pengajar.html', '/kelas.html', '/jadwal.html', '/absensi-pengajar.html', '/nilai.html', '/inventaris.html', '/rekap-kehadiran.html', '/profile.html', 'siswa.html', 'pengajar.html', 'kelas.html', 'jadwal.html', 'absensi-pengajar.html', 'nilai.html', 'inventaris.html', 'rekap-kehadiran.html', 'profile.html'],
+        'Staf': ['/siswa.html', '/pengajar.html', '/kelas.html', '/jadwal.html', '/absensi-pengajar.html', '/nilai.html', '/inventaris.html', '/rekap-kehadiran.html', '/profile.html', 'siswa.html', 'pengajar.html', 'kelas.html', 'jadwal.html', 'absensi-pengajar.html', 'nilai.html', 'inventaris.html', 'rekap-kehadiran.html', 'profile.html'],
         'Admin': ['/dashboard.html', '/siswa.html', '/pembayaran.html', '/biaya-lain.html', '/voucher.html', '/laporan.html', '/profile.html', 'dashboard.html', 'siswa.html', 'pembayaran.html', 'biaya-lain.html', 'voucher.html', 'laporan.html', 'profile.html'],
         'Super Admin': ['*'] // Akses ke seluruh halaman termasuk audit-kinerja-pengajar.html
     };
