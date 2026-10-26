@@ -157,6 +157,7 @@
 
         .grade-input[type=number] {
             -moz-appearance: textfield;
+            appearance: textfield;
         }
 
         /* DEDICATED A4 DOCUMENT LAYOUTS */
@@ -404,7 +405,7 @@
 
 <body class="text-slate-700 flex min-h-screen select-none">
 
-    <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-3 pointer-events-none"></div>
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[100] space-y-3 pointer-events-none"></div>
 
     <!-- SIDEBAR (Dikelola oleh global-user.js) -->
     <aside class="w-64 bg-white border-r border-slate-100 flex flex-col justify-between fixed h-full z-30 shadow-[4px_0_24px_rgba(0,0,0,0.01)] transition-transform duration-300">
@@ -1018,8 +1019,8 @@
                 const data = await res.json();
                 const cls = data.class || {};
                 currentStudents = data.students || [];
-                currentClassSubjects = data.subjects || [];
-                currentLessonsFromKinerja = data.lessons_from_kinerja || [];
+                currentClassSubjects = (data.subjects || []).map(s => decodeHtmlEntities(s));
+                currentLessonsFromKinerja = (data.lessons_from_kinerja || []).map(l => decodeHtmlEntities(l));
                 currentClassRankedSummary = data.ranked_summary || [];
 
                 document.getElementById('current-class-title').innerText = `${cls.nama || 'Kelas'} • ${term} (${year})`;
@@ -1051,11 +1052,12 @@
             for (let i = 1; i <= 6; i++) {
                 const th = document.getElementById(`header-ex-${i}`);
                 if (!th) continue;
-                const subName = (currentClassSubjects && currentClassSubjects[i - 1]) ? currentClassSubjects[i - 1] : `Subjek ${i}`;
+                const rawName = (currentClassSubjects && currentClassSubjects[i - 1]) ? currentClassSubjects[i - 1] : `Subjek ${i}`;
+                const subName = decodeHtmlEntities(rawName);
                 th.innerHTML = `
                     <div class="flex flex-col items-center justify-center leading-tight py-0.5">
                         <span class="text-[11px] font-black text-blue-950">Ex ${i}</span>
-                        <span class="text-[9px] font-semibold text-blue-700 truncate max-w-[62px] block" title="${escapeHtmlAttr(subName)}">${escapeHtmlAttr(subName)}</span>
+                        <span class="text-[9px] font-semibold text-blue-700 truncate max-w-[62px] block" title="${escapeHtmlAttr(subName)}">${escapeHtml(subName)}</span>
                     </div>
                 `;
             }
@@ -1139,18 +1141,20 @@
         }
 
         function renderBadgeChipContent(s) {
-            if (!s.level_badge) {
+            const badge = (s && (s.level_badge || s.badge)) ? String(s.level_badge || s.badge).trim() : null;
+            if (!badge || badge === '-') {
                 return `<span class="text-slate-300 font-bold text-[10px]">-</span>`;
             }
-            const badge = s.level_badge;
             const letter = badge.charAt(0).toUpperCase();
             let colorClass = 'bg-slate-100 text-slate-700 border-slate-300';
             if (letter === 'A') colorClass = 'bg-emerald-100 text-emerald-900 border-emerald-300 font-black';
             else if (letter === 'B') colorClass = 'bg-amber-100 text-amber-950 border-amber-300 font-black';
             else if (letter === 'C') colorClass = 'bg-rose-100 text-rose-900 border-rose-300 font-black';
 
-            const rankInfo = (s.rank_in_grade && s.total_in_grade) 
-                ? `Peringkat ${s.rank_in_grade} dari ${s.total_in_grade} siswa Grade ${letter}` 
+            const rank = s.rank_in_grade;
+            const total = s.total_in_grade;
+            const rankInfo = (rank && total) 
+                ? `Peringkat ${rank} dari ${total} siswa Grade ${letter}` 
                 : `Badge ${badge}`;
 
             return `
@@ -1203,14 +1207,20 @@
                     item.student.rank_in_grade = rank;
                     item.student.total_in_grade = total;
 
+                    const sName = item.student.student_name || item.student.nama || item.name || '';
+                    const sNis = item.student.nis || item.student.id || '';
+
                     currentClassRankedSummary.push({
-                        student_id: item.student.student_id,
-                        name: item.student.student_name,
-                        nis: item.student.nis,
+                        student_id: item.student.student_id || item.student.id,
+                        name: sName,
+                        student_name: sName,
+                        nis: sNis,
+                        student_nis: sNis,
                         final_score: item.score,
                         letter_grade: letter,
                         classification_label: getClassification(item.score).label,
                         badge,
+                        level_badge: badge,
                         rank_in_grade: rank,
                         total_in_grade: total
                     });
@@ -1817,6 +1827,32 @@
             }, 4000);
         }
 
+        function decodeHtmlEntities(str) {
+            if (str === null || str === undefined) return '';
+            let s = String(str);
+            for (let i = 0; i < 5; i++) {
+                const prev = s;
+                s = s
+                    .replace(/&amp;/g, '&')
+                    .replace(/&#39;/g, "'")
+                    .replace(/&apos;/g, "'")
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#34;/g, '"')
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>');
+                if (s === prev) break;
+            }
+            return s.trim();
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
         function escapeHtmlAttr(str) {
             if (!str) return '';
             return String(str)
@@ -1871,15 +1907,24 @@
         // 1. THE PROGRESS REPORT (A4 PORTRAIT)
         async function openProgressReportModal(studentId) {
             if (!currentClassId) return;
-            activeDocStudentList = [...filteredStudents];
-            const idx = activeDocStudentList.findIndex(s => String(s.student_id) === String(studentId));
+
+            activeDocStudentList = (filteredStudents && filteredStudents.length > 0) ? [...filteredStudents] : [...currentStudents];
+            let idx = activeDocStudentList.findIndex(s => String(s.student_id) === String(studentId));
+            if (idx === -1) {
+                activeDocStudentList = [...currentStudents];
+                idx = activeDocStudentList.findIndex(s => String(s.student_id) === String(studentId));
+            }
             currentProgressIndex = idx >= 0 ? idx : 0;
-            await loadStudentProgressReport(activeDocStudentList[currentProgressIndex].student_id);
 
             const modal = document.getElementById('modal-progress-report');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
             if (window.lucide) lucide.createIcons();
+
+            const targetStudentId = (activeDocStudentList[currentProgressIndex] && activeDocStudentList[currentProgressIndex].student_id) ? activeDocStudentList[currentProgressIndex].student_id : studentId;
+            await loadStudentProgressReport(targetStudentId);
         }
 
         async function navigateProgressStudent(delta) {
@@ -1912,6 +1957,11 @@
                 const data = await res.json();
 
                 currentStudentReportData = data;
+                if (currentStudentReportData && Array.isArray(currentStudentReportData.subjects)) {
+                    currentStudentReportData.subjects.forEach(item => {
+                        item.subject = decodeHtmlEntities(item.subject);
+                    });
+                }
                 const subTitle = document.getElementById('pr-student-subtitle');
                 if (subTitle) subTitle.innerText = `${data.student.name} • ${data.student.program || 'Beginner 1'} (${term})`;
 
@@ -2081,7 +2131,7 @@
                         ${subjects.map(item => `
                             <tr>
                                 <td class="border border-slate-900 py-1 px-2 text-center">${item.no}.</td>
-                                <td class="border border-slate-900 py-1 px-3 font-semibold">${escapeHtmlAttr(item.subject)}</td>
+                                <td class="border border-slate-900 py-1 px-3 font-semibold">${escapeHtml(decodeHtmlEntities(item.subject))}</td>
                                 <td class="border border-slate-900 py-1 px-3 text-center font-bold">${item.score}</td>
                             </tr>
                         `).join('')}
@@ -2187,17 +2237,29 @@
         // 2. THE CERTIFICATE OF COMPLETION (A4 LANDSCAPE)
         async function openCertificateModal(studentId) {
             if (!currentClassId) return;
-            activeDocStudentList = [...filteredStudents];
-            const idx = activeDocStudentList.findIndex(s => String(s.student_id) === String(studentId));
+            activeDocStudentList = (filteredStudents && filteredStudents.length > 0) ? [...filteredStudents] : [...currentStudents];
+            let idx = activeDocStudentList.findIndex(s => String(s.student_id) === String(studentId));
+            if (idx === -1) {
+                activeDocStudentList = [...currentStudents];
+                idx = activeDocStudentList.findIndex(s => String(s.student_id) === String(studentId));
+            }
             currentCertIndex = idx >= 0 ? idx : 0;
             currentCertBadge = 'B1';
             currentCertDate = '';
-            await loadStudentCertificate(activeDocStudentList[currentCertIndex].student_id);
+
+            const sObj = activeDocStudentList[currentCertIndex] || {};
+            const sName = sObj.student_name || sObj.nama || sObj.name || '';
+            showToast(`Membuka sertifikat ${sName ? sName : ''}...`);
 
             const modal = document.getElementById('modal-certificate');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
             if (window.lucide) lucide.createIcons();
+
+            const targetStudentId = (activeDocStudentList[currentCertIndex] && activeDocStudentList[currentCertIndex].student_id) ? activeDocStudentList[currentCertIndex].student_id : studentId;
+            await loadStudentCertificate(targetStudentId);
         }
 
         async function navigateCertStudent(delta) {
@@ -2637,14 +2699,14 @@
                 items.forEach((item, index) => {
                     if (docType === 'progress') {
                         const effectiveSubs = (Array.isArray(item.subjects) && item.subjects.length === 6)
-                            ? item.subjects
-                            : ((Array.isArray(currentClassSubjects) && currentClassSubjects.length === 6) ? currentClassSubjects : [
+                            ? item.subjects.map(s => decodeHtmlEntities(s))
+                            : ((Array.isArray(currentClassSubjects) && currentClassSubjects.length === 6) ? currentClassSubjects.map(s => decodeHtmlEntities(s)) : [
                                 'Alphabets', 'Numbers (1-10)', 'Colours', "It's Me & Parts of My Body", 'Animals 1 : Pets & Farms', 'Greeting, Day, and Night'
                             ]);
 
                         const subList = effectiveSubs.map((sub, idx) => ({
                             no: idx + 1,
-                            subject: sub,
+                            subject: decodeHtmlEntities(sub),
                             score: item.ex_scores && item.ex_scores[idx] !== undefined ? item.ex_scores[idx].toFixed(1) : '100.0'
                         }));
 
@@ -2745,7 +2807,8 @@
             if (grid) {
                 let html = '';
                 for (let i = 0; i < 6; i++) {
-                    const val = currentClassSubjects[i] || `Subject ${i + 1}`;
+                    const rawVal = currentClassSubjects[i] || `Subject ${i + 1}`;
+                    const val = decodeHtmlEntities(rawVal);
                     html += `
                         <div class="space-y-1">
                             <label class="text-[11px] font-bold text-slate-600 flex items-center justify-between">
@@ -2766,14 +2829,17 @@
             if (chipContainer) {
                 if (currentLessonsFromKinerja && currentLessonsFromKinerja.length > 0) {
                     if (sectionKinerja) sectionKinerja.classList.remove('hidden');
-                    chipContainer.innerHTML = currentLessonsFromKinerja.map((les) => `
-                        <button type="button" onclick="applySingleLessonChip('${escapeHtmlAttr(les)}')"
-                            class="px-2.5 py-1 bg-white hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
-                            title="Klik untuk mengisi ke subjek berikutnya">
-                            <span>${escapeHtmlAttr(les)}</span>
-                            <i data-lucide="plus" class="w-3 h-3 text-teal-600"></i>
-                        </button>
-                    `).join('');
+                    chipContainer.innerHTML = currentLessonsFromKinerja.map((les) => {
+                        const clean = decodeHtmlEntities(les);
+                        return `
+                            <button type="button" data-lesson="${escapeHtmlAttr(clean)}" onclick="applySingleLessonChip(this.getAttribute('data-lesson'))"
+                                class="px-2.5 py-1 bg-white hover:bg-teal-100 text-teal-800 border border-teal-200 rounded-lg font-bold text-[11px] flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                title="Klik untuk mengisi ke subjek berikutnya">
+                                <span>${escapeHtml(clean)}</span>
+                                <i data-lucide="plus" class="w-3 h-3 text-teal-600"></i>
+                            </button>
+                        `;
+                    }).join('');
                 } else {
                     if (sectionKinerja) sectionKinerja.classList.add('hidden');
                 }
@@ -2786,16 +2852,17 @@
         }
 
         function applySingleLessonChip(lessonName) {
+            const clean = decodeHtmlEntities(lessonName);
             for (let i = 0; i < 6; i++) {
                 const inp = document.getElementById(`input-subject-${i}`);
                 if (inp && (!inp.value || inp.value.startsWith('Subject '))) {
-                    inp.value = lessonName;
+                    inp.value = clean;
                     inp.focus();
                     return;
                 }
             }
             const first = document.getElementById('input-subject-0');
-            if (first) first.value = lessonName;
+            if (first) first.value = clean;
         }
 
         function applyAllLessonsFromKinerja() {
@@ -2803,7 +2870,8 @@
             for (let i = 0; i < 6; i++) {
                 const inp = document.getElementById(`input-subject-${i}`);
                 if (inp) {
-                    inp.value = currentLessonsFromKinerja[i] || (currentClassSubjects[i] || `Subject ${i + 1}`);
+                    const val = currentLessonsFromKinerja[i] || (currentClassSubjects[i] || `Subject ${i + 1}`);
+                    inp.value = decodeHtmlEntities(val);
                 }
             }
             showToast('Materi dari Kinerja Siswa berhasil diterapkan ke form subjek!');
@@ -2815,7 +2883,7 @@
             for (let i = 0; i < 6; i++) {
                 const inp = document.getElementById(`input-subject-${i}`);
                 if (inp && list[i]) {
-                    inp.value = list[i];
+                    inp.value = decodeHtmlEntities(list[i]);
                 }
             }
             showToast(`Template kurikulum '${progName}' berhasil diterapkan ke form subjek!`);
@@ -2825,7 +2893,7 @@
             const newSubjects = [];
             for (let i = 0; i < 6; i++) {
                 const inp = document.getElementById(`input-subject-${i}`);
-                const val = inp ? inp.value.trim() : '';
+                const val = inp ? decodeHtmlEntities(inp.value.trim()) : '';
                 newSubjects.push(val || `Subject ${i + 1}`);
             }
 
@@ -2852,8 +2920,23 @@
                     throw new Error(data.message || 'Gagal menyimpan konfigurasi subjek');
                 }
 
-                currentClassSubjects = newSubjects;
+                currentClassSubjects = (data.subjects || newSubjects).map(s => decodeHtmlEntities(s));
                 updateSubjectHeaderLabels();
+
+                // Jika modal The Progress Report sedang aktif dibuka, langsung perbarui lembar laporannya
+                const prModal = document.getElementById('modal-progress-report');
+                if (prModal && !prModal.classList.contains('hidden') && currentStudentReportData) {
+                    currentStudentReportData.subjects = currentClassSubjects.map((sub, idx) => ({
+                        no: idx + 1,
+                        subject: sub,
+                        score: (currentStudentReportData.subjects && currentStudentReportData.subjects[idx])
+                            ? currentStudentReportData.subjects[idx].score
+                            : '100.0'
+                    }));
+                    const container = document.getElementById('print-area-progress');
+                    if (container) container.innerHTML = renderProgressReportSheet(currentStudentReportData);
+                }
+
                 closeModal('modal-class-subjects');
                 showToast('6 Subjek pembelajaran kelas berhasil diperbarui!');
             } catch (err) {
@@ -2936,7 +3019,18 @@
                             `;
                         }
 
-                        const chip = renderBadgeChipContent({ badge: item.badge, letter_grade: item.letter_grade });
+                        // Temukan data siswa lengkap dari currentStudents sebagai fallback
+                        const sObj = (currentStudents || []).find(cs => String(cs.student_id) === String(item.student_id)) || {};
+                        const studentName = item.student_name || item.name || item.nama || sObj.student_name || sObj.nama || 'Siswa KBEC';
+                        const studentNis = item.student_nis || item.nis || sObj.nis || sObj.student_id || '-';
+                        const badgeCode = item.level_badge || item.badge || sObj.level_badge || `${item.letter_grade}${item.rank_in_grade}`;
+                        const chip = renderBadgeChipContent({
+                            level_badge: badgeCode,
+                            badge: badgeCode,
+                            letter_grade: item.letter_grade,
+                            rank_in_grade: item.rank_in_grade,
+                            total_in_grade: item.total_in_grade
+                        });
                         const isRank1 = item.rank_in_grade === 1;
 
                         html += `
@@ -2946,10 +3040,10 @@
                                 </td>
                                 <td class="px-4 py-3">
                                     <div class="flex items-center gap-2">
-                                        <span class="text-xs font-extrabold text-slate-900">${escapeHtmlAttr(item.student_name)}</span>
+                                        <span class="text-xs font-extrabold text-slate-900">${escapeHtmlAttr(studentName)}</span>
                                         ${isRank1 ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300">Peringkat 1 Grade</span>` : ''}
                                     </div>
-                                    <div class="text-[11px] text-slate-400 font-medium">NIS: ${escapeHtmlAttr(item.student_nis || '-')}</div>
+                                    <div class="text-[11px] text-slate-400 font-medium">NIS: ${escapeHtmlAttr(studentNis)}</div>
                                 </td>
                                 <td class="px-4 py-3 text-center">
                                     <span class="text-sm font-black text-slate-900">${Number(item.final_score).toFixed(1)}</span>
@@ -2963,7 +3057,7 @@
                                     Peringkat <strong class="text-slate-900">${item.rank_in_grade}</strong> dari ${item.total_in_grade} siswa
                                 </td>
                                 <td class="px-4 py-3 text-right">
-                                    <button type="button" onclick="closeModal('modal-class-ranking'); openCertificateModal('${item.student_id}')" class="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer">
+                                    <button type="button" onclick="onRankModalViewCertClick(this, '${item.student_id}', '${escapeHtmlAttr(studentName)}')" class="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-900 text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer">
                                         <i data-lucide="award" class="w-3.5 h-3.5 text-amber-600"></i>
                                         <span>Lihat Sertifikat</span>
                                     </button>
@@ -2982,10 +3076,20 @@
             }
             if (window.lucide) lucide.createIcons();
         }
+
+        function onRankModalViewCertClick(btn, studentId, studentName) {
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = `<div class="inline-block animate-spin rounded-full h-3 w-3 border-2 border-amber-700 border-t-transparent"></div> <span>Membuka...</span>`;
+            }
+            showToast(`Membuka sertifikat ${studentName || ''}...`);
+            closeModal('modal-class-ranking');
+            openCertificateModal(studentId);
+        }
     </script>
 
     <!-- MODAL PENGATURAN SUBJEK (EXERCISE 1 - 6) -->
-    <div id="modal-class-subjects" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden flex-col items-center justify-start p-4 sm:p-6 overflow-y-auto">
+    <div id="modal-class-subjects" class="fixed inset-0 z-[70] bg-slate-900/70 backdrop-blur-xs hidden flex-col items-center justify-start p-4 sm:p-6 overflow-y-auto">
         <div class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto">
             <!-- Header -->
             <div class="px-6 py-4.5 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-blue-50/70 to-indigo-50/40">

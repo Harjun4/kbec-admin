@@ -52,17 +52,19 @@ async function getAttendance(req, res, next) {
         let studentQuery = 'SELECT s.id, s.nama, s.program, s.initial FROM students s';
         let studentParams = [];
         if (activeClassId) {
-            studentQuery += ' JOIN class_students cs ON s.id = cs.student_id WHERE cs.class_id = ?';
+            studentQuery += " JOIN class_students cs ON s.id = cs.student_id WHERE cs.class_id = ? AND (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')";
             studentParams.push(activeClassId);
         } else if (className) {
-            studentQuery += ' JOIN classes c ON c.nama = ? JOIN class_students cs ON c.id = cs.class_id WHERE s.id = cs.student_id';
+            studentQuery += " JOIN classes c ON c.nama = ? JOIN class_students cs ON c.id = cs.class_id WHERE s.id = cs.student_id AND (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')";
             studentParams.push(className);
+        } else {
+            studentQuery += " WHERE (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')";
         }
 
         let [students] = await db.query(studentQuery, studentParams);
 
         if (students.length === 0 && !activeClassId && !className && !isTeacher) {
-            [students] = await db.query('SELECT id, nama, program, initial FROM students LIMIT 50');
+            [students] = await db.query("SELECT id, nama, program, initial FROM students WHERE (status IS NULL OR status ILIKE 'Aktif' OR status = '') LIMIT 50");
         }
 
         let attQuery = "SELECT student_id, status FROM attendance WHERE tanggal::text = ?";
@@ -106,16 +108,18 @@ async function getMonthlyAttendance(req, res, next) {
         let studentQuery = 'SELECT s.id, s.nama, s.program, s.initial FROM students s';
         let studentParams = [];
         if (class_id) {
-            studentQuery += ' JOIN class_students cs ON s.id = cs.student_id WHERE cs.class_id = ?';
+            studentQuery += " JOIN class_students cs ON s.id = cs.student_id WHERE cs.class_id = ? AND (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')";
             studentParams.push(class_id);
         } else if (className) {
-            studentQuery += ' JOIN classes c ON c.nama = ? JOIN class_students cs ON c.id = cs.class_id WHERE s.id = cs.student_id';
+            studentQuery += " JOIN classes c ON c.nama = ? JOIN class_students cs ON c.id = cs.class_id WHERE s.id = cs.student_id AND (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')";
             studentParams.push(className);
+        } else {
+            studentQuery += " WHERE (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')";
         }
         let [students] = await db.query(studentQuery, studentParams);
 
         if (students.length === 0 && !class_id && !className) {
-            [students] = await db.query('SELECT id, nama, program, initial FROM students LIMIT 50');
+            [students] = await db.query("SELECT id, nama, program, initial FROM students WHERE (status IS NULL OR status ILIKE 'Aktif' OR status = '') LIMIT 50");
         }
 
         const dates = getAllDaysInMonth(targetBulan);
@@ -469,8 +473,10 @@ async function getPerformanceReport(req, res, next) {
         let studentQuery = 'SELECT s.id, s.nama, s.program, s.level, s.initial FROM students s';
         let studentParams = [];
         if (class_id) {
-            studentQuery += ' JOIN class_students cs ON s.id = cs.student_id WHERE cs.class_id = ?';
+            studentQuery += " JOIN class_students cs ON s.id = cs.student_id WHERE cs.class_id = ? AND (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')";
             studentParams.push(class_id);
+        } else {
+            studentQuery += " WHERE (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')";
         }
         let [students] = await db.query(studentQuery, studentParams);
 
@@ -804,10 +810,10 @@ async function getSessionEvaluations(req, res, next) {
         let studentQuery = 'SELECT s.id, s.nama, s.program, s.level, s.initial FROM students s';
         let studentParams = [];
         if (class_id) {
-            studentQuery += ' JOIN class_students cs ON s.id = cs.student_id WHERE cs.class_id = ? ORDER BY s.nama ASC';
+            studentQuery += " JOIN class_students cs ON s.id = cs.student_id WHERE cs.class_id = ? AND (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '') ORDER BY s.nama ASC";
             studentParams.push(class_id);
         } else {
-            studentQuery += ' ORDER BY s.nama ASC LIMIT 50';
+            studentQuery += " WHERE (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '') ORDER BY s.nama ASC LIMIT 50";
         }
         let [students] = await db.query(studentQuery, studentParams);
 
@@ -815,7 +821,7 @@ async function getSessionEvaluations(req, res, next) {
             const [[cRow]] = await db.query('SELECT nama FROM classes WHERE id = ?', [class_id]);
             if (cRow && cRow.nama) {
                 const [byName] = await db.query(
-                    'SELECT s.id, s.nama, s.program, s.level, s.initial FROM students s JOIN classes c ON c.nama = ? JOIN class_students cs ON c.id = cs.class_id WHERE s.id = cs.student_id ORDER BY s.nama ASC',
+                    "SELECT s.id, s.nama, s.program, s.level, s.initial FROM students s JOIN classes c ON c.nama = ? JOIN class_students cs ON c.id = cs.class_id WHERE s.id = cs.student_id AND (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '') ORDER BY s.nama ASC",
                     [cRow.nama]
                 );
                 if (byName.length > 0) students = byName;

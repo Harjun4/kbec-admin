@@ -1,6 +1,28 @@
 const db = require('../config/db');
 const { escapeHTML } = require('../utils/helpers');
 
+/**
+ * Decode HTML entities secara berulang agar teks murni (mis. "It's Me & Parts of My Body")
+ * tidak mengalami double escaping (&amp;#39;, &amp;amp;, dsb.).
+ */
+function decodeHtmlEntities(str) {
+    if (str === null || str === undefined) return '';
+    let s = String(str);
+    for (let i = 0; i < 5; i++) {
+        const prev = s;
+        s = s
+            .replace(/&amp;/g, '&')
+            .replace(/&#39;/g, "'")
+            .replace(/&apos;/g, "'")
+            .replace(/&quot;/g, '"')
+            .replace(/&#34;/g, '"')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>');
+        if (s === prev) break;
+    }
+    return s.trim();
+}
+
 // KBEC Official Classification of Score
 // A: 86 - 100 (Very good)
 // B: 70 - 85 (Good)
@@ -74,11 +96,14 @@ function computeClassGradeBadges(studentsList) {
             rankedSummary.push({
                 student_id: item.student_id,
                 name: item.name,
+                student_name: item.name,
                 nis: item.nis,
+                student_nis: item.nis,
                 final_score: item.final_score,
                 letter_grade: letter,
                 classification_label: item.classification_label,
                 badge,
+                level_badge: badge,
                 rank_in_grade: rank,
                 total_in_grade: totalInGrade
             });
@@ -102,7 +127,7 @@ async function getEffectiveClassSubjects(classId, term, year, classProgram) {
             [classId, term, year]
         );
         if (saved.length > 0 && Array.isArray(saved[0].subjects) && saved[0].subjects.length === 6) {
-            return saved[0].subjects;
+            return saved[0].subjects.map(s => decodeHtmlEntities(s));
         }
 
         // Cek materi ajar yang pernah dicatat guru di student_grades
@@ -113,7 +138,7 @@ async function getEffectiveClassSubjects(classId, term, year, classProgram) {
             ORDER BY lesson ASC
         `, [classId]);
         const validLessons = lessons
-            .map(l => l.lesson)
+            .map(l => decodeHtmlEntities(l.lesson))
             .filter(l => l && !l.toLowerCase().includes('speaking, reading'));
 
         const prog = (classProgram || '').toUpperCase();
@@ -156,9 +181,9 @@ async function getEffectiveClassSubjects(classId, term, year, classProgram) {
         }
 
         if (validLessons.length >= 6) {
-            return validLessons.slice(0, 6);
+            return validLessons.slice(0, 6).map(s => decodeHtmlEntities(s));
         }
-        return defaultSubs;
+        return defaultSubs.map(s => decodeHtmlEntities(s));
     } catch (e) {
         console.error('Error getting effective subjects:', e);
         return [
@@ -249,8 +274,8 @@ async function getClassSubjects(req, res, next) {
             class_id,
             term_or_period: term,
             academic_year: year,
-            subjects,
-            lessons_from_kinerja: lessons.map(l => l.lesson)
+            subjects: subjects.map(s => decodeHtmlEntities(s)),
+            lessons_from_kinerja: lessons.map(l => decodeHtmlEntities(l.lesson))
         });
     } catch (err) {
         next(err);
@@ -268,7 +293,7 @@ async function saveClassSubjects(req, res, next) {
 
     const term = term_or_period || 'Term 1';
     const year = academic_year || '2025/2026';
-    const cleanSubjects = subjects.map(s => escapeHTML(String(s || '').trim()) || 'Subject');
+    const cleanSubjects = subjects.map(s => decodeHtmlEntities(String(s || '').trim()) || 'Subject');
 
     try {
         await db.query(`
@@ -463,7 +488,7 @@ async function getClassGrades(req, res, next) {
                  AND stg.class_id = cs.class_id 
                  AND stg.term_or_period = ? 
                  AND stg.academic_year = ?
-            WHERE cs.class_id = ?
+            WHERE cs.class_id = ? AND (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')
             ORDER BY s.nama ASC
         `, [term, year, class_id]);
 
@@ -658,7 +683,7 @@ async function saveBatchGrades(req, res, next) {
 
             // Jika ada payload subjects (6 nama subjek), simpan ke class_term_subjects
             if (Array.isArray(subjects) && subjects.length === 6) {
-                const cleanSubs = subjects.map(s => escapeHTML(String(s || '').trim()) || 'Subject');
+                const cleanSubs = subjects.map(s => decodeHtmlEntities(String(s || '').trim()) || 'Subject');
                 await conn.query(`
                     INSERT INTO class_term_subjects (class_id, term_or_period, academic_year, subjects, updated_at)
                     VALUES (?, ?, ?, ?::jsonb, NOW())
@@ -839,9 +864,9 @@ async function getProgressReportData(req, res, next) {
         // Ambil 6 subjek dinamis: cek kustom siswa -> cek kelas -> cek kurikulum
         let activeSubjects = [];
         if (gradeRow && Array.isArray(gradeRow.custom_subjects) && gradeRow.custom_subjects.length === 6) {
-            activeSubjects = gradeRow.custom_subjects;
+            activeSubjects = gradeRow.custom_subjects.map(s => decodeHtmlEntities(s));
         } else {
-            activeSubjects = await getEffectiveClassSubjects(class_id, term, year, classObj?.program);
+            activeSubjects = (await getEffectiveClassSubjects(class_id, term, year, classObj?.program)).map(s => decodeHtmlEntities(s));
         }
 
         const exScores = [
@@ -1017,7 +1042,7 @@ async function getBatchPrintData(req, res, next) {
         }
 
         // Subjek dinamis kelas untuk cetak massal
-        const effectiveSubjects = await getEffectiveClassSubjects(class_id, term, year, classObj.program);
+        const effectiveSubjects = (await getEffectiveClassSubjects(class_id, term, year, classObj.program)).map(s => decodeHtmlEntities(s));
 
         const [students] = await db.query(`
             SELECT 
@@ -1031,7 +1056,7 @@ async function getBatchPrintData(req, res, next) {
                  AND stg.class_id = cs.class_id 
                  AND stg.term_or_period = ? 
                  AND stg.academic_year = ?
-            WHERE cs.class_id = ?
+            WHERE cs.class_id = ? AND (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')
             ORDER BY s.nama ASC
         `, [term, year, class_id]);
 

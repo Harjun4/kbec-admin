@@ -171,7 +171,10 @@ async function savepointExec(conn, sql, params) {
 function formatStudent(s) {
     return {
         ...s,
-        unit: s.unit || resolveStudentUnit(s.id, s.program, s.level)
+        unit: s.unit || resolveStudentUnit(s.id, s.program, s.level),
+        class_id: s.class_id || null,
+        class_name: s.class_name || null,
+        teacher_name: s.teacher_name || null
     };
 }
 
@@ -187,29 +190,37 @@ async function getStudents(req, res, next) {
             let params = [];
 
             if (search && search.trim()) {
-                whereClauses.push('(nama ILIKE ? OR id ILIKE ? OR kontak ILIKE ? OR alamat ILIKE ? OR nama_ibu ILIKE ? OR nama_ayah ILIKE ?)');
+                whereClauses.push('(s.nama ILIKE ? OR s.id ILIKE ? OR s.kontak ILIKE ? OR s.alamat ILIKE ? OR s.nama_ibu ILIKE ? OR s.nama_ayah ILIKE ?)');
                 const term = `%${search.trim()}%`;
                 params.push(term, term, term, term, term, term);
             }
             if (program && program !== 'Semua Program') {
-                whereClauses.push('program = ?');
+                whereClauses.push('s.program = ?');
                 params.push(program);
             }
             const unitFilter = normalizeUnit(unit);
             if (unitFilter) {
-                whereClauses.push('unit = ?');
+                whereClauses.push('s.unit = ?');
                 params.push(unitFilter);
             }
             if (status && status !== 'Semua Status') {
-                whereClauses.push('status = ?');
+                whereClauses.push('s.status = ?');
                 params.push(normalizeStudentStatus(status, status));
             }
 
             const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
-            const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM students ${whereSql}`, params);
+            const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM students s ${whereSql}`, params);
 
             const queryParams = [...params, limitNum, offset];
-            const [rows] = await db.query(`SELECT * FROM students ${whereSql} ORDER BY id ASC LIMIT ? OFFSET ?`, queryParams);
+            const [rows] = await db.query(
+                `SELECT s.*, c.id AS class_id, c.nama AS class_name, c.pengajar AS teacher_name 
+                 FROM students s 
+                 LEFT JOIN class_students cs ON s.id = cs.student_id 
+                 LEFT JOIN classes c ON cs.class_id = c.id 
+                 ${whereSql} 
+                 ORDER BY s.id ASC LIMIT ? OFFSET ?`,
+                queryParams
+            );
 
             return res.json({
                 data: rows.map(formatStudent),
@@ -220,7 +231,13 @@ async function getStudents(req, res, next) {
             });
         }
 
-        const [rows] = await db.query('SELECT * FROM students ORDER BY id ASC');
+        const [rows] = await db.query(
+            `SELECT s.*, c.id AS class_id, c.nama AS class_name, c.pengajar AS teacher_name 
+             FROM students s 
+             LEFT JOIN class_students cs ON s.id = cs.student_id 
+             LEFT JOIN classes c ON cs.class_id = c.id 
+             ORDER BY s.id ASC`
+        );
         res.json(rows.map(formatStudent));
     } catch (err) {
         next(err);
@@ -353,6 +370,11 @@ async function updateStudent(req, res, next) {
         if (sets.length > 0) {
             params.push(oldId);
             await conn.query(`UPDATE students SET ${sets.join(', ')} WHERE id = ?`, params);
+        }
+
+        // Jika status siswa menjadi Cuti, Nonaktif, atau Alumni, otomatis lepas dari kelas aktif
+        if (data.status && ['Cuti', 'Nonaktif', 'Alumni'].includes(data.status)) {
+            await savepointExec(conn, 'DELETE FROM class_students WHERE student_id = ?', [targetId]);
         }
 
         if (targetId !== oldId) {
