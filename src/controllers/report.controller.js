@@ -638,21 +638,32 @@ async function getProblematicStudentsReport(req, res, next) {
             const rate = totalSesi > 0 ? Math.round((hadirCount / totalSesi) * 100) : 100;
 
             let isProblematic = false;
-            let severityLevel = 'normal'; // 'critical' | 'warning'
+            let severityLevel = 'normal'; // 'critical' | 'warning' | 'info'
             let reasons = [];
 
-            // Kriteria Kritis: Alpha >= 4 ATAU rate < 50% (dengan min 3 sesi)
-            if (alphaCount >= 4 || (totalSesi >= 3 && rate < 50)) {
+            // 1. Kriteria Kritis (Merah): Alpha >= 3x (Tanpa Keterangan)
+            if (alphaCount >= 3) {
                 isProblematic = true;
                 severityLevel = 'critical';
-                if (alphaCount >= 4) reasons.push(`${alphaCount}x Alpha Tanpa Keterangan`);
-                if (totalSesi >= 3 && rate < 50) reasons.push(`Kehadiran Kritis (${rate}%)`);
-            } else if (alphaCount === 3 || (totalSesi >= 3 && rate < 75)) {
-                // Kriteria Peringatan: Alpha = 3 ATAU rate 50-74%
+                reasons.push(`${alphaCount}x Alpha Tanpa Keterangan`);
+                if (totalSesi >= 3 && rate < 75) {
+                    reasons.push(`Kehadiran Rendah (${rate}%)`);
+                }
+            } else if (alphaCount >= 1 && totalSesi >= 3 && rate < 75) {
+                // 2. Kriteria Peringatan (Kuning/Amber): Ada 1-2x Alpha DAN Kehadiran Rendah
                 isProblematic = true;
                 severityLevel = 'warning';
-                if (alphaCount === 3) reasons.push(`3x Alpha Tanpa Keterangan`);
-                if (totalSesi >= 3 && rate < 75) reasons.push(`Kehadiran Rendah (${rate}%)`);
+                reasons.push(`${alphaCount}x Alpha (Perlu Diingatkan)`);
+                reasons.push(`Kehadiran Rendah (${rate}%)`);
+            } else if (alphaCount === 0 && totalSesi >= 3 && rate < 75 && (izinCount > 0 || sakitCount > 0)) {
+                // 3. Kriteria Izin & Sakit (Biru): Kehadiran rendah murni Izin/Sakit resmi
+                isProblematic = true;
+                severityLevel = 'info';
+                const detailKetidakhadiran = [];
+                if (izinCount > 0) detailKetidakhadiran.push(`${izinCount}x Izin`);
+                if (sakitCount > 0) detailKetidakhadiran.push(`${sakitCount}x Sakit`);
+                reasons.push(`Kehadiran Rendah Berizin (${rate}%)`);
+                reasons.push(`${detailKetidakhadiran.join(', ')} • 0 Alpha`);
             }
 
             if (isProblematic) {
@@ -673,6 +684,16 @@ async function getProblematicStudentsReport(req, res, next) {
                     else formattedWa = '62' + cleanKontak;
                 }
 
+                let severityLabel = 'Izin & Sakit';
+                let badgeColor = 'blue';
+                if (severityLevel === 'critical') {
+                    severityLabel = 'Kritis (Alpha)';
+                    badgeColor = 'rose';
+                } else if (severityLevel === 'warning') {
+                    severityLabel = 'Peringatan';
+                    badgeColor = 'amber';
+                }
+
                 problematicList.push({
                     id: s.id,
                     nis: s.id,
@@ -691,7 +712,8 @@ async function getProblematicStudentsReport(req, res, next) {
                     total_sesi: totalSesi,
                     rate: rate,
                     severity: severityLevel,
-                    severity_label: severityLevel === 'critical' ? 'Kritis' : 'Peringatan',
+                    severity_label: severityLabel,
+                    badge_color: badgeColor,
                     reasons: reasons,
                     reason_text: reasons.join(' • ')
                 });
@@ -723,9 +745,11 @@ async function getProblematicStudentsReport(req, res, next) {
         res.json({
             success: true,
             summary: {
-                total_problematic: filtered.length,
+                total_problematic: filtered.filter(f => f.severity === 'critical').length,
+                total_flagged: filtered.length,
                 critical_count: filtered.filter(f => f.severity === 'critical').length,
                 warning_count: filtered.filter(f => f.severity === 'warning').length,
+                info_count: filtered.filter(f => f.severity === 'info').length,
                 avg_rate: avgRate
             },
             data: filtered,
@@ -794,25 +818,10 @@ async function getTeacherMonthlyPerformanceReport(req, res, next) {
             WHERE tanggal::text LIKE ?
         `, [`${bulan}-%`]);
 
-        // Hitung siswa bermasalah global per kelas
-        const classProblematicMap = {};
-        const studentClassAtt = {};
-        (attRows || []).forEach(a => {
-            const sid = String(a.student_id);
-            const cls = (a.kelas || '').toLowerCase();
-            if (!studentClassAtt[sid]) studentClassAtt[sid] = { class: cls, alpha: 0, hadir: 0, total: 0 };
-            studentClassAtt[sid].total++;
-            const st = String(a.status || '').toLowerCase();
-            if (st.includes('hadir') || st === 'h') studentClassAtt[sid].hadir++;
-            if (st.includes('alpha') || st.includes('alfa') || st === 'a') studentClassAtt[sid].alpha++;
-        });
-
-        Object.values(studentClassAtt).forEach(s => {
-            const rate = s.total > 0 ? (s.hadir / s.total) * 100 : 100;
-            if (s.alpha >= 3 || (s.total >= 3 && rate < 75)) {
-                classProblematicMap[s.class] = (classProblematicMap[s.class] || 0) + 1;
-            }
-        });
+        // 6. Ambil relasi murid per kelas untuk isolasi data guru
+        const [classStudentRows] = await db.query(`
+            SELECT class_id, student_id FROM class_students
+        `);
 
         const reportList = (teachers || []).map((t, idx) => {
             const tId = t.id;
@@ -823,6 +832,7 @@ async function getTeacherMonthlyPerformanceReport(req, res, next) {
                 (c.teacher_id && c.teacher_id === tId) ||
                 (c.pengajar && c.pengajar.toLowerCase().includes(tNameLower))
             );
+            const myClassIds = myClasses.map(c => String(c.id));
 
             // Saring checkin pengajar ini
             const myCheckins = (checkinRows || []).filter(c => 
@@ -861,18 +871,59 @@ async function getTeacherMonthlyPerformanceReport(req, res, next) {
                 totalGradeRecords += count;
             });
 
-            // Siswa bermasalah di kelas guru ini
-            let problematicCount = 0;
-            myClasses.forEach(c => {
-                const cName = (c.nama || '').toLowerCase();
-                problematicCount += (classProblematicMap[cName] || 0);
+            // Pemetaan murid kelas guru ini (Isolasi ketat agar tidak bocor antar kelas bernama sama)
+            const teacherStudentClassMap = new Map();
+            (classStudentRows || []).forEach(cs => {
+                if (myClassIds.includes(String(cs.class_id))) {
+                    const sid = String(cs.student_id);
+                    const matchingClass = myClasses.find(c => String(c.id) === String(cs.class_id));
+                    const cName = matchingClass ? (matchingClass.nama || '').toLowerCase().replace(/&amp;/g, '&').trim() : '';
+                    if (!teacherStudentClassMap.has(sid)) {
+                        teacherStudentClassMap.set(sid, new Set());
+                    }
+                    if (cName) teacherStudentClassMap.get(sid).add(cName);
+                }
             });
+
+            const relevantAtt = (attRows || []).filter(a => {
+                const sid = String(a.student_id || '').trim();
+                if (!teacherStudentClassMap.has(sid)) return false;
+                const aKelasClean = (a.kelas || '').toLowerCase().replace(/&amp;/g, '&').trim();
+                const allowedClasses = teacherStudentClassMap.get(sid);
+                return !aKelasClean || allowedClasses.has(aKelasClean);
+            });
+
+            // Hitung statistik per siswa di kelas guru ini
+            const studentStats = {};
+            relevantAtt.forEach(a => {
+                const sid = String(a.student_id);
+                if (!studentStats[sid]) studentStats[sid] = { hadir: 0, alpha: 0, izin: 0, total: 0 };
+                studentStats[sid].total++;
+                const st = String(a.status || '').toLowerCase();
+                if (st.includes('hadir') || st === 'h') studentStats[sid].hadir++;
+                else if (st.includes('alpha') || st.includes('alfa') || st === 'a') studentStats[sid].alpha++;
+                else if (st.includes('izin') || st.includes('ijin') || st.includes('sakit') || st === 'i' || st === 's') studentStats[sid].izin++;
+            });
+
+            let criticalCount = 0;
+            let warningCount = 0;
+            let infoCount = 0;
+            Object.values(studentStats).forEach(s => {
+                const rate = s.total > 0 ? (s.hadir / s.total) * 100 : 100;
+                if (s.alpha >= 3) criticalCount++;
+                else if (s.alpha >= 1 && s.total >= 3 && rate < 75) warningCount++;
+                else if (s.alpha === 0 && s.total >= 3 && rate < 75 && s.izin > 0) infoCount++;
+            });
+
+            const problematicCount = criticalCount; // Hanya kritis alpha yang dihitung bermasalah
+            const atRiskCount = criticalCount + warningCount + infoCount;
 
             // Hitung KPI Score (0 - 100)
             const sAttendance = totalTeachingSessions > 0 ? Math.min(100, totalTeachingSessions * 10) : 70;
             const sPunctuality = punctualityRate;
             const sGrading = myClasses.length > 0 ? (totalGradeRecords > 0 ? 95 : 60) : 85;
-            const sHealth = Math.max(50, 100 - (problematicCount * 10));
+            // Guru hanya dipotong jika ada murid bermasalah Kritis Alpha >= 3
+            const sHealth = Math.max(50, 100 - (criticalCount * 10));
 
             const overallScore = Math.round((sAttendance * 0.35) + (sPunctuality * 0.30) + (sGrading * 0.20) + (sHealth * 0.15));
 

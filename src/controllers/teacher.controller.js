@@ -70,18 +70,35 @@ async function getTeachers(req, res, next) {
                 ))
             );
             const myClassIds = myClasses.map(c => String(c.id));
-            const myClassNames = myClasses.map(c => (c.nama || '').toLowerCase().replace(/&amp;/g, '&').trim());
-            const myStudentIds = classStudents
-                .filter(cs => myClassIds.includes(String(cs.class_id)))
-                .map(cs => String(cs.student_id));
+            // Petakan murid yang terdaftar resmi di kelas guru ini beserta nama kelas spesifik yang diikutinya
+            const teacherStudentClassMap = new Map();
+            classStudents.forEach(cs => {
+                if (myClassIds.includes(String(cs.class_id))) {
+                    const sid = String(cs.student_id);
+                    const matchingClass = myClasses.find(c => String(c.id) === String(cs.class_id));
+                    const cName = matchingClass ? (matchingClass.nama || '').toLowerCase().replace(/&amp;/g, '&').trim() : '';
+                    if (!teacherStudentClassMap.has(sid)) {
+                        teacherStudentClassMap.set(sid, new Set());
+                    }
+                    if (cName) teacherStudentClassMap.get(sid).add(cName);
+                }
+            });
 
+            // Saring absensi: HANYA jika siswa terdaftar di kelas guru ini DAN record absensi cocok dengan kelas tersebut
             const relevantAtt = attRows.filter(a => {
+                const sid = String(a.student_id || '').trim();
+                if (!teacherStudentClassMap.has(sid)) return false;
                 const aKelasClean = (a.kelas || '').toLowerCase().replace(/&amp;/g, '&').trim();
-                return myStudentIds.includes(String(a.student_id)) || (aKelasClean && myClassNames.includes(aKelasClean));
+                const allowedClasses = teacherStudentClassMap.get(sid);
+                return !aKelasClean || allowedClasses.has(aKelasClean);
             });
 
             const problematicStudents = evaluateProblematicStudents(relevantAtt);
             const scheduledTodayCount = myClasses.filter(c => isClassScheduledOnDay(c.hari, todayDate)).length;
+
+            const criticalCount = problematicStudents.filter(s => s.category === 'kritis').length;
+            const warningCount = problematicStudents.filter(s => s.category === 'perhatian').length;
+            const infoCount = problematicStudents.filter(s => s.category === 'izin_sakit').length;
 
             return {
                 ...r,
@@ -89,7 +106,11 @@ async function getTeachers(req, res, next) {
                 total_classes: myClasses.length,
                 total_classes_today: scheduledTodayCount,
                 problematic_students_count: problematicStudents.length,
-                has_problematic_students: problematicStudents.length > 0,
+                critical_students_count: criticalCount,
+                warning_students_count: warningCount,
+                info_students_count: infoCount,
+                has_problematic_students: criticalCount > 0, // Hanya true jika ada siswa kritis Alpha >= 3
+                has_at_risk_students: problematicStudents.length > 0,
                 problematic_students: problematicStudents
             };
         });
@@ -1014,31 +1035,64 @@ function evaluateProblematicStudents(attendanceRecords) {
 
     const problematic = [];
     Object.values(studentMap).forEach(s => {
-        const rate = s.total_recorded > 0 ? (s.hadir_count / s.total_recorded) * 100 : 100;
-        let isProblematic = false;
+        const rate = s.total_recorded > 0 ? Math.round((s.hadir_count / s.total_recorded) * 100) : 100;
+        
+        let category = null;
+        let severity = null;
+        let badgeColor = null;
+        let categoryLabel = null;
         let reasons = [];
 
+        // 1. Kategori Kritis (Merah): Akumulasi Alpha tinggi (>= 3x)
         if (s.alpha_count >= 3) {
-            isProblematic = true;
+            category = 'kritis';
+            severity = 'critical';
+            badgeColor = 'rose';
+            categoryLabel = 'Kritis (Akumulasi Alpha)';
             reasons.push(`${s.alpha_count}x Alpha (Tanpa Keterangan)`);
+            if (s.total_recorded >= 3 && rate < 75) {
+                reasons.push(`Kehadiran Rendah (${rate}% - ${s.hadir_count} dari ${s.total_recorded})`);
+            }
+        } 
+        // 2. Kategori Perhatian (Kuning/Amber): Ada 1-2x Alpha DAN kehadiran rendah (< 75%)
+        else if (s.alpha_count >= 1 && s.total_recorded >= 3 && rate < 75) {
+            category = 'perhatian';
+            severity = 'warning';
+            badgeColor = 'amber';
+            categoryLabel = 'Perhatian (Waspada Kehadiran)';
+            reasons.push(`${s.alpha_count}x Alpha (Perlu Diingatkan)`);
+            reasons.push(`Kehadiran Rendah (${rate}% - ${s.hadir_count} dari ${s.total_recorded})`);
+        }
+        // 3. Kategori Izin & Sakit (Biru): Kehadiran rendah (< 75%) murni karena Izin atau Sakit (Alpha = 0)
+        else if (s.alpha_count === 0 && s.total_recorded >= 3 && rate < 75 && (s.izin_count > 0 || s.sakit_count > 0)) {
+            category = 'izin_sakit';
+            severity = 'info';
+            badgeColor = 'blue';
+            categoryLabel = 'Izin & Sakit Resmi';
+            const detailKetidakhadiran = [];
+            if (s.izin_count > 0) detailKetidakhadiran.push(`${s.izin_count}x Izin`);
+            if (s.sakit_count > 0) detailKetidakhadiran.push(`${s.sakit_count}x Sakit`);
+            reasons.push(`Kehadiran Rendah Berizin (${rate}% - ${s.hadir_count} dari ${s.total_recorded})`);
+            reasons.push(`${detailKetidakhadiran.join(', ')} • 0 Alpha`);
         }
 
-        if (s.total_recorded >= 3 && rate < 75) {
-            isProblematic = true;
-            reasons.push(`Kehadiran Rendah (${Math.round(rate)}% - ${s.hadir_count} dari ${s.total_recorded})`);
-        }
-
-        if (isProblematic) {
+        if (category) {
             problematic.push({
                 student_id: s.student_id,
                 student_name: s.student_name,
                 nama: s.student_name,
                 kelas: s.kelas,
                 hadir_count: s.hadir_count,
+                izin_count: s.izin_count,
+                sakit_count: s.sakit_count,
                 alpha_count: s.alpha_count,
                 total_recorded: s.total_recorded,
-                attendance_rate: Math.round(rate),
-                is_problematic: true,
+                attendance_rate: rate,
+                category: category,
+                severity: severity,
+                badge_color: badgeColor,
+                category_label: categoryLabel,
+                is_problematic: category === 'kritis', // Hanya kritis yang benar-benar bermasalah secara disiplin
                 reason: reasons.join(' • ')
             });
         }
@@ -1143,6 +1197,9 @@ async function getTeacherAuditMonitoring(req, res, next) {
         let totalClassesCompleted = 0;
         let totalGradingFull = 0;
         let totalProblematicStudentsGlobal = 0;
+        let totalCriticalStudentsGlobal = 0;
+        let totalWarningStudentsGlobal = 0;
+        let totalInfoStudentsGlobal = 0;
 
         const teacherAuditList = teachers.map(teacher => {
             const tId = teacher.id;
@@ -1303,22 +1360,37 @@ async function getTeacherAuditMonitoring(req, res, next) {
                 };
             });
 
-            // Evaluasi Seluruh Siswa & Deteksi Siswa Bermasalah di kelas pengajar ini
-            const allMyClassNames = myAssignedClasses.map(c => (c.nama || '').toLowerCase().replace(/&amp;/g, '&'));
-            const allMyStudentIds = [];
+            // Evaluasi Seluruh Siswa & Deteksi Siswa Bermasalah di kelas pengajar ini (Isolasi ketat per class_id)
+            const teacherStudentClassMap = new Map();
             myAssignedClasses.forEach(cls => {
+                const cName = (cls.nama || '').toLowerCase().replace(/&amp;/g, '&').trim();
                 const st = classStudentsMap[String(cls.id)] || [];
-                st.forEach(s => allMyStudentIds.push(String(s.student_id)));
+                st.forEach(s => {
+                    const sid = String(s.student_id || s.id || '').trim();
+                    if (!teacherStudentClassMap.has(sid)) {
+                        teacherStudentClassMap.set(sid, new Set());
+                    }
+                    if (cName) teacherStudentClassMap.get(sid).add(cName);
+                });
             });
 
             const relevantAttendance = attendanceRows.filter(a => {
-                const aClass = (a.kelas || '').toLowerCase().replace(/&amp;/g, '&');
-                return allMyStudentIds.includes(String(a.student_id)) ||
-                       (aClass && allMyClassNames.includes(aClass));
+                const sid = String(a.student_id || '').trim();
+                if (!teacherStudentClassMap.has(sid)) return false;
+                const aClass = (a.kelas || '').toLowerCase().replace(/&amp;/g, '&').trim();
+                const allowedClasses = teacherStudentClassMap.get(sid);
+                return !aClass || allowedClasses.has(aClass);
             });
 
             const problematicStudents = evaluateProblematicStudents(relevantAttendance);
+            const criticalStudents = problematicStudents.filter(s => s.category === 'kritis');
+            const warningStudents = problematicStudents.filter(s => s.category === 'perhatian');
+            const infoStudents = problematicStudents.filter(s => s.category === 'izin_sakit');
+
             totalProblematicStudentsGlobal += problematicStudents.length;
+            totalCriticalStudentsGlobal += criticalStudents.length;
+            totalWarningStudentsGlobal += warningStudents.length;
+            totalInfoStudentsGlobal += infoStudents.length;
 
             const totalHadirStudents = relevantAttendance.filter(a => String(a.status || '').toLowerCase().includes('hadir')).length;
             const studentAttendanceRate = relevantAttendance.length > 0 
@@ -1358,8 +1430,8 @@ async function getTeacherAuditMonitoring(req, res, next) {
                 (sGrading * 0.20)
             );
 
-            // Penyesuaian jika ada siswa bermasalah yang menonjol
-            if (problematicStudents.length >= 3) {
+            // Penyesuaian jika ada siswa bermasalah Kritis Alpha (>= 3 siswa Alpha kritis)
+            if (criticalStudents.length >= 3) {
                 overallScore = Math.max(40, overallScore - 5);
             }
 
@@ -1399,7 +1471,11 @@ async function getTeacherAuditMonitoring(req, res, next) {
                     attendance_rate: studentAttendanceRate,
                     total_records_month: relevantAttendance.length,
                     problematic_count: problematicStudents.length,
-                    has_problematic_students: problematicStudents.length > 0,
+                    critical_count: criticalStudents.length,
+                    warning_count: warningStudents.length,
+                    info_count: infoStudents.length,
+                    has_problematic_students: criticalStudents.length > 0, // Hanya true jika ada siswa Alpha kritis
+                    has_at_risk_students: problematicStudents.length > 0,
                     problematic_students: problematicStudents
                 },
                 kpi_score: {
@@ -1437,7 +1513,11 @@ async function getTeacherAuditMonitoring(req, res, next) {
                 total_classes_completed: totalClassesCompleted,
                 class_fulfillment_rate: classFulfillmentRate,
                 punctuality_rate: onTimeRate,
-                total_problematic_students: totalProblematicStudentsGlobal
+                total_problematic_students: totalCriticalStudentsGlobal, // Hanya yang kritis alpha
+                total_critical_students: totalCriticalStudentsGlobal,
+                total_warning_students: totalWarningStudentsGlobal,
+                total_info_students: totalInfoStudentsGlobal,
+                total_flagged_students: totalProblematicStudentsGlobal
             },
             teachers: teacherAuditList
         });

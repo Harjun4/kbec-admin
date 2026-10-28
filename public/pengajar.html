@@ -617,17 +617,36 @@
                     `<span class="text-[10px] font-semibold px-2 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-100/50">${exp}</span>`
                 ).join(' ');
 
-                const hasProblematic = Boolean(teacher.has_problematic_students || (teacher.problematic_students_count && teacher.problematic_students_count > 0));
-                const probCount = teacher.problematic_students_count || (teacher.problematic_students ? teacher.problematic_students.length : 0);
+                const critCount = teacher.critical_students_count || (teacher.problematic_students ? teacher.problematic_students.filter(s => s.category === 'kritis').length : 0);
+                const warnCount = teacher.warning_students_count || (teacher.problematic_students ? teacher.problematic_students.filter(s => s.category === 'perhatian').length : 0);
+                const infoCount = teacher.info_students_count || (teacher.problematic_students ? teacher.problematic_students.filter(s => s.category === 'izin_sakit').length : 0);
 
                 let studentHealthBadge = '';
-                if (hasProblematic) {
+                if (critCount > 0) {
                     studentHealthBadge = `
                         <div class="space-y-1">
                             <span class="inline-flex items-center gap-1.5 text-[11px] font-extrabold px-3 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-300 shadow-2xs">
-                                ⚠️ Siswa Bermasalah (${probCount} jarang masuk)
+                                🔴 ${critCount} Siswa Kritis (Alpha)
                             </span>
-                            <p class="text-[10px] text-rose-600 font-bold pl-1">Perlu Perhatian</p>
+                            ${infoCount > 0 ? `<p class="text-[10px] text-blue-600 font-semibold pl-1">+ ${infoCount} Izin/Sakit</p>` : ''}
+                        </div>
+                    `;
+                } else if (warnCount > 0) {
+                    studentHealthBadge = `
+                        <div class="space-y-1">
+                            <span class="inline-flex items-center gap-1.5 text-[11px] font-extrabold px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs">
+                                🟡 ${warnCount} Perlu Diingatkan
+                            </span>
+                            ${infoCount > 0 ? `<p class="text-[10px] text-blue-600 font-semibold pl-1">+ ${infoCount} Izin/Sakit</p>` : ''}
+                        </div>
+                    `;
+                } else if (infoCount > 0) {
+                    studentHealthBadge = `
+                        <div class="space-y-1">
+                            <span class="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+                                🔵 ${infoCount} Siswa Izin/Sakit
+                            </span>
+                            <p class="text-[10px] text-slate-500 font-medium pl-1">0 Alpha • Catch-up Materi</p>
                         </div>
                     `;
                 } else if (teacher.total_classes === 0) {
@@ -646,7 +665,7 @@
                 }
 
                 tbody.innerHTML += `
-                <tr class="hover:bg-slate-50/60 transition-colors group border-b border-slate-100 ${hasProblematic ? 'bg-rose-50/20' : ''}">
+                <tr class="hover:bg-slate-50/60 transition-colors group border-b border-slate-100 ${critCount > 0 ? 'bg-rose-50/20' : (infoCount > 0 ? 'bg-blue-50/15' : '')}">
                     <td class="py-4 px-6">
                         <div class="flex items-center gap-3">
                             <img src="${teacher.avatar || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150'}" class="w-10 h-10 rounded-full object-cover shadow-sm border border-slate-100">
@@ -750,30 +769,90 @@
             const expContainer = document.getElementById('view-expertise');
             expContainer.innerHTML = Array.isArray(teacher.expertise) ? teacher.expertise.map(exp => `<span class="text-[10px] font-semibold px-2.5 py-0.5 bg-blue-50 text-blue-600 rounded-md border border-blue-100/50">${exp}</span>`).join(' ') : '';
 
-            // Keadaan Kelas & Siswa (Siswa Bermasalah Alert Box)
+            // Keadaan Kelas & Siswa (Pemantauan Kehadiran Berbasis 3-Tingkat)
             const healthNode = document.getElementById('view-student-health');
-            const hasProblematic = Boolean(teacher.has_problematic_students || (teacher.problematic_students_count && teacher.problematic_students_count > 0));
             const probStudents = teacher.problematic_students || [];
+            const critStudents = probStudents.filter(s => s.category === 'kritis');
+            const warnStudents = probStudents.filter(s => s.category === 'perhatian');
+            const infoStudents = probStudents.filter(s => s.category === 'izin_sakit');
 
-            if (hasProblematic && probStudents.length > 0) {
+            if (probStudents.length > 0) {
+                // Tentukan nuansa box dan judul berdasarkan tingkat keparahan tertinggi
+                let boxClass = 'bg-blue-50/70 border-blue-200 text-blue-900';
+                let headerIcon = 'info';
+                let headerColor = 'text-blue-700';
+                let headerTitle = `ℹ️ Pemantauan Kehadiran (${infoStudents.length} Siswa Izin & Sakit Resmi)`;
+
+                if (critStudents.length > 0) {
+                    boxClass = 'bg-rose-50/80 border-rose-200 text-rose-950';
+                    headerIcon = 'alert-triangle';
+                    headerColor = 'text-rose-600';
+                    headerTitle = `⚠️ Perhatian Khusus: ${critStudents.length} Siswa Kritis Alpha`;
+                } else if (warnStudents.length > 0) {
+                    boxClass = 'bg-amber-50/70 border-amber-200 text-amber-950';
+                    headerIcon = 'alert-circle';
+                    headerColor = 'text-amber-600';
+                    headerTitle = `🟡 Perhatian Kehadiran: ${warnStudents.length} Siswa Perlu Diingatkan`;
+                }
+
                 healthNode.innerHTML = `
-                    <div class="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
-                        <div class="flex items-center gap-2 text-rose-800 font-extrabold text-xs">
-                            <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-600 flex-shrink-0"></i>
-                            <span>⚠️ Terdeteksi Siswa Bermasalah (${probStudents.length} Jarang Masuk):</span>
+                    <div class="p-3.5 ${boxClass} border rounded-xl space-y-2.5">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2 font-extrabold text-xs">
+                                <i data-lucide="${headerIcon}" class="w-4 h-4 ${headerColor} flex-shrink-0"></i>
+                                <span>${headerTitle}</span>
+                            </div>
+                            <div class="flex items-center gap-1 text-[10px] font-bold">
+                                ${critStudents.length > 0 ? `<span class="px-2 py-0.5 rounded bg-rose-100 text-rose-700">${critStudents.length} Kritis</span>` : ''}
+                                ${warnStudents.length > 0 ? `<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800">${warnStudents.length} Perhatian</span>` : ''}
+                                ${infoStudents.length > 0 ? `<span class="px-2 py-0.5 rounded bg-blue-100 text-blue-700">${infoStudents.length} Izin/Sakit</span>` : ''}
+                            </div>
                         </div>
-                        <div class="space-y-1.5 pl-2 text-xs text-rose-900 font-medium max-h-40 overflow-y-auto">
-                            ${probStudents.map(s => `
-                                <div class="p-2 bg-white border border-rose-200 rounded-lg flex items-center justify-between">
-                                    <div>
-                                        <span class="font-extrabold text-slate-900">${s.nama}</span>
-                                        <p class="text-[10px] text-rose-600 font-semibold">${s.reason} • Kelas: ${s.kelas}</p>
+
+                        ${critStudents.length === 0 && warnStudents.length === 0 ? `
+                            <p class="text-[11px] text-blue-800/90 font-medium pl-1 bg-white/70 p-2.5 rounded-lg border border-blue-100">
+                                💡 <b>Catatan Pengajar:</b> Seluruh ketidakhadiran berstatus <b>Izin atau Sakit resmi (0 Alpha)</b>. Keadaan kelas kondusif, pengajar diharapkan memantau pemberian materi susulan (*catch-up*).
+                            </p>
+                        ` : ''}
+
+                        <div class="space-y-1.5 text-xs font-medium max-h-48 overflow-y-auto pr-1">
+                            ${probStudents.map(s => {
+                                let badgeClass = 'bg-blue-100 text-blue-800 border-blue-200';
+                                let borderClass = 'border-blue-100';
+                                let reasonColor = 'text-blue-700';
+
+                                if (s.category === 'kritis') {
+                                    badgeClass = 'bg-rose-100 text-rose-800 border-rose-200';
+                                    borderClass = 'border-rose-200';
+                                    reasonColor = 'text-rose-600';
+                                } else if (s.category === 'perhatian') {
+                                    badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+                                    borderClass = 'border-amber-200';
+                                    reasonColor = 'text-amber-700';
+                                }
+
+                                return `
+                                    <div class="p-2.5 bg-white border ${borderClass} rounded-lg flex items-center justify-between gap-2 shadow-2xs">
+                                        <div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-extrabold text-slate-900">${s.nama}</span>
+                                                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded border ${badgeClass}">
+                                                    ${s.category === 'kritis' ? '🔴 Kritis' : (s.category === 'perhatian' ? '🟡 Perhatian' : '🔵 Izin/Sakit')}
+                                                </span>
+                                            </div>
+                                            <p class="text-[10px] ${reasonColor} font-semibold mt-0.5">${s.reason} • Kelas: ${s.kelas}</p>
+                                        </div>
+                                        <div class="text-right flex-shrink-0">
+                                            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${badgeClass}">
+                                                Hadir: ${s.hadir_count || 0}/${s.total_recorded || 0} (${s.attendance_rate}%)
+                                            </span>
+                                            <div class="text-[9px] text-slate-400 mt-0.5">
+                                                ${s.alpha_count > 0 ? `Alpha: ${s.alpha_count}x • ` : ''}Izin/Sakit: ${(s.izin_count || 0) + (s.sakit_count || 0)}x
+                                            </div>
+                                        </div>
                                     </div>
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">
-                                        Alpha: ${s.alpha_count}x • Hadir: ${s.hadir_count || 0}/${s.total_recorded || 0} (${s.attendance_rate}%)
-                                    </span>
-                                </div>
-                            `).join('')}
+                                `;
+                            }).join('')}
                         </div>
                     </div>
                 `;
@@ -899,11 +978,14 @@
             let tableRows = filteredData.map((t, index) => {
                 const expStr = Array.isArray(t.expertise) ? t.expertise.join(', ') : '-';
                 const badgeClass = t.status === 'Aktif' ? 'badge-aktif' : 'badge-cuti';
-                const hasProblematic = Boolean(t.has_problematic_students || (t.problematic_students_count && t.problematic_students_count > 0));
-                const probCount = t.problematic_students_count || (t.problematic_students ? t.problematic_students.length : 0);
-                const healthHTML = hasProblematic ?
-                    `<span style="color: #b91c1c; font-weight: 700; background: #fee2e2; padding: 2px 6px; border-radius: 4px; font-size: 9px;">⚠️ Bermasalah (${probCount})</span>` :
-                    `<span style="color: #047857; font-weight: 600; background: #ecfdf5; padding: 2px 6px; border-radius: 4px; font-size: 9px;">✅ Kondusif</span>`;
+                const critCount = t.critical_students_count || (t.problematic_students ? t.problematic_students.filter(s => s.category === 'kritis').length : 0);
+                const infoCount = t.info_students_count || (t.problematic_students ? t.problematic_students.filter(s => s.category === 'izin_sakit').length : 0);
+                let healthHTML = `<span style="color: #047857; font-weight: 600; background: #ecfdf5; padding: 2px 6px; border-radius: 4px; font-size: 9px;">✅ Kondusif</span>`;
+                if (critCount > 0) {
+                    healthHTML = `<span style="color: #b91c1c; font-weight: 700; background: #fee2e2; padding: 2px 6px; border-radius: 4px; font-size: 9px;">🔴 Kritis Alpha (${critCount})</span>`;
+                } else if (infoCount > 0) {
+                    healthHTML = `<span style="color: #1d4ed8; font-weight: 600; background: #eff6ff; padding: 2px 6px; border-radius: 4px; font-size: 9px;">🔵 Izin/Sakit (${infoCount})</span>`;
+                }
 
                 return `
                     <tr>
