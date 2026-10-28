@@ -36,14 +36,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function loadRecapData() {
     const bulanVal = document.getElementById('filter-bulan').value || new Date().toISOString().slice(0, 7);
-    const mingguVal = document.getElementById('filter-minggu').value || '1';
+    const mingguVal = document.getElementById('filter-minggu').value || 'all';
     const unitVal = document.getElementById('filter-unit') ? document.getElementById('filter-unit').value : 'Semua';
 
     // Update Label Minggu Detail & Badge Chart
     const labelMinggu = document.getElementById('label-minggu-detail');
     const badgeWeek = document.getElementById('chart-week-badge');
-    const weekRomanMap = { '1': 'Minggu I', '2': 'Minggu II', '3': 'Minggu III', '4': 'Minggu IV' };
-    const romanStr = weekRomanMap[mingguVal] || 'Minggu I';
+    const weekRomanMap = { 'all': 'Semua Minggu', '1': 'Minggu I', '2': 'Minggu II', '3': 'Minggu III', '4': 'Minggu IV' };
+    const romanStr = weekRomanMap[mingguVal] || 'Semua Minggu';
 
     if (labelMinggu) labelMinggu.innerText = romanStr;
     if (badgeWeek) badgeWeek.innerText = romanStr;
@@ -213,10 +213,17 @@ function renderClassDetailsTable(classes = []) {
     }
 
     const html = classes.map((c, idx) => {
+        const totalSesi = (c.total_hadir || 0) + (c.total_ijin || 0) + (c.total_alfa || 0) + (c.total_sakit || 0);
         const pct = c.persentase || 0;
         let barColor = 'bg-emerald-500';
         let badgeColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-        if (pct < 50) {
+        let badgeText = `${pct}%`;
+
+        if (totalSesi === 0) {
+            barColor = 'bg-slate-200';
+            badgeColor = 'bg-slate-100 text-slate-500 border-slate-200 whitespace-nowrap';
+            badgeText = 'Belum Ada Sesi';
+        } else if (pct < 50) {
             barColor = 'bg-rose-500';
             badgeColor = 'bg-rose-50 text-rose-700 border-rose-200';
         } else if (pct < 75) {
@@ -225,7 +232,7 @@ function renderClassDetailsTable(classes = []) {
         }
 
         return `
-            <tr class="hover:bg-slate-50/80 transition-colors">
+            <tr class="hover:bg-slate-50/80 transition-colors ${totalSesi === 0 ? 'opacity-70' : ''}">
                 <td class="py-3.5 px-4 font-bold text-slate-400">${idx + 1}</td>
                 <td class="py-3.5 px-4">
                     <div class="font-extrabold text-slate-900">${c.nama_kelas}</div>
@@ -236,16 +243,16 @@ function renderClassDetailsTable(classes = []) {
                     ${c.nama_guru}
                 </td>
                 <td class="py-3.5 px-4 text-slate-600 font-bold">${c.unit}</td>
-                <td class="py-3.5 px-4 text-center font-bold text-emerald-600 bg-emerald-50/30">${c.total_hadir}</td>
-                <td class="py-3.5 px-4 text-center text-blue-600">${c.total_ijin}</td>
-                <td class="py-3.5 px-4 text-center text-amber-600">${c.total_alfa}</td>
-                <td class="py-3.5 px-4 text-center text-rose-600">${c.total_sakit}</td>
+                <td class="py-3.5 px-4 text-center font-bold ${totalSesi === 0 ? 'text-slate-400 bg-slate-50/30' : 'text-emerald-600 bg-emerald-50/30'}">${c.total_hadir}</td>
+                <td class="py-3.5 px-4 text-center ${totalSesi === 0 ? 'text-slate-400' : 'text-blue-600'}">${c.total_ijin}</td>
+                <td class="py-3.5 px-4 text-center ${totalSesi === 0 ? 'text-slate-400' : 'text-amber-600'}">${c.total_alfa}</td>
+                <td class="py-3.5 px-4 text-center ${totalSesi === 0 ? 'text-slate-400' : 'text-rose-600'}">${c.total_sakit}</td>
                 <td class="py-3.5 px-4">
                     <div class="flex items-center gap-3">
                         <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                            <div class="${barColor} h-2 rounded-full transition-all duration-500" style="width: ${Math.min(pct, 100)}%"></div>
+                            <div class="${barColor} h-2 rounded-full transition-all duration-500" style="width: ${totalSesi === 0 ? 0 : Math.min(pct, 100)}%"></div>
                         </div>
-                        <span class="text-[11px] font-extrabold px-2 py-0.5 rounded-md border ${badgeColor}">${pct}%</span>
+                        <span class="text-[11px] font-extrabold px-2 py-0.5 rounded-md border ${badgeColor}">${badgeText}</span>
                     </div>
                 </td>
             </tr>

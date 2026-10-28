@@ -27,8 +27,9 @@ async function getAttendanceRecap(req, res, next) {
             bulan = bulan.trim();
         }
 
+        const isAllWeeks = String(minggu || '').toLowerCase() === 'all' || String(minggu || '').toLowerCase() === 'semua';
         const weekNum = parseInt(minggu, 10) || 1;
-        const validWeek = (weekNum >= 1 && weekNum <= 4) ? weekNum : 1;
+        const validWeek = isAllWeeks ? 'all' : ((weekNum >= 1 && weekNum <= 4) ? weekNum : 1);
         const filterUnit = (unit && unit.trim() !== '' && unit.trim() !== 'Semua') ? unit.trim().toLowerCase() : null;
 
         const [yearStr, monthStr] = bulan.split('-');
@@ -43,7 +44,8 @@ async function getAttendanceRecap(req, res, next) {
 
         let weekStartDay = 1;
         let weekEndDay = 7;
-        if (validWeek === 2) { weekStartDay = 8; weekEndDay = 14; }
+        if (validWeek === 'all') { weekStartDay = 1; weekEndDay = daysInMonth; }
+        else if (validWeek === 2) { weekStartDay = 8; weekEndDay = 14; }
         else if (validWeek === 3) { weekStartDay = 15; weekEndDay = 21; }
         else if (validWeek === 4) { weekStartDay = 22; weekEndDay = daysInMonth; }
 
@@ -135,13 +137,6 @@ async function getAttendanceRecap(req, res, next) {
             console.error('Error fetching attendance:', e.message);
         }
 
-        attRows.forEach(r => {
-            const sid = String(r.student_id || '').toLowerCase();
-            if (studentMap[sid]) {
-                studentMap[sid].recordsWeek.push(r);
-            }
-        });
-
         let gradeRows = [];
         try {
             const [gRows] = await db.query(`
@@ -154,10 +149,29 @@ async function getAttendanceRecap(req, res, next) {
             console.error('Error fetching student_grades:', e.message);
         }
 
+        const normalizeClassName = (str) => String(str || '').replace(/&amp;amp;/gi, '&').replace(/&amp;/gi, '&').trim().toLowerCase();
+        const cleanClassDisplay = (str) => String(str || '').replace(/&amp;amp;/gi, '&').replace(/&amp;/gi, '&').trim();
+
+        // Deduplikasi presensi harian per sesi agar attendance dan student_grades tidak terhitung ganda
+        const studentSessionMap = new Map();
+        attRows.forEach(r => {
+            const sid = String(r.student_id || '').toLowerCase();
+            const key = `${sid}|${r.tgl}|${normalizeClassName(r.kelas)}`;
+            if (!studentSessionMap.has(key)) {
+                studentSessionMap.set(key, { student_id: sid, status: r.status, tgl: r.tgl, kelas: r.kelas });
+            }
+        });
         gradeRows.forEach(r => {
             const sid = String(r.student_id || '').toLowerCase();
-            if (studentMap[sid]) {
-                studentMap[sid].recordsWeek.push({ student_id: r.student_id, status: r.status, tgl: r.tgl, kelas: r.kelas });
+            const key = `${sid}|${r.tgl}|${normalizeClassName(r.kelas)}`;
+            if (!studentSessionMap.has(key)) {
+                studentSessionMap.set(key, { student_id: sid, status: r.status, tgl: r.tgl, kelas: r.kelas });
+            }
+        });
+
+        studentSessionMap.forEach(r => {
+            if (studentMap[r.student_id]) {
+                studentMap[r.student_id].recordsWeek.push(r);
             }
         });
 
@@ -174,6 +188,15 @@ async function getAttendanceRecap(req, res, next) {
         let weekAlfa = 0;
         let weekSakit = 0;
 
+        // Cari tanggal baseline data awal siswa (data hasil import/migrasi awal sistem)
+        let minBaselineDate = '9999-99-99';
+        filteredStudents.forEach(s => {
+            if (s.created_at) {
+                const d = new Date(s.created_at).toISOString().slice(0, 10);
+                if (d < minBaselineDate) minBaselineDate = d;
+            }
+        });
+
         Object.values(studentMap).forEach(s => {
             const grpKey = mapToGroupKey(s.unit);
             if (!unitGroups[grpKey]) return;
@@ -181,10 +204,11 @@ async function getAttendanceRecap(req, res, next) {
             unitGroups[grpKey].total_siswa += 1;
 
             const cDate = s.createdDate;
-            const isEnrolledM1 = !cDate || cDate <= cutoffM1;
-            const isEnrolledM2 = !cDate || cDate <= cutoffM2;
-            const isEnrolledM3 = !cDate || cDate <= cutoffM3;
-            const isEnrolledM4 = !cDate || cDate <= cutoffM4;
+            const isBaseline = !cDate || cDate <= minBaselineDate;
+            const isEnrolledM1 = isBaseline || cDate <= cutoffM1;
+            const isEnrolledM2 = isBaseline || cDate <= cutoffM2;
+            const isEnrolledM3 = isBaseline || cDate <= cutoffM3;
+            const isEnrolledM4 = isBaseline || cDate <= cutoffM4;
 
             if (isEnrolledM1) unitGroups[grpKey].m1 += 1;
             if (isEnrolledM2) unitGroups[grpKey].m2 += 1;
@@ -215,6 +239,20 @@ async function getAttendanceRecap(req, res, next) {
             });
         });
 
+        // Pemetaan kelas resmi siswa dari class_students untuk menghindari bentrok nama kelas identik
+        const studentEnrolledClassMap = new Map();
+        classStudentRows.forEach(cs => {
+            const sid = String(cs.student_id).toLowerCase();
+            if (!studentEnrolledClassMap.has(sid)) studentEnrolledClassMap.set(sid, []);
+            const cls = classes.find(c => String(c.id) === String(cs.class_id));
+            if (cls) {
+                studentEnrolledClassMap.get(sid).push({
+                    class_id: String(cls.id),
+                    class_name: normalizeClassName(cls.nama)
+                });
+            }
+        });
+
         const classMap = {};
         classes.forEach(c => {
             const cid = String(c.id);
@@ -229,7 +267,7 @@ async function getAttendanceRecap(req, res, next) {
 
             classMap[cid] = {
                 class_id: c.id,
-                nama_kelas: c.nama || 'Kelas KBEC',
+                nama_kelas: cleanClassDisplay(c.nama) || 'Kelas KBEC',
                 nama_guru: teacherName,
                 unit: unitName,
                 program: c.program || 'KBEC',
@@ -250,15 +288,26 @@ async function getAttendanceRecap(req, res, next) {
 
         Object.values(studentMap).forEach(s => {
             s.recordsWeek.forEach(rec => {
-                let targetCid = Object.keys(classMap).find(cid => {
-                    const cObj = classMap[cid];
-                    return (rec.kelas && cObj.nama_kelas.toLowerCase() === rec.kelas.toLowerCase());
-                });
+                const sid = s.id ? String(s.id).toLowerCase() : '';
+                const enrolled = studentEnrolledClassMap.get(sid) || [];
+                let targetCid = null;
+                const recNormName = normalizeClassName(rec.kelas);
 
-                if (!targetCid) {
-                    const csMatch = classStudentRows.find(cs => String(cs.student_id).toLowerCase() === s.id.toLowerCase());
-                    if (csMatch && classMap[String(csMatch.class_id)]) {
-                        targetCid = String(csMatch.class_id);
+                // 1. Cek dari kelas resmi yang diikuti siswa di tabel class_students
+                if (enrolled.length > 0) {
+                    const match = enrolled.find(e => recNormName && e.class_name === recNormName);
+                    if (match) {
+                        targetCid = match.class_id;
+                    } else if (enrolled.length === 1) {
+                        targetCid = enrolled[0].class_id;
+                    }
+                }
+
+                // 2. Fallback: jika tidak terdaftar di class_students, cocokkan via nama kelas
+                if (!targetCid && recNormName) {
+                    const matchCls = classes.find(c => normalizeClassName(c.nama) === recNormName);
+                    if (matchCls) {
+                        targetCid = String(matchCls.id);
                     }
                 }
 
@@ -285,6 +334,12 @@ async function getAttendanceRecap(req, res, next) {
                 total_sesi: totalSesiClass,
                 persentase: pct
             };
+        }).sort((a, b) => {
+            // Prioritaskan kelas yang memiliki sesi aktif di minggu terpilih di bagian atas
+            const aActive = a.total_sesi > 0 ? 1 : 0;
+            const bActive = b.total_sesi > 0 ? 1 : 0;
+            if (bActive !== aActive) return bActive - aActive;
+            return String(a.nama_kelas || '').localeCompare(String(b.nama_kelas || ''));
         });
 
         const totalSiswa = filteredStudents.length;
