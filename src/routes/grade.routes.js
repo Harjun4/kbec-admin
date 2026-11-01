@@ -3,6 +3,7 @@ const router = express.Router();
 const gradeController = require('../controllers/grade.controller');
 const { requireAuth, requireRole } = require('../middlewares/auth.middleware');
 
+router.get('/programs', requireAuth, requireRole('Super Admin', 'Pengajar', 'Staff'), gradeController.getPrograms);
 router.get('/classes', requireAuth, requireRole('Super Admin', 'Pengajar', 'Staff'), gradeController.getClasses);
 router.get('/subjects', requireAuth, requireRole('Super Admin', 'Pengajar', 'Staff'), gradeController.getClassSubjects);
 router.post('/subjects', requireAuth, requireRole('Super Admin', 'Pengajar'), gradeController.saveClassSubjects);

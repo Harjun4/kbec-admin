@@ -285,19 +285,25 @@ function exportClassDetailsCSV() {
         return;
     }
 
-    const mingguVal = document.getElementById('filter-minggu').value || '1';
-    const bulanVal = document.getElementById('filter-bulan').value || '';
+    const mingguVal = document.getElementById('filter-minggu').value || 'all';
+    const bulanVal = document.getElementById('filter-bulan').value || new Date().toISOString().slice(0, 7);
+    const unitVal = document.getElementById('filter-unit') ? document.getElementById('filter-unit').value : 'Semua';
+    const weekRomanMap = { 'all': 'Semua Minggu (Bulan Penuh)', '1': 'Minggu I', '2': 'Minggu II', '3': 'Minggu III', '4': 'Minggu IV' };
+    const mingguLabel = weekRomanMap[mingguVal] || 'Semua Minggu';
 
-    let csvContent = 'data:text/csv;charset=utf-8,';
+    let csvContent = '\uFEFF';
+    csvContent += `"REKAP KEHADIRAN KELAS & PENGAJAR - YAYASAN AR-RASYID BINTARO (KBEC)"\n`;
+    csvContent += `"Periode Bulan: ${bulanVal}","Minggu: ${mingguLabel}","Unit: ${unitVal}","Tanggal Ekspor: ${new Date().toLocaleDateString('id-ID')}"\n\n`;
     csvContent += `No,Nama Kelas,Nama Guru Pengajar,Unit / Program,Total Hadir,Total Ijin,Total Alfa,Total Sakit,Persentase Kehadiran Kelas (%)\n`;
 
     rawClassDetails.forEach((c, idx) => {
-        csvContent += `${idx + 1},"${c.nama_kelas}","${c.nama_guru}","${c.unit}",${c.total_hadir},${c.total_ijin},${c.total_alfa},${c.total_sakit},${c.persentase}%\n`;
+        const pctFormatted = typeof c.persentase === 'number' ? c.persentase.toFixed(1) : (c.persentase || '0.0');
+        csvContent += `${idx + 1},"${String(c.nama_kelas || '').replace(/"/g, '""')}","${String(c.nama_guru || '').replace(/"/g, '""')}","${String(c.unit || '').replace(/"/g, '""')}",${c.total_hadir},${c.total_ijin},${c.total_alfa},${c.total_sakit},"${pctFormatted}%"\n`;
     });
 
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', URL.createObjectURL(blob));
     link.setAttribute('download', `rekap_kehadiran_kelas_minggu_${mingguVal}_${bulanVal}.csv`);
     document.body.appendChild(link);
     link.click();

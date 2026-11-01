@@ -14,6 +14,47 @@ function mapToGroupKey(unitName = '') {
     return 'KBEC Reguler';
 }
 
+function normalizeClassName(str) {
+    return String(str || '').replace(/&amp;amp;/gi, '&').replace(/&amp;/gi, '&').trim().toLowerCase();
+}
+
+function cleanClassDisplay(str) {
+    return String(str || '').replace(/&amp;amp;/gi, '&').replace(/&amp;/gi, '&').trim();
+}
+
+/**
+ * Helper terpadu: Menggabungkan dan mendeduplikasi presensi harian dari attendance dan student_grades
+ * Kunci deduplikasi: student_id | tanggal (YYYY-MM-DD)
+ */
+function buildUnifiedStudentDateMap(attRows = [], gradeRows = []) {
+    const studentAttMap = {};
+    (attRows || []).forEach(a => {
+        const sid = String(a.student_id || '').trim();
+        const tgl = a.tgl || a.tanggal;
+        if (!sid || !tgl) return;
+        if (!studentAttMap[sid]) studentAttMap[sid] = {};
+        studentAttMap[sid][tgl] = {
+            status: String(a.status || '').toLowerCase().trim(),
+            class: cleanClassDisplay(a.kelas || a.class_name || '')
+        };
+    });
+
+    (gradeRows || []).forEach(g => {
+        const sid = String(g.student_id || '').trim();
+        const tgl = g.tgl || g.tanggal;
+        if (!sid || !tgl) return;
+        if (!studentAttMap[sid]) studentAttMap[sid] = {};
+        if (!studentAttMap[sid][tgl]) {
+            studentAttMap[sid][tgl] = {
+                status: String(g.presensi || g.status || 'hadir').toLowerCase().trim(),
+                class: cleanClassDisplay(g.class_name || g.kelas || '')
+            };
+        }
+    });
+
+    return studentAttMap;
+}
+
 /**
  * 1. GET /api/reports/attendance-recap
  */
@@ -68,7 +109,7 @@ async function getAttendanceRecap(req, res, next) {
         let classes = [];
         try {
             const [cRows] = await db.query(`
-                SELECT c.id, c.nama, c.program, c.pengajar, c.teacher_id, t.nama AS teacher_name_ref
+                SELECT c.id, c.nama, c.program, c.unit, c.pengajar, c.teacher_id, t.nama AS teacher_name_ref
                 FROM classes c
                 LEFT JOIN teachers t ON c.teacher_id = t.id
                 ORDER BY c.nama ASC
@@ -94,7 +135,7 @@ async function getAttendanceRecap(req, res, next) {
         let filteredStudents = students;
         if (filterUnit) {
             filteredStudents = students.filter(s => {
-                const u = (s.unit || resolveStudentUnit(s.id, s.program, s.level)).toLowerCase();
+                const u = resolveStudentUnit(s.id, s.program, s.level, s.unit).toLowerCase();
                 const p = (s.program || '').toLowerCase();
                 const l = (s.level || '').toLowerCase();
                 return u.includes(filterUnit) || p.includes(filterUnit) || l.includes(filterUnit);
@@ -104,7 +145,7 @@ async function getAttendanceRecap(req, res, next) {
         const studentMap = {};
         filteredStudents.forEach(s => {
             const sid = String(s.id).toLowerCase();
-            const resolvedUnit = s.unit || resolveStudentUnit(s.id, s.program, s.level);
+            const resolvedUnit = resolveStudentUnit(s.id, s.program, s.level, s.unit);
             
             let createdDate = null;
             if (s.created_at) {
@@ -119,7 +160,7 @@ async function getAttendanceRecap(req, res, next) {
                 id: s.id,
                 nama: s.nama,
                 unit: resolvedUnit,
-                program: s.program || s.level || 'KBEC',
+                program: cleanClassDisplay(s.program || s.level || 'KBEC'),
                 createdDate: createdDate,
                 recordsWeek: []
             };
@@ -148,9 +189,6 @@ async function getAttendanceRecap(req, res, next) {
         } catch (e) {
             console.error('Error fetching student_grades:', e.message);
         }
-
-        const normalizeClassName = (str) => String(str || '').replace(/&amp;amp;/gi, '&').replace(/&amp;/gi, '&').trim().toLowerCase();
-        const cleanClassDisplay = (str) => String(str || '').replace(/&amp;amp;/gi, '&').replace(/&amp;/gi, '&').trim();
 
         // Deduplikasi presensi harian per sesi agar attendance dan student_grades tidak terhitung ganda
         const studentSessionMap = new Map();
@@ -257,7 +295,7 @@ async function getAttendanceRecap(req, res, next) {
         classes.forEach(c => {
             const cid = String(c.id);
             const teacherName = c.teacher_name_ref || c.pengajar || 'Pengajar KBEC';
-            const unitName = resolveStudentUnit('', c.program, c.program, c.program);
+            const unitName = resolveStudentUnit('', c.program || c.nama, c.nama, c.unit);
             
             if (filterUnit) {
                 const uLower = unitName.toLowerCase();
@@ -270,7 +308,7 @@ async function getAttendanceRecap(req, res, next) {
                 nama_kelas: cleanClassDisplay(c.nama) || 'Kelas KBEC',
                 nama_guru: teacherName,
                 unit: unitName,
-                program: c.program || 'KBEC',
+                program: cleanClassDisplay(c.program || c.nama) || 'KBEC',
                 total_hadir: 0,
                 total_ijin: 0,
                 total_alfa: 0,
@@ -533,9 +571,9 @@ async function getStudentPerformanceReport(req, res, next) {
             });
 
             const pct = totalSesi > 0 ? parseFloat(((hadirCount / totalSesi) * 100).toFixed(1)) : 0;
-            const unitName = std.unit || resolveStudentUnit(std.id, std.program, std.level);
+            const unitName = resolveStudentUnit(std.id, std.program, std.level, std.unit);
 
-            const gradeVal = stdPerf.grade || latestGrade.grade || std.level || std.program || '-';
+            const gradeVal = cleanClassDisplay(stdPerf.grade || latestGrade.grade || std.level || std.program || '-');
             const lessonVal = stdPerf.lesson || stdPerf.materi || latestGrade.lesson || '-';
             const materiTambahanVal = stdPerf.materi_tambahan || stdPerf.material_tambahan || latestGrade.material_tambahan || '-';
             const catatanVal = stdPerf.catatan || stdPerf.keterangan || latestGrade.keterangan || latestGrade.notes || '-';
@@ -547,7 +585,7 @@ async function getStudentPerformanceReport(req, res, next) {
                 nis: std.id,
                 nama: std.nama || 'Siswa KBEC',
                 unit: unitName,
-                program: std.program || std.level || 'KBEC',
+                program: cleanClassDisplay(std.program || std.level || 'KBEC'),
                 grade: gradeVal,
                 lesson: lessonVal,
                 total_hadir: hadirCount,
@@ -612,27 +650,27 @@ async function getProblematicStudentsReport(req, res, next) {
             ORDER BY nama ASC
         `);
 
-        // 2. Ambil relasi kelas & pengajar
+        // 2. Ambil relasi kelas & pengajar (mendukung siswa yang terdaftar di beberapa kelas)
         const [classStudentRows] = await db.query(`
-            SELECT cs.student_id, cs.class_id, c.nama AS class_name, c.unit AS class_unit,
+            SELECT cs.student_id, cs.class_id, c.nama AS class_name, c.program AS class_program, c.unit AS class_unit,
                    c.pengajar, c.teacher_id, t.nama AS teacher_name, t.kontak AS teacher_phone
             FROM class_students cs
             JOIN classes c ON cs.class_id = c.id
             LEFT JOIN teachers t ON c.teacher_id = t.id
         `);
 
-        const studentClassMap = {};
+        const studentClassListMap = {};
         (classStudentRows || []).forEach(row => {
             const sid = String(row.student_id);
-            if (!studentClassMap[sid]) {
-                studentClassMap[sid] = {
-                    class_id: row.class_id,
-                    class_name: row.class_name,
-                    unit: row.class_unit,
-                    pengajar: row.teacher_name || row.pengajar || 'Belum Ditugaskan',
-                    teacher_phone: row.teacher_phone || '-'
-                };
-            }
+            if (!studentClassListMap[sid]) studentClassListMap[sid] = [];
+            studentClassListMap[sid].push({
+                class_id: row.class_id,
+                class_name: cleanClassDisplay(row.class_name),
+                norm_class_name: normalizeClassName(row.class_name),
+                unit: resolveStudentUnit(sid, row.class_program || row.class_name, row.class_name, row.class_unit),
+                pengajar: row.teacher_name || row.pengajar || 'Belum Ditugaskan',
+                teacher_phone: row.teacher_phone || '-'
+            });
         });
 
         // 3. Ambil absensi harian dan grade dalam rentang tanggal
@@ -650,21 +688,8 @@ async function getProblematicStudentsReport(req, res, next) {
             ORDER BY tanggal ASC
         `, [startDate, endDate]);
 
-        // Gabungkan catatan kehadiran per siswa
-        const studentAttMap = {};
-        (attRows || []).forEach(a => {
-            const sid = String(a.student_id);
-            if (!studentAttMap[sid]) studentAttMap[sid] = {};
-            if (a.tgl) studentAttMap[sid][a.tgl] = { status: a.status, class: a.kelas };
-        });
-
-        (gradeRows || []).forEach(g => {
-            const sid = String(g.student_id);
-            if (!studentAttMap[sid]) studentAttMap[sid] = {};
-            if (g.tgl && !studentAttMap[sid][g.tgl]) {
-                studentAttMap[sid][g.tgl] = { status: g.presensi || 'hadir', class: g.class_name };
-            }
-        });
+        // Gabungkan catatan kehadiran per siswa dengan helper terpadu
+        const studentAttMap = buildUnifiedStudentDateMap(attRows, gradeRows);
 
         // 4. Hitung statistik dan evaluasi kriteria bermasalah
         const problematicList = [];
@@ -673,8 +698,18 @@ async function getProblematicStudentsReport(req, res, next) {
 
         (students || []).forEach(s => {
             const sid = String(s.id);
-            const dateMap = studentAttMap[sid] || {};
-            const dates = Object.keys(dateMap).sort();
+            const enrolledClasses = studentClassListMap[sid] || [];
+            const allowedClassNames = new Set(enrolledClasses.map(c => c.norm_class_name).filter(Boolean));
+            const rawDateMap = studentAttMap[sid] || {};
+            const allDates = Object.keys(rawDateMap).sort();
+            // Saring hanya pertemuan yang sesuai dengan kelas resmi siswa (jika siswa sudah terdaftar di class_students)
+            const dates = allowedClassNames.size > 0
+                ? allDates.filter(d => {
+                    const recClass = normalizeClassName(rawDateMap[d].class);
+                    return !recClass || allowedClassNames.has(recClass);
+                })
+                : allDates;
+            const dateMap = rawDateMap;
             const totalSesi = dates.length;
 
             let hadirCount = 0;
@@ -725,9 +760,14 @@ async function getProblematicStudentsReport(req, res, next) {
                 if (severityLevel === 'critical') totalCritical++;
                 if (severityLevel === 'warning') totalWarning++;
 
-                const clsInfo = studentClassMap[sid] || {
-                    class_name: (dates.length > 0 && dateMap[dates[dates.length - 1]].class) ? dateMap[dates[dates.length - 1]].class : 'Reguler',
-                    unit: s.unit || resolveStudentUnit(s.id, s.program, s.level),
+                const enrolledClasses = studentClassListMap[sid] || [];
+                const lastRecordedClass = (dates.length > 0 && dateMap[dates[dates.length - 1]].class) ? cleanClassDisplay(dateMap[dates[dates.length - 1]].class) : '';
+                const matchedEnrollment = enrolledClasses.find(c => lastRecordedClass && c.norm_class_name === normalizeClassName(lastRecordedClass)) || enrolledClasses[0];
+
+                const resolvedStudentUnit = resolveStudentUnit(s.id, s.program, s.level, s.unit);
+                const clsInfo = matchedEnrollment || {
+                    class_name: lastRecordedClass || 'Reguler',
+                    unit: resolvedStudentUnit,
                     pengajar: 'Belum Ditugaskan'
                 };
 
@@ -756,9 +796,9 @@ async function getProblematicStudentsReport(req, res, next) {
                     nama_ortu: s.nama_ibu || s.nama_ayah || 'Wali Murid',
                     kontak: s.kontak || '',
                     wa_number: formattedWa,
-                    unit: clsInfo.unit || s.unit || resolveStudentUnit(s.id, s.program, s.level),
-                    program: s.program || s.level || 'KBEC',
-                    kelas: clsInfo.class_name || '-',
+                    unit: resolvedStudentUnit || clsInfo.unit,
+                    program: cleanClassDisplay(s.program || s.level || 'KBEC'),
+                    kelas: cleanClassDisplay(clsInfo.class_name || '-'),
                     pengajar: clsInfo.pengajar || 'Belum Ditugaskan',
                     hadir: hadirCount,
                     izin: izinCount,
@@ -799,6 +839,12 @@ async function getProblematicStudentsReport(req, res, next) {
 
         res.json({
             success: true,
+            filter: {
+                start_date: startDate,
+                end_date: endDate,
+                unit: unit || 'Semua',
+                severity: severity || 'Semua'
+            },
             summary: {
                 total_problematic: filtered.filter(f => f.severity === 'critical').length,
                 total_flagged: filtered.length,
@@ -861,22 +907,28 @@ async function getTeacherMonthlyPerformanceReport(req, res, next) {
 
         // 4. Ambil absensi siswa bulan ini untuk hitung siswa bermasalah per kelas
         const [attRows] = await db.query(`
-            SELECT a.student_id, a.kelas, a.status, TO_CHAR(a.tanggal::timestamp, 'YYYY-MM-DD') AS tanggal
+            SELECT a.student_id, a.kelas, LOWER(TRIM(a.status)) AS status, TO_CHAR(a.tanggal::timestamp, 'YYYY-MM-DD') AS tanggal
             FROM attendance a
             WHERE a.tanggal::text LIKE ?
         `, [`${bulan}-%`]);
 
         // 5. Ambil data pengisian grade/nilai siswa
         const [gradeRows] = await db.query(`
-            SELECT class_name, student_id, presensi, sb_page, wb_page, TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') AS tanggal
+            SELECT class_name, student_id, LOWER(TRIM(presensi)) AS presensi, sb_page, wb_page, TO_CHAR(tanggal::timestamp, 'YYYY-MM-DD') AS tanggal
             FROM student_grades
             WHERE tanggal::text LIKE ?
         `, [`${bulan}-%`]);
 
-        // 6. Ambil relasi murid per kelas untuk isolasi data guru
+        // 6. Ambil relasi murid aktif per kelas untuk isolasi data guru yang konsisten dengan Laporan Siswa Bermasalah
         const [classStudentRows] = await db.query(`
-            SELECT class_id, student_id FROM class_students
+            SELECT cs.class_id, cs.student_id
+            FROM class_students cs
+            JOIN students s ON cs.student_id = s.id
+            WHERE (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')
         `);
+
+        // Gabungkan attendance + student_grades secara konsisten (identik dengan getProblematicStudentsReport)
+        const unifiedStudentAttMap = buildUnifiedStudentDateMap(attRows, gradeRows);
 
         const reportList = (teachers || []).map((t, idx) => {
             const tId = t.id;
@@ -902,7 +954,7 @@ async function getTeacherMonthlyPerformanceReport(req, res, next) {
             let punctualCount = 0;
             let lateCount = 0;
             teachingSessions.forEach(s => {
-                const cls = myClasses.find(c => String(c.id) === String(s.class_id) || (c.nama && c.nama.toLowerCase() === (s.class_name || '').toLowerCase()));
+                const cls = myClasses.find(c => String(c.id) === String(s.class_id) || (c.nama && normalizeClassName(c.nama) === normalizeClassName(s.class_name)));
                 if (cls && cls.mulai && s.jam) {
                     const [cHour, cMin] = cls.mulai.split(':').map(Number);
                     const [sHour, sMin] = s.jam.split(':').map(Number);
@@ -921,18 +973,18 @@ async function getTeacherMonthlyPerformanceReport(req, res, next) {
             // Kepatuhan input nilai/evaluasi
             let totalGradeRecords = 0;
             myClasses.forEach(c => {
-                const cName = (c.nama || '').toLowerCase();
-                const count = (gradeRows || []).filter(g => (g.class_name || '').toLowerCase() === cName).length;
+                const cName = normalizeClassName(c.nama);
+                const count = (gradeRows || []).filter(g => normalizeClassName(g.class_name) === cName).length;
                 totalGradeRecords += count;
             });
 
-            // Pemetaan murid kelas guru ini (Isolasi ketat agar tidak bocor antar kelas bernama sama)
+            // Pemetaan murid kelas guru ini (Isolasi ketat agar konsisten dengan Laporan Siswa Bermasalah)
             const teacherStudentClassMap = new Map();
             (classStudentRows || []).forEach(cs => {
                 if (myClassIds.includes(String(cs.class_id))) {
                     const sid = String(cs.student_id);
                     const matchingClass = myClasses.find(c => String(c.id) === String(cs.class_id));
-                    const cName = matchingClass ? (matchingClass.nama || '').toLowerCase().replace(/&amp;/g, '&').trim() : '';
+                    const cName = matchingClass ? normalizeClassName(matchingClass.nama) : '';
                     if (!teacherStudentClassMap.has(sid)) {
                         teacherStudentClassMap.set(sid, new Set());
                     }
@@ -940,47 +992,57 @@ async function getTeacherMonthlyPerformanceReport(req, res, next) {
                 }
             });
 
-            const relevantAtt = (attRows || []).filter(a => {
-                const sid = String(a.student_id || '').trim();
-                if (!teacherStudentClassMap.has(sid)) return false;
-                const aKelasClean = (a.kelas || '').toLowerCase().replace(/&amp;/g, '&').trim();
-                const allowedClasses = teacherStudentClassMap.get(sid);
-                return !aKelasClean || allowedClasses.has(aKelasClean);
-            });
-
-            // Hitung statistik per siswa di kelas guru ini
-            const studentStats = {};
-            relevantAtt.forEach(a => {
-                const sid = String(a.student_id);
-                if (!studentStats[sid]) studentStats[sid] = { hadir: 0, alpha: 0, izin: 0, total: 0 };
-                studentStats[sid].total++;
-                const st = String(a.status || '').toLowerCase();
-                if (st.includes('hadir') || st === 'h') studentStats[sid].hadir++;
-                else if (st.includes('alpha') || st.includes('alfa') || st === 'a') studentStats[sid].alpha++;
-                else if (st.includes('izin') || st.includes('ijin') || st.includes('sakit') || st === 'i' || st === 's') studentStats[sid].izin++;
-            });
-
             let criticalCount = 0;
             let warningCount = 0;
             let infoCount = 0;
-            Object.values(studentStats).forEach(s => {
-                const rate = s.total > 0 ? (s.hadir / s.total) * 100 : 100;
-                if (s.alpha >= 3) criticalCount++;
-                else if (s.alpha >= 1 && s.total >= 3 && rate < 75) warningCount++;
-                else if (s.alpha === 0 && s.total >= 3 && rate < 75 && s.izin > 0) infoCount++;
+
+            teacherStudentClassMap.forEach((allowedClasses, sid) => {
+                const dateMap = unifiedStudentAttMap[sid] || {};
+                const dates = Object.keys(dateMap).sort();
+                let hadir = 0;
+                let alpha = 0;
+                let izin = 0;
+                let total = 0;
+
+                dates.forEach(d => {
+                    const rec = dateMap[d];
+                    const recClass = normalizeClassName(rec.class);
+                    if (recClass && allowedClasses.size > 0 && !allowedClasses.has(recClass)) return;
+
+                    total++;
+                    const st = String(rec.status || '').toLowerCase().trim();
+                    if (st.includes('hadir') || st === 'h') hadir++;
+                    else if (st.includes('alpha') || st.includes('alfa') || st === 'a') alpha++;
+                    else if (st.includes('izin') || st.includes('ijin') || st.includes('sakit') || st === 'i' || st === 's') izin++;
+                });
+
+                const rate = total > 0 ? Math.round((hadir / total) * 100) : 100;
+                if (alpha >= 3) criticalCount++;
+                else if (alpha >= 1 && total >= 3 && rate < 75) warningCount++;
+                else if (alpha === 0 && total >= 3 && rate < 75 && izin > 0) infoCount++;
             });
 
             const problematicCount = criticalCount; // Hanya kritis alpha yang dihitung bermasalah
             const atRiskCount = criticalCount + warningCount + infoCount;
 
-            // Hitung KPI Score (0 - 100)
-            const sAttendance = totalTeachingSessions > 0 ? Math.min(100, totalTeachingSessions * 10) : 70;
+            // Hitung KPI Score (0 - 100) dengan Rubrik Sensitif:
+            // 1. Ketepatan Waktu (40%): Persentase sesi tepat waktu (toleransi <= 15 menit)
+            // 2. Kesehatan Kelas / Siswa Kritis (30%): Penalti -8 poin per siswa Kritis, -3 poin per siswa Peringatan (tanpa batas bawah 50)
+            // 3. Keaktifan & Realisasi Sesi (15%): Proporsional terhadap realisasi sesi mengajar
+            // 4. Kepatuhan Input Evaluasi Nilai (15%): Proporsional terhadap kelengkapan input nilai
             const sPunctuality = punctualityRate;
-            const sGrading = myClasses.length > 0 ? (totalGradeRecords > 0 ? 95 : 60) : 85;
-            // Guru hanya dipotong jika ada murid bermasalah Kritis Alpha >= 3
-            const sHealth = Math.max(50, 100 - (criticalCount * 10));
+            const sHealth = Math.max(0, 100 - (criticalCount * 8) - (warningCount * 3));
+            const sAttendance = totalTeachingSessions > 0 ? Math.min(100, totalTeachingSessions * 10) : 70;
+            const sGrading = myClasses.length > 0
+                ? (totalGradeRecords > 0 ? Math.min(100, 75 + Math.min(25, Math.round(totalGradeRecords / Math.max(1, totalTeachingSessions) * 3))) : 50)
+                : 85;
 
-            const overallScore = Math.round((sAttendance * 0.35) + (sPunctuality * 0.30) + (sGrading * 0.20) + (sHealth * 0.15));
+            const overallScore = Math.round(
+                (sPunctuality * 0.40) +
+                (sHealth * 0.30) +
+                (sAttendance * 0.15) +
+                (sGrading * 0.15)
+            );
 
             let kpiGrade = 'B';
             let kpiPredikat = 'Baik';
@@ -1004,13 +1066,16 @@ async function getTeacherMonthlyPerformanceReport(req, res, next) {
                 badgeClass = 'text-rose-700 bg-rose-50 border-rose-200';
             }
 
+            const firstClass = myClasses.length > 0 ? myClasses[0] : null;
+            const resolvedTeacherUnit = t.unit || (firstClass ? resolveStudentUnit('', firstClass.program || firstClass.nama, firstClass.nama, firstClass.unit) : 'KBEC Reguler');
+
             return {
                 no: idx + 1,
                 id: t.id,
                 nama: t.nama || 'Pengajar KBEC',
                 email: t.email || '-',
-                phone: t.phone || '-',
-                unit: t.unit || (myClasses.length > 0 ? myClasses[0].unit : 'KBEC Reguler'),
+                phone: t.kontak || t.phone || '-',
+                unit: resolvedTeacherUnit,
                 total_classes: myClasses.length,
                 total_sessions_taught: totalTeachingSessions,
                 punctual_count: punctualCount,
@@ -1018,9 +1083,19 @@ async function getTeacherMonthlyPerformanceReport(req, res, next) {
                 punctuality_rate: punctualityRate,
                 grading_records_count: totalGradeRecords,
                 problematic_students_count: problematicCount,
+                critical_students_count: criticalCount,
+                warning_students_count: warningCount,
+                info_students_count: infoCount,
+                at_risk_students_count: atRiskCount,
                 kpi_score: overallScore,
                 kpi_grade: kpiGrade,
                 kpi_predikat: kpiPredikat,
+                kpi_breakdown: {
+                    ketepatan_waktu: sPunctuality,
+                    kesehatan_kelas: sHealth,
+                    realisasi_sesi: sAttendance,
+                    input_nilai: sGrading
+                },
                 badge_class: badgeClass
             };
         });
@@ -1052,6 +1127,20 @@ async function getTeacherMonthlyPerformanceReport(req, res, next) {
         res.json({
             success: true,
             bulan: bulan,
+            kpi_rubric: {
+                weights: {
+                    ketepatan_waktu: '40%',
+                    kesehatan_kelas: '30% (-8 poin/Kritis, -3 poin/Peringatan)',
+                    realisasi_sesi: '15%',
+                    input_nilai: '15%'
+                },
+                grades: {
+                    A: '85 - 100 (Sangat Baik)',
+                    B: '70 - 84 (Baik)',
+                    C: '55 - 69 (Cukup / Perlu Pembinaan)',
+                    D: '< 55 (Perlu Pembinaan Khusus)'
+                }
+            },
             summary: {
                 total_teachers: filtered.length,
                 avg_kpi: avgKpi,
@@ -1077,6 +1166,6 @@ module.exports = {
     getAttendanceRecap,
     getStudentPerformanceReport,
     getProblematicStudentsReport,
-    getTeacherMonthlyPerformanceReport
+    getTeacherMonthlyPerformanceReport,
+    buildUnifiedStudentDateMap
 };
-

@@ -15,11 +15,11 @@ const STUDENT_STATUSES = ['Aktif', 'Nonaktif', 'Alumni', 'Cuti'];
 function normalizeUnit(input) {
     const t = String(input === null || input === undefined ? '' : input).toLowerCase().trim();
     if (!t) return null;
-    if (t.includes('kbec') || t.includes('english')) return 'KBEC';
+    if (t.includes('kbec') || t.includes('english') || t.includes('beginner') || t.includes('elementary') || t.includes('intermediate') || t.includes('advanced')) return 'KBEC';
     if (t.includes('calistung')) return 'Calistung';
-    if (t.includes('bimbel') || t.includes('bimbingan')) return 'Bimbel';
+    if (t.includes('bimbel') || t.includes('bimbingan') || /\bmtk\b/.test(t) || t.includes('matematika') || t.includes('akademik sd')) return 'Bimbel';
     if (t.includes('arabin')) return 'Arabin';
-    if (t.startsWith('tk') || t.includes('paud') || t.includes('preschool')) return 'TK';
+    if (/^tk\b|\btk\b|\btka\b|\btkb\b|\bkb\b/.test(t) || t.includes('paud') || t.includes('preschool') || t.includes('ar-rasyiid') || t.includes('ar-rasyid')) return 'TK';
     return null;
 }
 
@@ -125,13 +125,29 @@ function resolveStudentUnit(studentId = '', program = '', level = '', unit = '')
     if (id.endsWith('-C') || prog.includes('calistung') || lvl.includes('calistung')) {
         return 'Calistung';
     }
-    if (id.endsWith('-B') || prog.includes('bimbel') || prog.includes('akademik sd') || lvl.includes('bimbel')) {
+    if (
+        id.endsWith('-B') ||
+        prog.includes('bimbel') ||
+        prog.includes('akademik sd') ||
+        prog.includes('matematika') ||
+        /\bmtk\b/.test(prog) ||
+        lvl.includes('bimbel') ||
+        lvl.includes('matematika') ||
+        /\bmtk\b/.test(lvl)
+    ) {
         return 'Bimbel';
     }
     if (id.endsWith('-A') || prog.includes('arabin') || lvl.includes('arabin')) {
         return 'Arabin';
     }
-    if (id.endsWith('-TK') || prog.includes('preschool') || ['kb', 'tka', 'tkb'].includes(prog) || lvl.includes('tk')) {
+    if (
+        id.endsWith('-TK') ||
+        prog.includes('preschool') ||
+        prog.includes('paud') ||
+        ['kb', 'tka', 'tkb', 'tk a', 'tk b', 'tk-a', 'tk-b'].includes(prog) ||
+        /\btk\b|\btka\b|\btkb\b|\bkb\b/.test(prog) ||
+        /\btk\b|\btka\b|\btkb\b|\bkb\b/.test(lvl)
+    ) {
         return 'TK';
     }
     return 'KBEC';

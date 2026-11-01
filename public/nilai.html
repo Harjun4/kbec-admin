@@ -503,6 +503,26 @@
                 </div>
             </div>
 
+            <!-- TAB NAVIGASI UTAMA TINGKAT PROGRAM / GRADE SISWA -->
+            <div class="mb-5">
+                <div class="flex items-center justify-between gap-3 mb-2 px-1">
+                    <span class="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                        <i data-lucide="layers" class="w-3.5 h-3.5 text-[#0A58CA]"></i>
+                        Pilih Program / Tingkat Grade Siswa:
+                    </span>
+                    <span id="active-grade-indicator" class="text-[11px] font-bold text-[#0A58CA] bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100 flex items-center gap-1">
+                        <i data-lucide="award" class="w-3 h-3"></i> Memuat Grade...
+                    </span>
+                </div>
+                
+                <!-- Horizontal scrolling tab bar -->
+                <div id="program-tabs-container" class="flex items-center gap-2 overflow-x-auto pb-2 pt-1 custom-scrollbar">
+                    <div class="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 bg-white border border-slate-200 animate-pulse">
+                        Memuat daftar grade...
+                    </div>
+                </div>
+            </div>
+
             <!-- CARD KONTROL FILTER KELAS, PERIODE, DAN TAHUN AJARAN -->
             <div id="filter-bar" class="bg-white border border-slate-200/80 rounded-2xl p-4 sm:p-5 shadow-xs mb-6">
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
@@ -510,7 +530,7 @@
                     <!-- 1. Dropdown Pilih Kelas -->
                     <div class="space-y-1.5">
                         <label class="text-[11px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                            <span>Pilih Kelas Belajar</span>
+                            <span>Filter Kelas (Sekunder)</span>
                             <span id="class-count-badge" class="text-[9px] text-[#0A58CA] bg-blue-50 px-1.5 py-0.2 rounded font-bold">0 Kelas</span>
                         </label>
                         <div class="relative">
@@ -843,8 +863,10 @@
             });
         }
         
+        let programsData = [];
+        let currentProgramGrade = null;
         let classesData = [];
-        let currentClassId = null;
+        let currentClassId = 'all';
         let currentStudents = [];
         let filteredStudents = [];
         let currentClassSubjects = [];
@@ -900,6 +922,7 @@
             setupUserInfo();
             
             const urlParams = new URLSearchParams(window.location.search);
+            const initialProgram = urlParams.get('program') || urlParams.get('grade');
             const initialClassId = urlParams.get('class_id') || urlParams.get('kelas_id');
             const initialTerm = urlParams.get('term') || urlParams.get('periode');
 
@@ -908,7 +931,7 @@
                 if (termSelect) termSelect.value = initialTerm;
             }
 
-            await loadClasses(initialClassId);
+            await loadProgramsAndClasses(initialProgram, initialClassId);
 
             document.getElementById('print-date').innerText = new Date().toLocaleDateString('id-ID', {
                 day: 'numeric', month: 'long', year: 'numeric'
@@ -940,50 +963,120 @@
             }
         }
 
-        async function loadClasses(preferredClassId) {
-            const selectEl = document.getElementById('select-class');
-            selectEl.innerHTML = '<option value="" disabled selected>Memuat daftar kelas...</option>';
+        async function loadProgramsAndClasses(preferredProgram, preferredClassId) {
+            const tabsContainer = document.getElementById('program-tabs-container');
+            const selectClassEl = document.getElementById('select-class');
 
             try {
-                const res = await authFetch(`${API_BASE}/api/grades/classes`);
-                if (!res.ok) throw new Error('Gagal memuat daftar kelas');
+                const res = await authFetch(`${API_BASE}/api/grades/programs`);
+                if (!res.ok) throw new Error('Gagal memuat daftar program/grade');
                 const data = await res.json();
-                classesData = data.classes || [];
+                programsData = data.programs || [];
 
-                document.getElementById('class-count-badge').innerText = `${classesData.length} Kelas`;
-
-                if (classesData.length === 0) {
-                    selectEl.innerHTML = '<option value="" disabled selected>Tidak ada kelas yang ditugaskan</option>';
-                    showEmptyState('Tidak ada kelas yang tersedia untuk akun Anda.');
+                if (programsData.length === 0) {
+                    tabsContainer.innerHTML = '<div class="text-xs text-slate-400 p-2 font-semibold">Tidak ada program/grade siswa yang aktif.</div>';
+                    selectClassEl.innerHTML = '<option value="all">Tidak ada data</option>';
+                    showEmptyState('Tidak ada program/grade yang tersedia.');
                     return;
                 }
 
-                selectEl.innerHTML = '';
-                classesData.forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c.id;
-                    opt.innerText = `${c.nama} (${c.program || 'Reguler'} - ${c.students_count || 0} Siswa)`;
-                    selectEl.appendChild(opt);
-                });
+                // Render Tab Buttons Program / Grade
+                renderProgramTabs();
 
-                if (preferredClassId && classesData.some(c => String(c.id) === String(preferredClassId))) {
-                    selectEl.value = preferredClassId;
-                } else {
-                    selectEl.value = classesData[0].id;
+                // Tentukan Program yang Aktif
+                let selectedProgram = programsData[0].name;
+                if (preferredProgram && programsData.some(p => p.name.toLowerCase() === preferredProgram.toLowerCase())) {
+                    selectedProgram = programsData.find(p => p.name.toLowerCase() === preferredProgram.toLowerCase()).name;
+                } else if (preferredClassId) {
+                    // Cari program yang menampung preferredClassId
+                    for (const p of programsData) {
+                        if (p.classes.some(c => String(c.id) === String(preferredClassId))) {
+                            selectedProgram = p.name;
+                            break;
+                        }
+                    }
                 }
 
-                currentClassId = selectEl.value;
-                await loadGrades();
+                await selectProgramTab(selectedProgram, preferredClassId, true);
             } catch (err) {
-                console.error(err);
-                selectEl.innerHTML = '<option value="" disabled selected>Gagal memuat kelas</option>';
+                console.error('Error in loadProgramsAndClasses:', err);
+                tabsContainer.innerHTML = `<div class="text-xs text-rose-500 p-2 font-bold">Gagal memuat grade: ${err.message}</div>`;
                 showToast(`Kesalahan: ${err.message}`, 'error');
             }
         }
 
+        function renderProgramTabs() {
+            const tabsContainer = document.getElementById('program-tabs-container');
+            if (!tabsContainer) return;
+
+            tabsContainer.innerHTML = programsData.map(p => {
+                const isActive = (p.name === currentProgramGrade);
+                const activeBtnClass = isActive
+                    ? 'bg-[#0A58CA] text-white shadow-xs font-bold border-[#0A58CA]'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 font-semibold border-slate-200/80';
+                const activeBadgeClass = isActive
+                    ? 'bg-white/20 text-white font-extrabold'
+                    : 'bg-slate-100 text-slate-600 font-bold';
+
+                return `
+                    <button type="button" onclick="selectProgramTab('${escapeHtmlAttr(p.name)}')"
+                        class="px-4 py-2 rounded-xl text-xs whitespace-nowrap transition-all border flex items-center gap-2 cursor-pointer shrink-0 ${activeBtnClass}">
+                        <span>${escapeHtml(p.name)}</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full ${activeBadgeClass}">${p.total_students}</span>
+                    </button>
+                `;
+            }).join('');
+        }
+
+        async function selectProgramTab(programName, preferredClassId = null, isInitial = false) {
+            if (!isInitial && isDirty) {
+                if (!confirm('Ada perubahan nilai yang belum disimpan pada grade saat ini. Apakah Anda yakin ingin berpindah grade?')) {
+                    return;
+                }
+            }
+
+            currentProgramGrade = programName;
+            renderProgramTabs();
+
+            // Update badge indikator
+            const progObj = programsData.find(p => p.name === programName) || { total_students: 0, classes: [] };
+            const indEl = document.getElementById('active-grade-indicator');
+            if (indEl) {
+                indEl.innerHTML = `<i data-lucide="award" class="w-3 h-3"></i> ${escapeHtml(programName)} • ${progObj.total_students} Siswa`;
+            }
+
+            // Populate Secondary Class Filter
+            const selectClassEl = document.getElementById('select-class');
+            selectClassEl.innerHTML = '';
+
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.innerText = `Semua Kelas (${progObj.total_students} Siswa Rekap)`;
+            selectClassEl.appendChild(allOpt);
+
+            progObj.classes.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.innerText = `${c.nama} (${c.students_count} Siswa - ${c.pengajar || 'Pengajar'})`;
+                selectClassEl.appendChild(opt);
+            });
+
+            document.getElementById('class-count-badge').innerText = `${progObj.classes.length} Kelas Terhubung`;
+
+            if (preferredClassId && (preferredClassId === 'all' || progObj.classes.some(c => String(c.id) === String(preferredClassId)))) {
+                selectClassEl.value = preferredClassId;
+            } else {
+                selectClassEl.value = 'all';
+            }
+
+            currentClassId = selectClassEl.value;
+            setDirty(false);
+            await loadGrades();
+        }
+
         async function onClassChange() {
             if (isDirty) {
-                if (!confirm('Ada perubahan nilai yang belum disimpan di kelas saat ini. Apakah Anda yakin ingin berpindah kelas?')) {
+                if (!confirm('Ada perubahan nilai yang belum disimpan di filter kelas saat ini. Apakah Anda yakin ingin berpindah filter kelas?')) {
                     document.getElementById('select-class').value = currentClassId;
                     return;
                 }
@@ -994,14 +1087,14 @@
         }
 
         async function loadGrades() {
-            if (!currentClassId) return;
+            if (!currentProgramGrade && !currentClassId) return;
 
             const tbody = document.getElementById('grade-table-body');
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="25" class="py-12 text-center text-slate-400 font-medium">
+                    <td colspan="26" class="py-12 text-center text-slate-400 font-medium">
                         <div class="inline-block animate-spin rounded-full h-6 w-6 border-2 border-[#0A58CA] border-t-transparent mb-2"></div>
-                        <p class="text-xs">Memuat lembar nilai siswa...</p>
+                        <p class="text-xs">Memuat lembar nilai tingkat ${escapeHtml(currentProgramGrade || 'grade')}...</p>
                     </td>
                 </tr>
             `;
@@ -1010,7 +1103,11 @@
             const year = document.getElementById('select-year').value;
 
             try {
-                const res = await authFetch(`${API_BASE}/api/grades?class_id=${currentClassId}&term_or_period=${encodeURIComponent(term)}&academic_year=${encodeURIComponent(year)}`);
+                let url = `${API_BASE}/api/grades?term_or_period=${encodeURIComponent(term)}&academic_year=${encodeURIComponent(year)}`;
+                if (currentProgramGrade) url += `&program_or_grade=${encodeURIComponent(currentProgramGrade)}`;
+                if (currentClassId) url += `&class_id=${encodeURIComponent(currentClassId)}`;
+
+                const res = await authFetch(url);
                 if (!res.ok) {
                     const errData = await res.json().catch(() => ({}));
                     throw new Error(errData.message || 'Gagal memuat nilai siswa');
@@ -1023,9 +1120,12 @@
                 currentLessonsFromKinerja = (data.lessons_from_kinerja || []).map(l => decodeHtmlEntities(l));
                 currentClassRankedSummary = data.ranked_summary || [];
 
-                document.getElementById('current-class-title').innerText = `${cls.nama || 'Kelas'} • ${term} (${year})`;
-                document.getElementById('current-class-subtitle').innerText = `Pengajar: ${cls.pengajar || '-'} | Jadwal: ${cls.hari || '-'}, ${cls.jam || '-'} | Program: ${cls.program || '-'}`;
-                document.getElementById('print-meta').innerText = `Kelas: ${cls.nama || '-'} | Pengajar: ${cls.pengajar || '-'} | Periode: ${term} | Tahun: ${year}`;
+                const progTitle = currentProgramGrade || cls.program || 'Program Belajar';
+                const classLabel = (currentClassId === 'all' || !currentClassId) ? 'Semua Kelas' : (cls.nama || 'Kelas Terpilih');
+
+                document.getElementById('current-class-title').innerText = `${progTitle} • ${classLabel} • ${term} (${year})`;
+                document.getElementById('current-class-subtitle').innerText = `Tingkat: ${progTitle} | Kelas: ${classLabel} | Pengajar: ${cls.pengajar || 'Seluruh Pengajar'} | Total di Tingkat: ${data.total_students_in_grade || currentStudents.length} Siswa`;
+                document.getElementById('print-meta').innerText = `Tingkat: ${progTitle} | Kelas: ${classLabel} | Pengajar: ${cls.pengajar || '-'} | Periode: ${term} | Tahun: ${year}`;
 
                 updateSubjectHeaderLabels();
                 setDirty(false);
@@ -1038,7 +1138,7 @@
                 console.error(err);
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="25" class="py-8 text-center text-rose-500 font-bold">
+                        <td colspan="26" class="py-8 text-center text-rose-500 font-bold">
                             <i data-lucide="alert-triangle" class="w-6 h-6 mx-auto mb-1"></i>
                             Gagal memuat lembar nilai: ${err.message}
                         </td>
@@ -1648,8 +1748,8 @@
         }
 
         async function saveAllGrades() {
-            if (!currentClassId) {
-                showToast('Pilih kelas terlebih dahulu.', 'error');
+            if (!currentProgramGrade && !currentClassId) {
+                showToast('Pilih program/grade terlebih dahulu.', 'error');
                 return;
             }
             if (currentStudents.length === 0) {
@@ -1669,6 +1769,7 @@
                 const year = document.getElementById('select-year').value;
 
                 const payload = {
+                    program_or_grade: currentProgramGrade,
                     class_id: currentClassId,
                     term_or_period: term,
                     academic_year: year,
@@ -1676,6 +1777,8 @@
                     grades: currentStudents.map(s => ({
                         student_id: s.student_id,
                         student_name: s.student_name,
+                        class_id: s.class_id,
+                        class_name: s.class_name,
                         exercise_1: s.exercise_1,
                         exercise_2: s.exercise_2,
                         exercise_3: s.exercise_3,
@@ -1952,7 +2055,11 @@
             const year = document.getElementById('select-year').value;
 
             try {
-                const res = await authFetch(`${API_BASE}/api/grades/progress-report?class_id=${currentClassId}&student_id=${studentId}&term_or_period=${encodeURIComponent(term)}&academic_year=${encodeURIComponent(year)}`);
+                const targetStudent = (activeDocStudentList && activeDocStudentList[currentProgressIndex]) || {};
+                const effectiveClassId = (targetStudent.class_id && targetStudent.class_id !== 'all') ? targetStudent.class_id : (currentClassId !== 'all' ? currentClassId : '');
+                const programParam = currentProgramGrade ? `&program_or_grade=${encodeURIComponent(currentProgramGrade)}` : '';
+                const classParam = effectiveClassId ? `&class_id=${effectiveClassId}` : '';
+                const res = await authFetch(`${API_BASE}/api/grades/progress-report?student_id=${studentId}${classParam}${programParam}&term_or_period=${encodeURIComponent(term)}&academic_year=${encodeURIComponent(year)}`);
                 if (!res.ok) throw new Error('Gagal memuat data progress report');
                 const data = await res.json();
 
@@ -2287,7 +2394,11 @@
             const year = document.getElementById('select-year').value;
 
             try {
-                const res = await authFetch(`${API_BASE}/api/grades/certificate?class_id=${currentClassId}&student_id=${studentId}&term_or_period=${encodeURIComponent(term)}&academic_year=${encodeURIComponent(year)}`);
+                const targetStudent = (activeDocStudentList && activeDocStudentList[currentCertIndex]) || {};
+                const effectiveClassId = (targetStudent.class_id && targetStudent.class_id !== 'all') ? targetStudent.class_id : (currentClassId !== 'all' ? currentClassId : '');
+                const programParam = currentProgramGrade ? `&program_or_grade=${encodeURIComponent(currentProgramGrade)}` : '';
+                const classParam = effectiveClassId ? `&class_id=${effectiveClassId}` : '';
+                const res = await authFetch(`${API_BASE}/api/grades/certificate?student_id=${studentId}${classParam}${programParam}&term_or_period=${encodeURIComponent(term)}&academic_year=${encodeURIComponent(year)}`);
                 if (!res.ok) throw new Error('Gagal memuat data sertifikat');
                 const data = await res.json();
 
@@ -2681,10 +2792,11 @@
             const year = document.getElementById('select-year').value;
 
             try {
-                const res = await authFetch(`${API_BASE}/api/grades/batch-print?class_id=${currentClassId}&term_or_period=${encodeURIComponent(term)}&academic_year=${encodeURIComponent(year)}&document_type=${docType}`);
+                const programParam = currentProgramGrade ? `&program_or_grade=${encodeURIComponent(currentProgramGrade)}` : '';
+                const res = await authFetch(`${API_BASE}/api/grades/batch-print?class_id=${currentClassId}${programParam}&term_or_period=${encodeURIComponent(term)}&academic_year=${encodeURIComponent(year)}&document_type=${docType}`);
                 if (!res.ok) throw new Error('Gagal memuat dokumen cetak massal');
                 const data = await res.json();
-                const items = data.items || [];
+                const items = data.items || data.students || [];
 
                 if (items.length === 0) {
                     container.innerHTML = `
@@ -2800,7 +2912,12 @@
             const selClass = document.getElementById('select-class');
             const className = selClass ? selClass.options[selClass.selectedIndex].text : 'Kelas';
             const subTitle = document.getElementById('subjects-modal-subtitle');
-            if (subTitle) subTitle.innerText = `Kelas: ${className} • 6 Materi untuk Ex 1-6 & Progress Report`;
+            if (subTitle) {
+                const targetText = currentClassId === 'all'
+                    ? `Program: ${currentProgramGrade || 'Semua Program'} (Seluruh Kelas)`
+                    : `Kelas: ${className}`;
+                subTitle.innerText = `${targetText} • 6 Materi untuk Ex 1-6 & Progress Report`;
+            }
 
             // Render 6 input fields
             const grid = document.getElementById('subject-input-grid');
@@ -2909,6 +3026,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         class_id: currentClassId,
+                        program_or_grade: currentProgramGrade || '',
                         term_or_period: term,
                         academic_year: year,
                         subjects: newSubjects
@@ -2963,7 +3081,10 @@
 
             const subTitle = document.getElementById('class-ranking-modal-subtitle');
             if (subTitle) {
-                subTitle.innerText = `Kelas: ${className} • Periode: ${term} ${year} • Peringkat Kode Badge per Grade Final Exam`;
+                const scopeLabel = currentClassId === 'all'
+                    ? `Program: ${currentProgramGrade || 'Semua Program'} (Seluruh Siswa Grade)`
+                    : `Kelas: ${className} (Badge dihitung se-Program ${currentProgramGrade || ''})`;
+                subTitle.innerText = `${scopeLabel} • Periode: ${term} ${year} • Peringkat Kode Badge Final Exam`;
             }
 
             const summary = currentClassRankedSummary || [];

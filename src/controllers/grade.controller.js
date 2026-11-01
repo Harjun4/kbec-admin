@@ -247,35 +247,55 @@ async function getStudentAutoPerformance(studentId, classId, className) {
  * Mengambil 6 nama subjek kelas dan saran materi dari riwayat kinerja.
  */
 async function getClassSubjects(req, res, next) {
-    const { class_id, term_or_period, academic_year } = req.query;
-    if (!class_id) {
-        return res.status(400).json({ success: false, message: 'ID Kelas (class_id) wajib disertakan.' });
+    const { class_id, program_or_grade, term_or_period, academic_year } = req.query;
+    if (!class_id && !program_or_grade) {
+        return res.status(400).json({ success: false, message: 'ID Kelas (class_id) atau program_or_grade wajib disertakan.' });
     }
     const term = term_or_period || 'Term 1';
     const year = academic_year || '2025/2026';
 
     try {
-        const [[classObj]] = await db.query('SELECT * FROM classes WHERE id = ?', [class_id]);
-        if (!classObj) {
-            return res.status(404).json({ success: false, message: 'Kelas tidak ditemukan.' });
+        let classObj = null;
+        let refClassId = (class_id && class_id !== 'all' && !isNaN(class_id)) ? parseInt(class_id, 10) : null;
+
+        if (!refClassId && program_or_grade) {
+            const [[firstClass]] = await db.query(`
+                SELECT cs.class_id, c.nama, c.program 
+                FROM students s 
+                JOIN class_students cs ON s.id::text = cs.student_id::text 
+                JOIN classes c ON cs.class_id = c.id
+                WHERE (s.program = ? OR s.level = ?)
+                LIMIT 1
+            `, [program_or_grade, program_or_grade]);
+            if (firstClass) {
+                refClassId = firstClass.class_id;
+                classObj = firstClass;
+            }
+        } else if (refClassId) {
+            const [[cls]] = await db.query('SELECT * FROM classes WHERE id = ?', [refClassId]);
+            classObj = cls;
         }
 
-        const subjects = await getEffectiveClassSubjects(class_id, term, year, classObj.program);
+        const subjects = await getEffectiveClassSubjects(refClassId || 1, term, year, program_or_grade || classObj?.program);
 
-        const [lessons] = await db.query(`
-            SELECT DISTINCT TRIM(lesson) AS lesson 
-            FROM student_grades 
-            WHERE class_id = ? AND lesson IS NOT NULL AND lesson != '' AND lesson != '-'
-            ORDER BY lesson ASC
-        `, [class_id]);
+        let lessons = [];
+        if (refClassId) {
+            const [lRows] = await db.query(`
+                SELECT DISTINCT TRIM(lesson) AS lesson 
+                FROM student_grades 
+                WHERE class_id = ? AND lesson IS NOT NULL AND lesson != '' AND lesson != '-'
+                ORDER BY lesson ASC
+            `, [refClassId]);
+            lessons = lRows.map(l => decodeHtmlEntities(l.lesson)).filter(Boolean);
+        }
 
         res.json({
             success: true,
-            class_id,
+            class_id: refClassId || class_id,
             term_or_period: term,
             academic_year: year,
             subjects: subjects.map(s => decodeHtmlEntities(s)),
-            lessons_from_kinerja: lessons.map(l => decodeHtmlEntities(l.lesson))
+            lessons_from_kinerja: lessons
         });
     } catch (err) {
         next(err);
@@ -286,9 +306,9 @@ async function getClassSubjects(req, res, next) {
  * Menyimpan konfigurasi 6 subjek pembelajaran untuk kelas & periode tertentu.
  */
 async function saveClassSubjects(req, res, next) {
-    const { class_id, term_or_period, academic_year, subjects } = req.body;
-    if (!class_id || !Array.isArray(subjects) || subjects.length !== 6) {
-        return res.status(400).json({ success: false, message: 'class_id dan 6 nama subjects wajib disertakan.' });
+    const { class_id, program_or_grade, term_or_period, academic_year, subjects } = req.body;
+    if ((!class_id && !program_or_grade) || !Array.isArray(subjects) || subjects.length !== 6) {
+        return res.status(400).json({ success: false, message: 'class_id atau program_or_grade, serta 6 nama subjects wajib disertakan.' });
     }
 
     const term = term_or_period || 'Term 1';
@@ -296,16 +316,31 @@ async function saveClassSubjects(req, res, next) {
     const cleanSubjects = subjects.map(s => decodeHtmlEntities(String(s || '').trim()) || 'Subject');
 
     try {
-        await db.query(`
-            INSERT INTO class_term_subjects (class_id, term_or_period, academic_year, subjects, updated_at)
-            VALUES (?, ?, ?, ?::jsonb, NOW())
-            ON CONFLICT (class_id, term_or_period, academic_year)
-            DO UPDATE SET subjects = EXCLUDED.subjects, updated_at = NOW()
-        `, [class_id, term, year, JSON.stringify(cleanSubjects)]);
+        let targetClassIds = [];
+        if (class_id && class_id !== 'all') {
+            targetClassIds.push(class_id);
+        } else if (program_or_grade) {
+            const [cRows] = await db.query(`
+                SELECT DISTINCT cs.class_id 
+                FROM students s 
+                JOIN class_students cs ON s.id::text = cs.student_id::text 
+                WHERE (s.program = ? OR s.level = ?)
+            `, [program_or_grade, program_or_grade]);
+            targetClassIds = cRows.map(r => r.class_id);
+        }
+
+        for (const cId of targetClassIds) {
+            await db.query(`
+                INSERT INTO class_term_subjects (class_id, term_or_period, academic_year, subjects, updated_at)
+                VALUES (?, ?, ?, ?::jsonb, NOW())
+                ON CONFLICT (class_id, term_or_period, academic_year)
+                DO UPDATE SET subjects = EXCLUDED.subjects, updated_at = NOW()
+            `, [cId, term, year, JSON.stringify(cleanSubjects)]);
+        }
 
         res.json({
             success: true,
-            message: 'Berhasil menyimpan 6 subjek pembelajaran kelas.',
+            message: `Berhasil menyimpan 6 subjek pembelajaran untuk ${targetClassIds.length || 1} kelas.`,
             subjects: cleanSubjects
         });
     } catch (err) {
@@ -314,40 +349,75 @@ async function saveClassSubjects(req, res, next) {
 }
 
 /**
+ * Mendapatkan daftar seluruh Program/Grade aktif beserta kelas dan total siswa
+ * untuk navigasi Tab Utama pada Form Nilai Siswa.
+ */
+async function getPrograms(req, res, next) {
+    try {
+        const [programsRaw] = await db.query(`
+            SELECT 
+                COALESCE(NULLIF(TRIM(s.program), ''), NULLIF(TRIM(s.level), ''), 'Lainnya') AS grade_name,
+                COUNT(s.id) AS total_students
+            FROM students s
+            WHERE (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')
+            GROUP BY grade_name
+            ORDER BY total_students DESC, grade_name ASC
+        `);
+
+        const [classDistribution] = await db.query(`
+            SELECT 
+                COALESCE(NULLIF(TRIM(s.program), ''), NULLIF(TRIM(s.level), ''), 'Lainnya') AS grade_name,
+                c.id AS class_id,
+                c.nama AS class_name,
+                c.pengajar AS teacher_name,
+                COUNT(s.id) AS count_in_class
+            FROM students s
+            JOIN class_students cs ON s.id::text = cs.student_id::text
+            JOIN classes c ON cs.class_id = c.id
+            WHERE (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')
+            GROUP BY grade_name, c.id, c.nama, c.pengajar
+            ORDER BY c.nama ASC
+        `);
+
+        const distMap = {};
+        classDistribution.forEach(row => {
+            const g = row.grade_name;
+            if (!distMap[g]) distMap[g] = [];
+            distMap[g].push({
+                id: row.class_id,
+                nama: row.class_name,
+                pengajar: row.teacher_name,
+                students_count: parseInt(row.count_in_class, 10) || 0
+            });
+        });
+
+        const programs = programsRaw.map(p => ({
+            name: p.grade_name,
+            total_students: parseInt(p.total_students, 10) || 0,
+            classes: distMap[p.grade_name] || []
+        }));
+
+        res.json({ success: true, programs });
+    } catch (err) {
+        next(err);
+    }
+}
+
+/**
  * Mendapatkan daftar kelas yang bisa diakses untuk pengisian form nilai.
+ * Seluruh akun pengajar dapat melihat seluruh kelas untuk keperluan form nilai & sertifikat.
  */
 async function getClasses(req, res, next) {
     try {
-        const userRole = (req.user && req.user.role ? req.user.role : '').toLowerCase();
-        const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
-
-        let sql = `
+        const sql = `
             SELECT c.id, c.nama, c.program, c.unit, c.pengajar, c.hari, c.jam, c.mulai, c.selesai,
                    COALESCE(COUNT(cs.student_id), 0) AS students_count
             FROM classes c
             LEFT JOIN class_students cs ON c.id = cs.class_id
+            GROUP BY c.id, c.nama, c.program, c.unit, c.pengajar, c.hari, c.jam, c.mulai, c.selesai 
+            ORDER BY c.nama ASC
         `;
-        let params = [];
-
-        if (isTeacher && req.user) {
-            const uId = req.user.id || '';
-            const tId = req.user.teacher_id || '';
-            const tEmail = (req.user.email || '').trim().toLowerCase();
-            const tName = (req.user.name || '').trim();
-
-            sql += `
-                WHERE (c.teacher_id IS NOT NULL AND c.teacher_id = (SELECT teacher_id FROM users WHERE id = ? OR nis = ? LIMIT 1))
-                   OR (c.teacher_id IS NOT NULL AND c.teacher_id = ?)
-                   OR (c.teacher_id IS NOT NULL AND c.teacher_id IN (SELECT id FROM teachers WHERE LOWER(email) = LOWER(?)))
-                   OR (LOWER(c.pengajar) = LOWER(?))
-                   OR (c.pengajar ILIKE ?)
-            `;
-            params.push(uId, uId, tId, tEmail, tName, `%${tName}%`);
-        }
-
-        sql += ` GROUP BY c.id, c.nama, c.program, c.unit, c.pengajar, c.hari, c.jam, c.mulai, c.selesai ORDER BY c.nama ASC`;
-
-        const [classes] = await db.query(sql, params);
+        const [classes] = await db.query(sql);
         res.json({ success: true, classes });
     } catch (err) {
         next(err);
@@ -358,110 +428,43 @@ async function getClasses(req, res, next) {
  * Mengambil lembar nilai siswa untuk kelas, term, dan tahun ajaran tertentu.
  * Menghitung otomatis kehadiran & class activity dari kinerja siswa riil dan menyajikan subjek dinamis.
  */
+/**
+ * Mengambil lembar nilai siswa untuk Program/Grade (dan/atau kelas), term, dan tahun ajaran tertentu.
+ * Menghitung badge resmi (A1, A2... B1, B2...) berdasarkan seluruh siswa dalam Program/Grade yang sama (pool-wide).
+ */
 async function getClassGrades(req, res, next) {
-    const { class_id, term_or_period, academic_year } = req.query;
-    if (!class_id) {
-        return res.status(400).json({ success: false, message: 'ID Kelas (class_id) wajib disertakan.' });
+    const { class_id, program_or_grade, term_or_period, academic_year } = req.query;
+    if (!class_id && !program_or_grade) {
+        return res.status(400).json({ success: false, message: 'Harap sertakan ID Kelas (class_id) atau Program/Grade (program_or_grade).' });
     }
 
     const term = term_or_period || 'Term 1';
     const year = academic_year || '2025/2026';
 
     try {
-        const [[classObj]] = await db.query('SELECT * FROM classes WHERE id = ?', [class_id]);
-        if (!classObj) {
-            return res.status(404).json({ success: false, message: 'Kelas tidak ditemukan.' });
-        }
+        let activeProgram = program_or_grade ? program_or_grade.trim() : null;
+        let selectedClassObj = null;
 
-        // Cek otorisasi pengajar
-        const userRole = (req.user && req.user.role ? req.user.role : '').toLowerCase();
-        const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
-        if (isTeacher && req.user) {
-            const tName = (req.user.name || '').trim().toLowerCase();
-            const classTeacher = (classObj.pengajar || '').trim().toLowerCase();
-            if (classObj.teacher_id && classObj.teacher_id !== req.user.teacher_id && classTeacher !== tName) {
-                const [allowed] = await db.query(
-                    'SELECT id FROM classes WHERE id = ? AND (LOWER(pengajar) = ? OR teacher_id = ?)',
-                    [class_id, tName, req.user.teacher_id || '']
-                );
-                if (allowed.length === 0) {
-                    return res.status(403).json({ success: false, message: 'Akses dilarang. Anda bukan pengajar kelas ini.' });
-                }
+        if (class_id && class_id !== 'all') {
+            const [[cls]] = await db.query('SELECT * FROM classes WHERE id = ?', [class_id]);
+            selectedClassObj = cls || null;
+            if (!activeProgram && selectedClassObj) {
+                activeProgram = selectedClassObj.program || 'Beginner 1';
             }
         }
 
-        // 1. Ambil data kinerja siswa riil dari tabel student_grades untuk kelas ini
-        const [sgRows] = await db.query(`
-            SELECT 
-                student_id::text AS student_id,
-                presensi,
-                speaking,
-                wb,
-                sb,
-                extra
-            FROM student_grades
-            WHERE class_id = ?
-        `, [class_id]);
-
-        // 2. Ambil data presensi dari tabel attendance sebagai pelengkap
-        const [attSummary] = await db.query(`
-            SELECT 
-                student_id::text AS student_id,
-                COUNT(*) AS total_sessions,
-                SUM(CASE WHEN LOWER(status) = 'hadir' THEN 1 ELSE 0 END) AS hadir_count
-            FROM attendance
-            WHERE kelas = ? OR student_id::text IN (SELECT student_id::text FROM class_students WHERE class_id = ?)
-            GROUP BY student_id
-        `, [classObj.nama, class_id]);
-
-        const attTableMap = {};
-        attSummary.forEach(a => {
-            const tot = parseInt(a.total_sessions, 10) || 0;
-            const had = parseInt(a.hadir_count, 10) || 0;
-            attTableMap[a.student_id] = { total: tot, hadir: had };
-        });
-
-        // Agregasi dari student_grades per murid
-        const studentKinerjaMap = {};
-        sgRows.forEach(row => {
-            const sid = String(row.student_id);
-            if (!studentKinerjaMap[sid]) {
-                studentKinerjaMap[sid] = { total: 0, hadir: 0, activity_scores: [] };
-            }
-            const pres = (row.presensi || '').trim().toLowerCase();
-            if (pres && pres !== '-' && pres !== 'kosong') {
-                studentKinerjaMap[sid].total++;
-                if (pres === 'hadir') {
-                    studentKinerjaMap[sid].hadir++;
-                    const sc = [row.speaking, row.wb, row.sb, row.extra]
-                        .map(v => (v !== null && v !== undefined && v !== '' && !isNaN(v)) ? parseFloat(v) : null)
-                        .filter(v => v !== null);
-                    if (sc.length > 0) {
-                        studentKinerjaMap[sid].activity_scores.push(sc.reduce((a, b) => a + b, 0) / sc.length);
-                    }
-                }
-            }
-        });
-
-        // 3. Ambil 6 subjek dinamis aktif untuk kelas ini
-        const effectiveSubjects = await getEffectiveClassSubjects(class_id, term, year, classObj.program);
-
-        // 4. Ambil distinct lesson dari student_grades untuk saran pemilihan subjek
-        const [lessons] = await db.query(`
-            SELECT DISTINCT TRIM(lesson) AS lesson 
-            FROM student_grades 
-            WHERE class_id = ? AND lesson IS NOT NULL AND lesson != '' AND lesson != '-'
-            ORDER BY lesson ASC
-        `, [class_id]);
-
-        // 5. Query seluruh siswa di kelas beserta nilai dari student_term_grades
-        const [rows] = await db.query(`
+        // 1. Query SELURUH siswa di pool program/grade (atau kelas)
+        let poolSql = `
             SELECT 
                 s.id AS student_id,
                 s.nama AS student_name,
                 s.id AS nis,
                 s.program,
                 s.level,
+                COALESCE(NULLIF(TRIM(s.program), ''), NULLIF(TRIM(s.level), ''), 'Lainnya') AS student_grade,
+                cs.class_id,
+                COALESCE(c.nama, 'Belum Masuk Kelas') AS class_name,
+                COALESCE(c.pengajar, '-') AS teacher_name,
                 s.nama_ayah,
                 s.nama_ibu,
                 s.tempat_tanggal_lahir,
@@ -482,23 +485,63 @@ async function getClassGrades(req, res, next) {
                 stg.custom_subjects,
                 stg.notes,
                 stg.updated_at
-            FROM class_students cs
-            JOIN students s ON cs.student_id::text = s.id::text
+            FROM students s
+            LEFT JOIN class_students cs ON s.id::text = cs.student_id::text
+            LEFT JOIN classes c ON cs.class_id = c.id
             LEFT JOIN student_term_grades stg ON stg.student_id::text = s.id::text 
                  AND stg.class_id = cs.class_id 
                  AND stg.term_or_period = ? 
                  AND stg.academic_year = ?
-            WHERE cs.class_id = ? AND (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')
-            ORDER BY s.nama ASC
-        `, [term, year, class_id]);
+            WHERE (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')
+        `;
+        let poolParams = [term, year];
 
-        const students = rows.map((r, index) => {
-            const cls = calculateScoreClassification(r.final_score);
-            const midCls = calculateScoreClassification(r.middle_exam);
-            const finCls = calculateScoreClassification(r.final_exam);
+        if (activeProgram) {
+            poolSql += ` AND (s.program = ? OR s.level = ?)`;
+            poolParams.push(activeProgram, activeProgram);
+        } else if (class_id && class_id !== 'all') {
+            poolSql += ` AND cs.class_id = ?`;
+            poolParams.push(class_id);
+        }
 
-            // Perhitungan bobot Progress Report
-            // Average Ex 1-6 (40%) + Mid Exam (40%) + Attendance (10%) + Class Activity (10%)
+        poolSql += ` ORDER BY s.nama ASC`;
+
+        const [poolRows] = await db.query(poolSql, poolParams);
+
+        // Kumpulkan data kehadiran & aktivitas harian untuk seluruh siswa di pool
+        const studentIds = poolRows.map(r => String(r.student_id));
+        let studentKinerjaMap = {};
+        if (studentIds.length > 0) {
+            const idPlaceholders = studentIds.map(() => '?').join(',');
+            const [sgRows] = await db.query(`
+                SELECT student_id::text AS student_id, presensi, speaking, wb, sb, extra
+                FROM student_grades
+                WHERE student_id::text IN (${idPlaceholders})
+            `, studentIds);
+
+            sgRows.forEach(row => {
+                const sid = String(row.student_id);
+                if (!studentKinerjaMap[sid]) {
+                    studentKinerjaMap[sid] = { total: 0, hadir: 0, activity_scores: [] };
+                }
+                const pres = (row.presensi || '').trim().toLowerCase();
+                if (pres && pres !== '-' && pres !== 'kosong') {
+                    studentKinerjaMap[sid].total++;
+                    if (pres === 'hadir') {
+                        studentKinerjaMap[sid].hadir++;
+                        const sc = [row.speaking, row.wb, row.sb, row.extra]
+                            .map(v => (v !== null && v !== undefined && v !== '' && !isNaN(v)) ? parseFloat(v) : null)
+                            .filter(v => v !== null);
+                        if (sc.length > 0) {
+                            studentKinerjaMap[sid].activity_scores.push(sc.reduce((a, b) => a + b, 0) / sc.length);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Hitung nilai akhir & klasifikasi untuk setiap siswa di pool
+        const allProcessedStudents = poolRows.map((r, index) => {
             const ex1_6 = [r.exercise_1, r.exercise_2, r.exercise_3, r.exercise_4, r.exercise_5, r.exercise_6]
                 .map(v => v !== null && v !== undefined && !isNaN(v) ? parseFloat(v) : null)
                 .filter(v => v !== null);
@@ -511,7 +554,6 @@ async function getClassGrades(req, res, next) {
             const midScore = r.middle_exam !== null && !isNaN(r.middle_exam) ? parseFloat(r.middle_exam) : null;
             const finalScoreVal = r.final_exam !== null && !isNaN(r.final_exam) ? parseFloat(r.final_exam) : null;
 
-            // Hitung nilai otomatis presensi & class activity dari riwayat Kinerja Siswa
             const kData = studentKinerjaMap[String(r.student_id)];
             let autoAtt = 100.0;
             let autoAct = 80.0;
@@ -521,40 +563,59 @@ async function getClassGrades(req, res, next) {
                 if (kData.activity_scores.length > 0) {
                     autoAct = Math.round((kData.activity_scores.reduce((a, b) => a + b, 0) / kData.activity_scores.length) * 10) / 10;
                 }
-            } else if (attTableMap[String(r.student_id)] && attTableMap[String(r.student_id)].total > 0) {
-                const aTot = attTableMap[String(r.student_id)].total;
-                const aHad = attTableMap[String(r.student_id)].hadir;
-                autoAtt = Math.round((aHad / aTot) * 100 * 10) / 10;
             }
 
-            // Attendance score: jika guru sudah mengisi/menyimpan manual gunakan itu, jika belum gunakan autoAtt
-            const isAttManual = r.attendance_score !== null && !isNaN(r.attendance_score);
-            const attScore = isAttManual ? parseFloat(r.attendance_score) : autoAtt;
+            const isAttManual = (r.attendance_score !== null && !isNaN(r.attendance_score));
+            const isActManual = (r.class_activity !== null && !isNaN(r.class_activity));
+            const effectiveAtt = isAttManual ? parseFloat(r.attendance_score) : autoAtt;
+            const effectiveAct = isActManual ? parseFloat(r.class_activity) : autoAct;
 
-            // Class Activity score: jika guru sudah mengisi/menyimpan manual gunakan itu, jika belum gunakan autoAct
-            const isActManual = r.class_activity !== null && !isNaN(r.class_activity);
-            const actScore = isActManual ? parseFloat(r.class_activity) : autoAct;
-
-            let calcProgressScore = null;
-            if (avg1_6 !== null && midScore !== null) {
-                calcProgressScore = Math.round((avg1_6 * 0.40 + midScore * 0.40 + attScore * 0.10 + actScore * 0.10) * 10) / 10;
+            let progressScore = null;
+            if (r.progress_score !== null && !isNaN(r.progress_score)) {
+                progressScore = parseFloat(r.progress_score);
+            } else if (avg1_6 !== null && midScore !== null) {
+                progressScore = Math.round((avg1_6 * 0.40 + midScore * 0.40 + effectiveAtt * 0.10 + effectiveAct * 0.10) * 10) / 10;
             }
-            const progressCls = calculateScoreClassification(calcProgressScore);
+
+            const allExercises = [
+                r.exercise_1, r.exercise_2, r.exercise_3, r.exercise_4, r.exercise_5, r.exercise_6,
+                r.exercise_7, r.exercise_8, r.exercise_9, r.exercise_10, r.exercise_11, r.exercise_12
+            ].map(v => v !== null && v !== undefined && !isNaN(v) ? parseFloat(v) : null).filter(v => v !== null);
+
+            let calculatedAvgEx = null;
+            if (allExercises.length > 0) {
+                calculatedAvgEx = Math.round((allExercises.reduce((a, b) => a + b, 0) / allExercises.length) * 100) / 100;
+            }
+
+            let calculatedFinal = null;
+            if (calculatedAvgEx !== null && midScore !== null && finalScoreVal !== null) {
+                calculatedFinal = Math.round((calculatedAvgEx * 0.40 + midScore * 0.30 + finalScoreVal * 0.30) * 100) / 100;
+            } else if (calculatedAvgEx !== null && midScore !== null && finalScoreVal === null) {
+                calculatedFinal = Math.round((calculatedAvgEx * 0.50 + midScore * 0.50) * 100) / 100;
+            } else if (calculatedAvgEx !== null && midScore === null && finalScoreVal === null) {
+                calculatedFinal = calculatedAvgEx;
+            } else if (allExercises.length === 0 && (midScore !== null || finalScoreVal !== null)) {
+                const examArr = [midScore, finalScoreVal].filter(v => v !== null);
+                calculatedFinal = Math.round((examArr.reduce((a, b) => a + b, 0) / examArr.length) * 100) / 100;
+            }
+
+            const finalScoreToUse = (r.final_score !== null && !isNaN(r.final_score)) ? parseFloat(r.final_score) : calculatedFinal;
+            const cls = calculateScoreClassification(finalScoreToUse);
+            const midCls = calculateScoreClassification(midScore);
+            const finCls = calculateScoreClassification(finalScoreVal);
+            const progressCls = calculateScoreClassification(progressScore);
 
             return {
+                ...r,
                 no: index + 1,
-                student_id: r.student_id,
+                student_id: String(r.student_id),
                 student_name: r.student_name,
-                nis: r.nis || r.student_id,
-                program: r.program || classObj.program || '-',
-                level: r.level || '-',
-                nama_ayah: r.nama_ayah || '',
-                nama_ibu: r.nama_ibu || '',
-                parents: r.nama_ayah || r.nama_ibu || 'Orang Tua Siswa',
-                tempat_tanggal_lahir: r.tempat_tanggal_lahir || '',
-                agama: r.agama || 'Islam',
-                alamat: r.alamat || '',
-                grade_id: r.grade_id || null,
+                nis: r.nis,
+                program: r.program || activeProgram || 'Beginner 1',
+                level: r.level || r.program || activeProgram || 'Beginner 1',
+                class_id: r.class_id,
+                class_name: r.class_name,
+                teacher_name: r.teacher_name,
                 exercise_1: r.exercise_1 !== null ? Number(r.exercise_1) : null,
                 exercise_2: r.exercise_2 !== null ? Number(r.exercise_2) : null,
                 exercise_3: r.exercise_3 !== null ? Number(r.exercise_3) : null,
@@ -569,60 +630,84 @@ async function getClassGrades(req, res, next) {
                 exercise_11: r.exercise_11 !== null ? Number(r.exercise_11) : null,
                 exercise_12: r.exercise_12 !== null ? Number(r.exercise_12) : null,
                 final_exam: finalScoreVal,
-                avg_exercise: r.avg_exercise !== null ? Number(r.avg_exercise) : null,
-                final_score: r.final_score !== null ? Number(r.final_score) : null,
-                letter_grade: r.letter_grade || cls.letter_grade || null,
+                avg_exercise: calculatedAvgEx,
+                final_score: finalScoreToUse,
+                letter_grade: cls.letter_grade,
                 classification_label: cls.label,
                 middle_exam_label: midCls.label,
                 final_exam_label: finCls.label,
                 
-                // Progress Report specific fields & Kinerja metrics
                 avg_ex_1_6: avg1_6,
-                attendance_score: attScore,
-                class_activity: actScore,
+                attendance_score: effectiveAtt,
+                class_activity: effectiveAct,
                 auto_attendance_score: autoAtt,
                 auto_class_activity: autoAct,
                 is_att_manual: isAttManual,
                 is_act_manual: isActManual,
-                progress_score: r.progress_score !== null ? Number(r.progress_score) : calcProgressScore,
+                progress_score: progressScore,
                 progress_grade: progressCls.letter_grade,
                 progress_label: progressCls.label,
 
-                // Certificate status
                 can_print_progress: midScore !== null,
                 can_print_certificate: finalScoreVal !== null,
                 cert_issue_date: r.cert_issue_date || null,
                 custom_subjects: r.custom_subjects || null,
-
                 notes: r.notes || '',
                 updated_at: r.updated_at || null
             };
         });
 
-        // Hitung peringkat badge (A1, A2, B1, B2...) untuk seluruh siswa di kelas
-        const { badgeMap, rankedSummary } = computeClassGradeBadges(students);
-        students.forEach(s => {
-            const bInfo = badgeMap[String(s.student_id)];
-            s.level_badge = bInfo ? bInfo.badge : null;
-            s.rank_in_grade = bInfo ? bInfo.rank_in_grade : null;
-            s.total_in_grade = bInfo ? bInfo.total_in_grade : null;
+        // 2. Hitung badge program-wide (A1, A2... B1, B2...) untuk SELURUH siswa dalam program/grade pool!
+        const { badgeMap, rankedSummary } = computeClassGradeBadges(allProcessedStudents);
+
+        allProcessedStudents.forEach(s => {
+            const b = badgeMap[String(s.student_id)];
+            if (b) {
+                s.badge = b.badge;
+                s.level_badge = b.badge;
+                s.letter_grade = b.letter_grade;
+                s.rank_in_grade = b.rank_in_grade;
+                s.total_in_grade = b.total_in_grade;
+            }
         });
+
+        // 3. Filter ke kelas tertentu jika class_id ditentukan dan bukan 'all'
+        let displayedStudents = allProcessedStudents;
+        if (class_id && class_id !== 'all') {
+            displayedStudents = allProcessedStudents.filter(s => String(s.class_id) === String(class_id));
+            displayedStudents.forEach((s, idx) => { s.no = idx + 1; });
+        }
+
+        // 4. Ambil 6 subjek dinamis
+        const refClassId = (selectedClassObj ? selectedClassObj.id : (displayedStudents[0]?.class_id || 1));
+        const effectiveSubjects = await getEffectiveClassSubjects(refClassId, term, year, activeProgram || selectedClassObj?.program);
+
+        let lessons = [];
+        if (refClassId) {
+            const [lRows] = await db.query(`
+                SELECT DISTINCT TRIM(lesson) AS lesson 
+                FROM student_grades 
+                WHERE class_id = ? AND lesson IS NOT NULL AND lesson != '' AND lesson != '-'
+                ORDER BY lesson ASC
+            `, [refClassId]);
+            lessons = lRows.map(l => decodeHtmlEntities(l.lesson)).filter(Boolean);
+        }
+
+        const classInfo = selectedClassObj || {
+            id: class_id || 'all',
+            nama: class_id === 'all' || !class_id ? `Seluruh Kelas (${activeProgram || 'Semua'})` : (selectedClassObj?.nama || 'Kelas'),
+            program: activeProgram || selectedClassObj?.program || 'Reguler',
+            pengajar: selectedClassObj ? selectedClassObj.pengajar : 'Seluruh Pengajar'
+        };
 
         res.json({
             success: true,
-            class: {
-                id: classObj.id,
-                nama: classObj.nama,
-                program: classObj.program,
-                unit: classObj.unit,
-                pengajar: classObj.pengajar,
-                hari: classObj.hari,
-                jam: classObj.jam || (classObj.mulai && classObj.selesai ? `${classObj.mulai} - ${classObj.selesai}` : '-')
-            },
+            program_or_grade: activeProgram,
+            class: classInfo,
             term_or_period: term,
             academic_year: year,
             subjects: effectiveSubjects,
-            lessons_from_kinerja: lessons.map(l => l.lesson),
+            lessons_from_kinerja: lessons,
             scoring_classification: [
                 { grade: 'A', label: 'Very good', range: '86 - 100' },
                 { grade: 'B', label: 'Good', range: '70 - 85' },
@@ -630,7 +715,9 @@ async function getClassGrades(req, res, next) {
                 { grade: 'D', label: 'Needs Improvement', range: '< 60' }
             ],
             ranked_summary: rankedSummary,
-            students
+            students: displayedStudents,
+            total_students_in_grade: allProcessedStudents.length,
+            total_students_displayed: displayedStudents.length
         });
     } catch (err) {
         next(err);
@@ -638,14 +725,12 @@ async function getClassGrades(req, res, next) {
 }
 
 /**
- * Menyimpan nilai siswa secara massal per kelas dengan transaksi atomik.
+ * Menyimpan nilai siswa secara massal per Program/Grade atau Kelas dengan transaksi atomik.
+ * Terbuka untuk seluruh akun Pengajar, Staff, dan Super Admin.
  */
 async function saveBatchGrades(req, res, next) {
-    const { class_id, term_or_period, academic_year, grades, subjects } = req.body;
+    const { class_id, program_or_grade, term_or_period, academic_year, grades, subjects } = req.body;
 
-    if (!class_id) {
-        return res.status(400).json({ success: false, message: 'ID Kelas (class_id) wajib disertakan.' });
-    }
     if (!Array.isArray(grades) || grades.length === 0) {
         return res.status(400).json({ success: false, message: 'Daftar nilai (grades) harus berupa array dan tidak boleh kosong.' });
     }
@@ -654,115 +739,95 @@ async function saveBatchGrades(req, res, next) {
     const year = academic_year || '2025/2026';
     const creator = req.user ? (req.user.name || req.user.email || 'Admin') : 'System';
 
+    const conn = await db.getConnection();
     try {
-        const [[classObj]] = await db.query('SELECT * FROM classes WHERE id = ?', [class_id]);
-        if (!classObj) {
-            return res.status(404).json({ success: false, message: 'Kelas tidak ditemukan.' });
-        }
+        await conn.beginTransaction();
 
-        // Cek hak akses pengajar
-        const userRole = (req.user && req.user.role ? req.user.role : '').toLowerCase();
-        const isTeacher = userRole.includes('pengajar') || userRole.includes('teacher') || userRole.includes('guru');
-        if (isTeacher && req.user) {
-            const tName = (req.user.name || '').trim().toLowerCase();
-            const classTeacher = (classObj.pengajar || '').trim().toLowerCase();
-            if (classObj.teacher_id && classObj.teacher_id !== req.user.teacher_id && classTeacher !== tName) {
-                const [allowed] = await db.query(
-                    'SELECT id FROM classes WHERE id = ? AND (LOWER(pengajar) = ? OR teacher_id = ?)',
-                    [class_id, tName, req.user.teacher_id || '']
+        const cleanSubs = (Array.isArray(subjects) && subjects.length === 6)
+            ? subjects.map(s => decodeHtmlEntities(String(s || '').trim()) || 'Subject')
+            : null;
+
+        const affectedClassIds = new Set();
+
+        for (const item of grades) {
+            const sId = String(item.student_id || '').trim();
+            if (!sId) continue;
+
+            const studentName = item.student_name || 'Siswa KBEC';
+            
+            let targetClassId = item.class_id;
+            let targetClassName = item.class_name;
+            if (!targetClassId || targetClassId === 'all') {
+                const [csRows] = await conn.query(
+                    'SELECT cs.class_id, c.nama FROM class_students cs JOIN classes c ON cs.class_id = c.id WHERE cs.student_id::text = ? LIMIT 1',
+                    [sId]
                 );
-                if (allowed.length === 0) {
-                    return res.status(403).json({ success: false, message: 'Akses dilarang. Anda bukan pengajar kelas ini.' });
+                if (csRows.length > 0) {
+                    targetClassId = csRows[0].class_id;
+                    targetClassName = csRows[0].nama;
+                } else if (class_id && class_id !== 'all') {
+                    targetClassId = class_id;
                 }
             }
-        }
 
-        const conn = await db.getConnection();
-        try {
-            await conn.beginTransaction();
+            if (targetClassId) affectedClassIds.add(targetClassId);
 
-            // Jika ada payload subjects (6 nama subjek), simpan ke class_term_subjects
-            if (Array.isArray(subjects) && subjects.length === 6) {
-                const cleanSubs = subjects.map(s => decodeHtmlEntities(String(s || '').trim()) || 'Subject');
-                await conn.query(`
-                    INSERT INTO class_term_subjects (class_id, term_or_period, academic_year, subjects, updated_at)
-                    VALUES (?, ?, ?, ?::jsonb, NOW())
-                    ON CONFLICT (class_id, term_or_period, academic_year)
-                    DO UPDATE SET subjects = EXCLUDED.subjects, updated_at = NOW()
-                `, [class_id, term, year, JSON.stringify(cleanSubs)]);
+            const parseScore = v => (v !== null && v !== undefined && v !== '' && !isNaN(v)) ? parseFloat(v) : null;
+            const ex1 = parseScore(item.exercise_1);
+            const ex2 = parseScore(item.exercise_2);
+            const ex3 = parseScore(item.exercise_3);
+            const ex4 = parseScore(item.exercise_4);
+            const ex5 = parseScore(item.exercise_5);
+            const ex6 = parseScore(item.exercise_6);
+            const midExam = parseScore(item.middle_exam);
+            const ex7 = parseScore(item.exercise_7);
+            const ex8 = parseScore(item.exercise_8);
+            const ex9 = parseScore(item.exercise_9);
+            const ex10 = parseScore(item.exercise_10);
+            const ex11 = parseScore(item.exercise_11);
+            const ex12 = parseScore(item.exercise_12);
+            const finalExam = parseScore(item.final_exam);
+
+            const exercises = [ex1, ex2, ex3, ex4, ex5, ex6, ex7, ex8, ex9, ex10, ex11, ex12].filter(v => v !== null);
+            let avgExercise = null;
+            if (exercises.length > 0) {
+                avgExercise = Math.round((exercises.reduce((a, b) => a + b, 0) / exercises.length) * 100) / 100;
             }
 
-            for (const item of grades) {
-                const sId = String(item.student_id || '').trim();
-                if (!sId) continue;
+            let finalScore = null;
+            if (avgExercise !== null && midExam !== null && finalExam !== null) {
+                finalScore = Math.round((avgExercise * 0.40 + midExam * 0.30 + finalExam * 0.30) * 100) / 100;
+            } else if (avgExercise !== null && midExam !== null && finalExam === null) {
+                finalScore = Math.round((avgExercise * 0.50 + midExam * 0.50) * 100) / 100;
+            } else if (avgExercise !== null && midExam === null && finalExam === null) {
+                finalScore = avgExercise;
+            } else if (exercises.length === 0 && (midExam !== null || finalExam !== null)) {
+                const examArr = [midExam, finalExam].filter(v => v !== null);
+                finalScore = Math.round((examArr.reduce((a, b) => a + b, 0) / examArr.length) * 100) / 100;
+            }
 
-                const studentName = item.student_name || 'Siswa KBEC';
+            const cls = calculateScoreClassification(finalScore);
+            const letterGrade = cls.letter_grade;
 
-                const parseScore = (val) => {
-                    if (val === null || val === undefined || val === '' || isNaN(val)) return null;
-                    const num = parseFloat(val);
-                    if (num < 0) return 0;
-                    if (num > 100) return 100;
-                    return Math.round(num * 100) / 100;
-                };
+            const ex1_6 = [ex1, ex2, ex3, ex4, ex5, ex6].filter(v => v !== null);
+            let avg1_6 = null;
+            if (ex1_6.length > 0) {
+                avg1_6 = Math.round((ex1_6.reduce((a, b) => a + b, 0) / ex1_6.length) * 10) / 10;
+            }
 
-                const ex1 = parseScore(item.exercise_1);
-                const ex2 = parseScore(item.exercise_2);
-                const ex3 = parseScore(item.exercise_3);
-                const ex4 = parseScore(item.exercise_4);
-                const ex5 = parseScore(item.exercise_5);
-                const ex6 = parseScore(item.exercise_6);
-                const midExam = parseScore(item.middle_exam);
-                const ex7 = parseScore(item.exercise_7);
-                const ex8 = parseScore(item.exercise_8);
-                const ex9 = parseScore(item.exercise_9);
-                const ex10 = parseScore(item.exercise_10);
-                const ex11 = parseScore(item.exercise_11);
-                const ex12 = parseScore(item.exercise_12);
-                const finalExam = parseScore(item.final_exam);
+            const attScore = parseScore(item.attendance_score) !== null ? parseScore(item.attendance_score) : 90.0;
+            const actScore = parseScore(item.class_activity) !== null ? parseScore(item.class_activity) : 80.0;
 
-                // Hitung rata-rata latihan
-                const exercises = [ex1, ex2, ex3, ex4, ex5, ex6, ex7, ex8, ex9, ex10, ex11, ex12].filter(v => v !== null);
-                let avgExercise = null;
-                if (exercises.length > 0) {
-                    avgExercise = Math.round((exercises.reduce((a, b) => a + b, 0) / exercises.length) * 100) / 100;
-                }
+            let progressScore = null;
+            if (avg1_6 !== null && midExam !== null) {
+                progressScore = Math.round((avg1_6 * 0.40 + midExam * 0.40 + attScore * 0.10 + actScore * 0.10) * 10) / 10;
+            }
 
-                // Hitung Nilai Akhir Kursus (Weighted)
-                let finalScore = null;
-                if (avgExercise !== null && midExam !== null && finalExam !== null) {
-                    finalScore = Math.round((avgExercise * 0.40 + midExam * 0.30 + finalExam * 0.30) * 100) / 100;
-                } else if (avgExercise !== null && midExam !== null && finalExam === null) {
-                    finalScore = Math.round((avgExercise * 0.50 + midExam * 0.50) * 100) / 100;
-                } else if (avgExercise !== null && midExam === null && finalExam === null) {
-                    finalScore = avgExercise;
-                } else if (exercises.length === 0 && (midExam !== null || finalExam !== null)) {
-                    const examArr = [midExam, finalExam].filter(v => v !== null);
-                    finalScore = Math.round((examArr.reduce((a, b) => a + b, 0) / examArr.length) * 100) / 100;
-                }
+            const certDate = item.cert_issue_date || null;
+            const notes = item.notes ? escapeHTML(String(item.notes).trim()) : null;
+            const customSubsJson = Array.isArray(item.custom_subjects) ? JSON.stringify(item.custom_subjects) : null;
 
-                const cls = calculateScoreClassification(finalScore);
-                const letterGrade = cls.letter_grade;
-
-                // Hitung Nilai Progress Report (Mid-Term)
-                const ex1_6 = [ex1, ex2, ex3, ex4, ex5, ex6].filter(v => v !== null);
-                let avg1_6 = null;
-                if (ex1_6.length > 0) {
-                    avg1_6 = Math.round((ex1_6.reduce((a, b) => a + b, 0) / ex1_6.length) * 10) / 10;
-                }
-
-                const attScore = parseScore(item.attendance_score) !== null ? parseScore(item.attendance_score) : 90.0;
-                const actScore = parseScore(item.class_activity) !== null ? parseScore(item.class_activity) : 80.0;
-
-                let progressScore = null;
-                if (avg1_6 !== null && midExam !== null) {
-                    progressScore = Math.round((avg1_6 * 0.40 + midExam * 0.40 + attScore * 0.10 + actScore * 0.10) * 10) / 10;
-                }
-
-                const certDate = item.cert_issue_date || null;
-                const notes = item.notes ? escapeHTML(String(item.notes).trim()) : null;
-                const customSubsJson = Array.isArray(item.custom_subjects) ? JSON.stringify(item.custom_subjects) : null;
-
+            if (targetClassId) {
                 await conn.query(`
                     INSERT INTO student_term_grades (
                         student_id, student_name, class_id, class_name, term_or_period, academic_year,
@@ -810,7 +875,7 @@ async function saveBatchGrades(req, res, next) {
                         custom_subjects = COALESCE(EXCLUDED.custom_subjects, student_term_grades.custom_subjects),
                         updated_at = NOW()
                 `, [
-                    sId, studentName, class_id, classObj.nama, term, year,
+                    sId, studentName, targetClassId, targetClassName || 'Kelas KBEC', term, year,
                     ex1, ex2, ex3, ex4, ex5, ex6,
                     midExam,
                     ex7, ex8, ex9, ex10, ex11, ex12,
@@ -819,54 +884,85 @@ async function saveBatchGrades(req, res, next) {
                     attScore, actScore, progressScore, certDate, customSubsJson
                 ]);
             }
-
-            await conn.commit();
-            res.json({
-                success: true,
-                message: `Berhasil menyimpan nilai untuk ${grades.length} siswa di kelas ${classObj.nama} (${term} - ${year}).`
-            });
-        } catch (err) {
-            await conn.rollback();
-            throw err;
-        } finally {
-            conn.release();
         }
+
+        if (cleanSubs && affectedClassIds.size > 0) {
+            for (const cId of affectedClassIds) {
+                await conn.query(`
+                    INSERT INTO class_term_subjects (class_id, term_or_period, academic_year, subjects, updated_at)
+                    VALUES (?, ?, ?, ?::jsonb, NOW())
+                    ON CONFLICT (class_id, term_or_period, academic_year)
+                    DO UPDATE SET subjects = EXCLUDED.subjects, updated_at = NOW()
+                `, [cId, term, year, JSON.stringify(cleanSubs)]);
+            }
+        }
+
+        await conn.commit();
+        res.json({
+            success: true,
+            message: `Berhasil menyimpan nilai untuk ${grades.length} siswa (${term} - ${year}).`
+        });
     } catch (err) {
-        next(err);
+        await conn.rollback();
+        throw err;
+    } finally {
+        conn.release();
     }
 }
 
-/**
- * Mengambil data detail The Progress Report untuk siswa tertentu dengan subjek dinamis & presensi riil.
- */
 async function getProgressReportData(req, res, next) {
-    const { student_id, class_id, term_or_period, academic_year } = req.query;
+    const { student_id, class_id, program_or_grade, term_or_period, academic_year } = req.query;
 
-    if (!student_id || !class_id) {
-        return res.status(400).json({ success: false, message: 'student_id dan class_id wajib disertakan.' });
+    if (!student_id) {
+        return res.status(400).json({ success: false, message: 'student_id wajib disertakan.' });
     }
 
     const term = term_or_period || 'Term 1';
     const year = academic_year || '2025/2026';
 
     try {
-        const [[classObj]] = await db.query('SELECT * FROM classes WHERE id = ?', [class_id]);
         const [[studentObj]] = await db.query('SELECT * FROM students WHERE id = ?', [student_id]);
         if (!studentObj) {
             return res.status(404).json({ success: false, message: 'Data siswa tidak ditemukan.' });
         }
 
-        const [[gradeRow]] = await db.query(`
-            SELECT * FROM student_term_grades 
-            WHERE student_id::text = ? AND class_id = ? AND term_or_period = ? AND academic_year = ?
-        `, [student_id, class_id, term, year]);
+        // Resolusi class_id riil siswa jika class_id bernilai 'all' atau tidak valid
+        let resolvedClassId = (class_id && class_id !== 'all' && !isNaN(class_id)) ? parseInt(class_id, 10) : null;
+        if (!resolvedClassId) {
+            const [[enrolled]] = await db.query(`
+                SELECT class_id FROM class_students WHERE student_id::text = ? LIMIT 1
+            `, [student_id]);
+            resolvedClassId = enrolled ? enrolled.class_id : null;
+        }
+
+        let classObj = null;
+        if (resolvedClassId) {
+            const [[c]] = await db.query('SELECT * FROM classes WHERE id = ?', [resolvedClassId]);
+            classObj = c;
+        }
+
+        let gradeRow = null;
+        if (resolvedClassId) {
+            const [[row]] = await db.query(`
+                SELECT * FROM student_term_grades 
+                WHERE student_id::text = ? AND class_id = ? AND term_or_period = ? AND academic_year = ?
+            `, [student_id, resolvedClassId, term, year]);
+            gradeRow = row;
+        } else {
+            const [[row]] = await db.query(`
+                SELECT * FROM student_term_grades 
+                WHERE student_id::text = ? AND term_or_period = ? AND academic_year = ?
+                LIMIT 1
+            `, [student_id, term, year]);
+            gradeRow = row;
+        }
 
         // Ambil 6 subjek dinamis: cek kustom siswa -> cek kelas -> cek kurikulum
         let activeSubjects = [];
         if (gradeRow && Array.isArray(gradeRow.custom_subjects) && gradeRow.custom_subjects.length === 6) {
             activeSubjects = gradeRow.custom_subjects.map(s => decodeHtmlEntities(s));
         } else {
-            activeSubjects = (await getEffectiveClassSubjects(class_id, term, year, classObj?.program)).map(s => decodeHtmlEntities(s));
+            activeSubjects = (await getEffectiveClassSubjects(resolvedClassId || 1, term, year, classObj?.program || studentObj.program || studentObj.level || program_or_grade)).map(s => decodeHtmlEntities(s));
         }
 
         const exScores = [
@@ -890,7 +986,7 @@ async function getProgressReportData(req, res, next) {
             : null;
 
         if (attendance === null || classActivity === null) {
-            const autoPerf = await getStudentAutoPerformance(student_id, class_id, classObj?.nama);
+            const autoPerf = await getStudentAutoPerformance(student_id, resolvedClassId, classObj?.nama);
             if (attendance === null) attendance = autoPerf.attendance_score;
             if (classActivity === null) classActivity = autoPerf.class_activity;
         }
@@ -902,15 +998,17 @@ async function getProgressReportData(req, res, next) {
         const totalProgressScore = Math.round((weightedAvg + weightedMid + weightedAtt + weightedAct) * 10) / 10;
 
         const cls = calculateScoreClassification(totalProgressScore);
+        const resolvedProg = classObj?.program || studentObj.program || studentObj.level || program_or_grade || 'BEGINNER 1';
 
         res.json({
             success: true,
-            report_title: `THE PROGRESS REPORT 1st SEMESTER OF ${String(classObj?.program || studentObj.level || 'BEGINNER 1').toUpperCase()}`,
+            report_title: `THE PROGRESS REPORT 1st SEMESTER OF ${String(resolvedProg).toUpperCase()}`,
             student: {
                 id: studentObj.id,
                 name: studentObj.nama,
-                program: classObj?.program || studentObj.program || 'BEGINNER 1',
-                level: studentObj.level || classObj?.nama || 'Beginner 1'
+                program: resolvedProg,
+                level: studentObj.level || classObj?.nama || resolvedProg,
+                class_name: classObj?.nama || 'Belum Masuk Kelas'
             },
             subjects: activeSubjects.map((sub, idx) => ({
                 no: idx + 1,
@@ -943,42 +1041,70 @@ async function getProgressReportData(req, res, next) {
  * Mengambil data detail Certificate of Completion untuk siswa tertentu
  */
 async function getCertificateData(req, res, next) {
-    const { student_id, class_id, term_or_period, academic_year } = req.query;
+    const { student_id, class_id, program_or_grade, term_or_period, academic_year } = req.query;
 
-    if (!student_id || !class_id) {
-        return res.status(400).json({ success: false, message: 'student_id dan class_id wajib disertakan.' });
+    if (!student_id) {
+        return res.status(400).json({ success: false, message: 'student_id wajib disertakan.' });
     }
 
     const term = term_or_period || 'Term 1';
     const year = academic_year || '2025/2026';
 
     try {
-        const [[classObj]] = await db.query('SELECT * FROM classes WHERE id = ?', [class_id]);
         const [[studentObj]] = await db.query('SELECT * FROM students WHERE id = ?', [student_id]);
         if (!studentObj) {
             return res.status(404).json({ success: false, message: 'Data siswa tidak ditemukan.' });
         }
 
-        const [[gradeRow]] = await db.query(`
-            SELECT * FROM student_term_grades 
-            WHERE student_id::text = ? AND class_id = ? AND term_or_period = ? AND academic_year = ?
-        `, [student_id, class_id, term, year]);
+        // Resolusi class_id riil jika class_id bernilai 'all' atau tidak valid
+        let resolvedClassId = (class_id && class_id !== 'all' && !isNaN(class_id)) ? parseInt(class_id, 10) : null;
+        if (!resolvedClassId) {
+            const [[enrolled]] = await db.query(`
+                SELECT class_id FROM class_students WHERE student_id::text = ? LIMIT 1
+            `, [student_id]);
+            resolvedClassId = enrolled ? enrolled.class_id : null;
+        }
+
+        let classObj = null;
+        if (resolvedClassId) {
+            const [[c]] = await db.query('SELECT * FROM classes WHERE id = ?', [resolvedClassId]);
+            classObj = c;
+        }
+
+        let gradeRow = null;
+        if (resolvedClassId) {
+            const [[row]] = await db.query(`
+                SELECT * FROM student_term_grades 
+                WHERE student_id::text = ? AND class_id = ? AND term_or_period = ? AND academic_year = ?
+            `, [student_id, resolvedClassId, term, year]);
+            gradeRow = row;
+        } else {
+            const [[row]] = await db.query(`
+                SELECT * FROM student_term_grades 
+                WHERE student_id::text = ? AND term_or_period = ? AND academic_year = ?
+                LIMIT 1
+            `, [student_id, term, year]);
+            gradeRow = row;
+        }
 
         const finalScore = gradeRow && gradeRow.final_score !== null ? parseFloat(gradeRow.final_score) : 82.5;
         const cls = calculateScoreClassification(finalScore);
-        const progName = (classObj?.program || studentObj.level || 'Beginner 1').toUpperCase();
+        const studentProgram = program_or_grade || studentObj.program || studentObj.level || classObj?.program || 'Beginner 1';
+        const progName = studentProgram.toUpperCase();
 
-        // Ambil nilai seluruh siswa di kelas untuk menghitung peringkat badge kelas (A1, A2, B1, B2...)
+        // Ambil nilai seluruh siswa di program/grade yang sama untuk peringkat badge resmi (A1, A2, B1, B2...)
         const [classStudentRows] = await db.query(`
-            SELECT cs.student_id, s.nama, stg.final_score, stg.final_exam
-            FROM class_students cs
-            JOIN students s ON cs.student_id::text = s.id::text
+            SELECT s.id AS student_id, s.nama, cs.class_id, c.nama as class_name, stg.final_score, stg.final_exam
+            FROM students s
+            LEFT JOIN class_students cs ON cs.student_id::text = s.id::text
+            LEFT JOIN classes c ON cs.class_id = c.id
             LEFT JOIN student_term_grades stg ON stg.student_id::text = s.id::text 
                  AND stg.class_id = cs.class_id 
                  AND stg.term_or_period = ? 
                  AND stg.academic_year = ?
-            WHERE cs.class_id = ?
-        `, [term, year, class_id]);
+            WHERE (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')
+              AND (s.program = ? OR s.level = ?)
+        `, [term, year, studentProgram, studentProgram]);
 
         const { badgeMap, rankedSummary } = computeClassGradeBadges(classStudentRows);
         const bInfo = badgeMap[String(student_id)] || {
@@ -1001,11 +1127,12 @@ async function getCertificateData(req, res, next) {
                 level_badge: levelBadge,
                 rank_in_grade: bInfo.rank_in_grade,
                 total_in_grade: bInfo.total_in_grade,
-                foto: studentObj.foto || null
+                foto: studentObj.foto || null,
+                class_name: classObj?.nama || 'Belum Masuk Kelas'
             },
             badge_info: bInfo,
             class_ranks: rankedSummary,
-            class: classObj,
+            class: classObj || { id: 'all', nama: `Seluruh Kelas (${studentProgram})`, program: studentProgram },
             final_score: finalScore.toFixed(1),
             letter_grade: cls.letter_grade || 'B',
             classification_label: cls.label || 'Good',
@@ -1025,10 +1152,10 @@ async function getCertificateData(req, res, next) {
  * Mengambil data cetak massal (semua siswa di kelas) untuk Progress Report atau Certificate
  */
 async function getBatchPrintData(req, res, next) {
-    const { class_id, term_or_period, academic_year, document_type } = req.query;
+    const { class_id, program_or_grade, term_or_period, academic_year, document_type } = req.query;
 
-    if (!class_id) {
-        return res.status(400).json({ success: false, message: 'class_id wajib disertakan.' });
+    if (!class_id && !program_or_grade) {
+        return res.status(400).json({ success: false, message: 'class_id atau program_or_grade wajib disertakan.' });
     }
 
     const term = term_or_period || 'Term 1';
@@ -1036,56 +1163,82 @@ async function getBatchPrintData(req, res, next) {
     const docType = document_type || 'progress'; // 'progress' | 'certificate'
 
     try {
-        const [[classObj]] = await db.query('SELECT * FROM classes WHERE id = ?', [class_id]);
-        if (!classObj) {
-            return res.status(404).json({ success: false, message: 'Kelas tidak ditemukan.' });
+        let activeProgram = program_or_grade ? program_or_grade.trim() : null;
+        let classObj = null;
+
+        if (class_id && class_id !== 'all') {
+            const [[cls]] = await db.query('SELECT * FROM classes WHERE id = ?', [class_id]);
+            classObj = cls || null;
+            if (!activeProgram && classObj) activeProgram = classObj.program;
         }
 
-        // Subjek dinamis kelas untuk cetak massal
-        const effectiveSubjects = (await getEffectiveClassSubjects(class_id, term, year, classObj.program)).map(s => decodeHtmlEntities(s));
+        const refClassId = classObj ? classObj.id : 1;
+        const effectiveSubjects = (await getEffectiveClassSubjects(refClassId, term, year, activeProgram || classObj?.program)).map(s => decodeHtmlEntities(s));
 
-        const [students] = await db.query(`
+        // 1. Ambil SELURUH siswa di Program/Grade pool untuk badge pool-wide
+        let poolSql = `
             SELECT 
                 s.id, s.nama, s.nama_ayah, s.nama_ibu, s.tempat_tanggal_lahir, s.agama, s.alamat, s.program, s.level, s.foto,
+                cs.class_id, COALESCE(c.nama, 'Kelas') as class_name,
                 stg.exercise_1, stg.exercise_2, stg.exercise_3, stg.exercise_4, stg.exercise_5, stg.exercise_6,
                 stg.middle_exam, stg.final_exam, stg.final_score, stg.letter_grade,
                 stg.attendance_score, stg.class_activity, stg.progress_score, stg.cert_issue_date, stg.custom_subjects
-            FROM class_students cs
-            JOIN students s ON cs.student_id::text = s.id::text
+            FROM students s
+            LEFT JOIN class_students cs ON cs.student_id::text = s.id::text
+            LEFT JOIN classes c ON cs.class_id = c.id
             LEFT JOIN student_term_grades stg ON stg.student_id::text = s.id::text 
                  AND stg.class_id = cs.class_id 
                  AND stg.term_or_period = ? 
                  AND stg.academic_year = ?
-            WHERE cs.class_id = ? AND (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')
-            ORDER BY s.nama ASC
-        `, [term, year, class_id]);
+            WHERE (s.status IS NULL OR s.status ILIKE 'Aktif' OR s.status = '')
+        `;
+        let poolParams = [term, year];
 
-        // Pre-fetch Kinerja Siswa untuk kelas ini jika ada siswa yang belum punya nilai attendance/activity
-        const [sgRows] = await db.query(`
-            SELECT student_id::text, presensi, speaking, wb, sb, extra FROM student_grades WHERE class_id = ?
-        `, [class_id]);
+        if (activeProgram) {
+            poolSql += ` AND (s.program = ? OR s.level = ?)`;
+            poolParams.push(activeProgram, activeProgram);
+        } else if (class_id && class_id !== 'all') {
+            poolSql += ` AND cs.class_id = ?`;
+            poolParams.push(class_id);
+        }
 
-        const sgMap = {};
-        sgRows.forEach(r => {
-            const sid = String(r.student_id);
-            if (!sgMap[sid]) sgMap[sid] = { total: 0, hadir: 0, acts: [] };
-            const p = (r.presensi || '').trim().toLowerCase();
-            if (p && p !== '-' && p !== 'kosong') {
-                sgMap[sid].total++;
-                if (p === 'hadir') {
-                    sgMap[sid].hadir++;
-                    const sc = [r.speaking, r.wb, r.sb, r.extra]
-                        .map(v => (v !== null && v !== undefined && v !== '' && !isNaN(v)) ? parseFloat(v) : null)
-                        .filter(v => v !== null);
-                    if (sc.length > 0) sgMap[sid].acts.push(sc.reduce((a, b) => a + b, 0) / sc.length);
+        poolSql += ` ORDER BY s.nama ASC`;
+        const [poolStudents] = await db.query(poolSql, poolParams);
+
+        // Pre-fetch Kinerja Siswa
+        const sIds = poolStudents.map(s => String(s.id));
+        let sgMap = {};
+        if (sIds.length > 0) {
+            const idPlaceholders = sIds.map(() => '?').join(',');
+            const [sgRows] = await db.query(`
+                SELECT student_id::text, presensi, speaking, wb, sb, extra FROM student_grades WHERE student_id::text IN (${idPlaceholders})
+            `, sIds);
+
+            sgRows.forEach(r => {
+                const sid = String(r.student_id);
+                if (!sgMap[sid]) sgMap[sid] = { total: 0, hadir: 0, acts: [] };
+                const p = (r.presensi || '').trim().toLowerCase();
+                if (p && p !== '-' && p !== 'kosong') {
+                    sgMap[sid].total++;
+                    if (p === 'hadir') {
+                        sgMap[sid].hadir++;
+                        const sc = [r.speaking, r.wb, r.sb, r.extra]
+                            .map(v => (v !== null && v !== undefined && v !== '' && !isNaN(v)) ? parseFloat(v) : null)
+                            .filter(v => v !== null);
+                        if (sc.length > 0) sgMap[sid].acts.push(sc.reduce((a, b) => a + b, 0) / sc.length);
+                    }
                 }
-            }
-        });
+            });
+        }
 
-        // Hitung peringkat badge (A1, A2, B1, B2...) untuk seluruh siswa di kelas
-        const { badgeMap, rankedSummary } = computeClassGradeBadges(students);
+        const { badgeMap, rankedSummary } = computeClassGradeBadges(poolStudents);
 
-        const items = students.map(s => {
+        let displayedStudents = poolStudents;
+        if (class_id && class_id !== 'all') {
+            displayedStudents = poolStudents.filter(s => String(s.class_id) === String(class_id));
+        }
+
+        const items = displayedStudents.map(s => {
             const finalScore = s.final_score !== null ? parseFloat(s.final_score) : 80.0;
             const cls = calculateScoreClassification(finalScore);
 
@@ -1100,7 +1253,6 @@ async function getBatchPrintData(req, res, next) {
             const avgSem1 = Math.round((exScores.reduce((a, b) => a + b, 0) / exScores.length) * 10) / 10;
             const mid = s.middle_exam !== null ? parseFloat(s.middle_exam) : 85.0;
 
-            // Attendance & Class Activity
             const k = sgMap[String(s.id)];
             const autoAtt = k && k.total > 0 ? Math.round((k.hadir / k.total) * 100 * 10) / 10 : 100.0;
             const autoAct = k && k.acts.length > 0 ? Math.round((k.acts.reduce((a, b) => a + b, 0) / k.acts.length) * 10) / 10 : 80.0;
@@ -1110,7 +1262,7 @@ async function getBatchPrintData(req, res, next) {
             const progScore = Math.round((avgSem1 * 0.40 + mid * 0.40 + att * 0.10 + act * 0.10) * 10) / 10;
             const progCls = calculateScoreClassification(progScore);
 
-            const progName = (classObj.program || s.level || 'Beginner 1').toUpperCase();
+            const progName = (activeProgram || s.program || s.level || 'Beginner 1').toUpperCase();
             const bInfo = badgeMap[String(s.id)];
             const levelBadge = bInfo ? bInfo.badge : `${cls.letter_grade || 'B'}1`;
 
@@ -1124,47 +1276,49 @@ async function getBatchPrintData(req, res, next) {
                 parents: s.nama_ayah || s.nama_ibu || 'Orang Tua Siswa',
                 birthday: s.tempat_tanggal_lahir || 'Jakarta, 5th of October 2018',
                 religion: s.agama || 'Islam',
-                address: s.alamat || '-',
+                address: s.alamat || 'Jl. K.H. Wahid Hasyim, Jurang Mangu Timur, Pondok Aren, Tangerang Selatan',
                 program: progName,
-                level_badge: levelBadge,
-                rank_in_grade: bInfo ? bInfo.rank_in_grade : 1,
-                total_in_grade: bInfo ? bInfo.total_in_grade : 1,
-                foto: s.foto || null,
-                subjects: studentSubs,
+                level: s.level || s.program || progName,
+                class_name: s.class_name,
                 ex_scores: exScores,
                 average_1st_semester: avgSem1.toFixed(1),
                 mid_exam: mid.toFixed(1),
                 attendance: att.toFixed(1),
                 class_activity: act.toFixed(1),
                 progress_score: progScore.toFixed(1),
-                progress_grade: progCls.letter_grade || 'A',
+                progress_grade: progCls.letter_grade,
                 final_score: finalScore.toFixed(1),
-                final_grade: cls.letter_grade || 'B'
+                final_grade: cls.letter_grade,
+                level_badge: levelBadge,
+                rank_in_grade: bInfo ? bInfo.rank_in_grade : 1,
+                total_in_grade: bInfo ? bInfo.total_in_grade : 1,
+                foto: s.foto || null,
+                subjects: studentSubs
             };
         });
 
         res.json({
             success: true,
-            class: classObj,
+            class: classObj || { id: 'all', nama: `Seluruh Kelas (${activeProgram || 'Semua'})`, program: activeProgram || 'Reguler' },
+            program_or_grade: activeProgram,
             document_type: docType,
             term_or_period: term,
             academic_year: year,
-            subjects: effectiveSubjects,
+            effective_subjects: effectiveSubjects,
             director_name: 'Drs. Suharmadi, Ak. MM. MSi. CA.',
             director_title: 'Director',
             place: 'Tangerang Selatan',
             issue_date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
-            ranked_summary: rankedSummary,
-            items
+            total_students_in_grade: poolStudents.length,
+            total_students_displayed: items.length,
+            items: items,
+            students: items
         });
     } catch (err) {
         next(err);
     }
 }
 
-/**
- * Menyimpan / memperbarui pas foto siswa untuk sertifikat
- */
 async function updateStudentCertificatePhoto(req, res, next) {
     const { student_id, foto } = req.body;
     if (!student_id) {
@@ -1179,6 +1333,7 @@ async function updateStudentCertificatePhoto(req, res, next) {
 }
 
 module.exports = {
+    getPrograms,
     getClasses,
     getClassGrades,
     getClassSubjects,
